@@ -1,25 +1,49 @@
-# run_train_vivit.py: script principale per l'addestramento di un modello ViViT
-# per la classificazione delle emozioni.
-# Gestisce setup di MLflow, caricamento dataset, istanziazione del modello,
-# loop di training con Ignite, checkpoint ed EarlyStopping.
-# =================================================================================================
-# COMANDI UTILI PER L'ESECUZIONE
-# =================================================================================================
+# -----------------------------------------------------------------------------
+# run_train_vivit.py
+# -----------------------------------------------------------------------------
+# Descrizione (in italiano):
+# Questo script addestra un modello ViViT (Video Vision Transformer) per la
+# classificazione delle emozioni a partire da video. Implementa il flusso
+# tipico di training: caricamento dei dati, costruzione del modello (da
+# Hugging Face), definizione di loss e ottimizzatore, loop di training con
+# Ignite, valutazione su validation set, checkpointing e early stopping.
 #
-# 1. AVVIARE IL SERVER MLFLOW
-#    mlflow server --host 127.0.0.1 --port 8080
+# Principali funzionalità:
+# - Configurazione di MLflow per tracciare parametri e metriche del run.
+# - Costruzione del modello ViViT tramite la funzione `create_vivit_model`.
+# - Dataset video custom (`VideoDataset`) che fornisce batch di
+#   `pixel_values` e `labels` compatibili con il modello.
+# - Dataloader di training con `WeightedRandomSampler` per mitigare
+#   sbilanciamento delle classi.
+# - Loop di training basato su `ignite.engine.Engine` con vari metriche
+#   (loss, accuracy, f1, precision, recall) calcolate sull'evaluator.
+# - Checkpoint automatico del modello con il criterio di selezione
+#   basato sulla F1 macro di validazione e EarlyStopping.
 #
-# 2. ESEGUIRE L'ADDESTRAMENTO
-#    Questo script addestra un modello ViViT per la classificazione delle emozioni.
-#    Assicurarsi di aver creato i file CSV di annotazioni in data/processed/.
+# Input / Assunzioni:
+# - Esistono CSV di annotazioni in `data/processed/train/` e
+#   `data/processed/val/` con almeno una colonna `emotion`.
+# - I video raw sono accessibili nei percorsi indicati dalle variabili
+#   `TRAIN_VIDEO_DIR` e `VAL_VIDEO_DIR` (definite nel file).
+# - Un server MLflow può essere attivato per visualizzare i run
+#   (opzionale ma consigliato): `mlflow server --host 127.0.0.1 --port 8080`.
 #
-#    ESEMPIO DI COMANDO:
-#    python src/models/vivit/run_train_vivit.py --num_epochs 10 --batch_size 4 --learning_rate 5e-5
+# Output e effetti collaterali:
+# - Salvataggio dei checkpoint nella cartella `models/` (file nominati
+#   con prefisso `vivit_emotion` e punteggio di validazione).
+# - Metriche e parametri loggati su MLflow per ogni epoca di validazione.
+# - Il modello finale (ultimo checkpoint) sarà disponibile nella cartella
+#   `models/` e il training produce log sullo stdout.
 #
-#  --model_name: Specifica il modello ViViT da utilizzare.
-#    Il default è "google/vivit-b-16x2-kinetics400",
-#    skywalker290/videomae-vivit-d1
-# =================================================================================================
+# Esempio di esecuzione:
+# python src/models/vivit/run_train_vivit.py --num_epochs 10 --batch_size 4 --learning_rate 5e-5
+#
+# Note tecniche veloci:
+# - Usa `AdamW` sull'head di classificazione; la loss è CrossEntropy con
+#   pesi calcolati dal dataset per gestire lo sbilanciamento.
+# - Ignite è usato per separare train/eval e per collegare EarlyStopping
+#   e ModelCheckpoint in modo semplice.
+# -----------------------------------------------------------------------------
 
 import os
 import sys
@@ -223,17 +247,20 @@ def main(args):
 
         trainer = Engine(train_step)
 
-        # Logging training progress
-        @trainer.on(Events.EPOCH_STARTED)
-        def log_epoch_start(engine):
-            logger.info(f"Starting Epoch {engine.state.epoch}.")
+        pbar = ProgressBar(persist=True)
+        pbar.attach(trainer, output_transform=lambda x: {"batch loss": x})
 
-        @trainer.on(Events.ITERATION_COMPLETED(every=10))
-        def log_iteration(engine):
-            loss = engine.state.output
-            logger.info(
-                f"Epoch[{engine.state.epoch}] Iteration[{engine.state.iteration}] Loss: {loss:.4f}"
-            )
+        # # Logging training progress
+        # @trainer.on(Events.EPOCH_STARTED)
+        # def log_epoch_start(engine):
+        #     logger.info(f"Starting Epoch {engine.state.epoch}.")
+
+        # @trainer.on(Events.ITERATION_COMPLETED(every=10))
+        # def log_iteration(engine):
+        #     loss = engine.state.output
+        #     logger.info(
+        #         f"Epoch[{engine.state.epoch}] Iteration[{engine.state.iteration}] Loss: {loss:.4f}"
+        #     )
 
         # Per l'evaluator, dobbiamo adattare l'output_transform
         def output_transform(output):
@@ -242,11 +269,17 @@ def main(args):
             return y_pred.logits, y
 
         val_metrics = {
-            "accuracy": Accuracy(output_transform=output_transform),
-            "loss": Loss(criterion, output_transform=output_transform),
-            "f1": Fbeta(1.0, average="macro", output_transform=output_transform),
-            "precision": Precision(average="macro", output_transform=output_transform),
-            "recall": Recall(average="macro", output_transform=output_transform),
+            "accuracy": Accuracy(output_transform=output_transform, device=device),
+            "loss": Loss(criterion, output_transform=output_transform, device=device),
+            "f1": Fbeta(
+                1.0, average="macro", output_transform=output_transform, device=device
+            ),
+            "precision": Precision(
+                average="macro", output_transform=output_transform, device=device
+            ),
+            "recall": Recall(
+                average="macro", output_transform=output_transform, device=device
+            ),
         }
 
         def eval_step(engine, batch):
@@ -298,7 +331,6 @@ def main(args):
             "vivit_emotion",
             n_saved=1,
             create_dir=True,
-            save_as_state_dict=True,
             require_empty=False,
             score_function=lambda e: e.state.metrics["f1"],
             score_name="val_f1",
