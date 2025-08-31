@@ -115,7 +115,7 @@ def prepare_batch(batch, device=None, non_blocking=False):
     return pixel_values, labels
 
 
-def objective(trial):
+def objective(trial, train_dataset, val_dataset):
     """
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
@@ -126,25 +126,7 @@ def objective(trial):
     weight_decay = trial.suggest_loguniform("weight_decay", 1e-4, 1e-1)
 
     # --- Sezione 6: Caricamento Dati ---
-    _, temp_image_processor = create_vivit_model(num_classes=2, model_name=MODEL_NAME)
-    train_dataset = VideoDataset(
-        TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, temp_image_processor
-    )
-    val_dataset = VideoDataset(
-        VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, temp_image_processor
-    )
-
-    num_classes = len(train_dataset.labels)
-    model, image_processor = create_vivit_model(num_classes, model_name=MODEL_NAME)
-    num_frames = model.config.num_frames
-
-    train_dataset = VideoDataset(
-        TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, image_processor, num_frames=num_frames
-    )
-    val_dataset = VideoDataset(
-        VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, image_processor, num_frames=num_frames
-    )
-
+    # I dataset sono già caricati, creiamo solo i dataloader
     train_sampler = get_sampler(train_dataset)
     train_loader = DataLoader(
         train_dataset,
@@ -162,6 +144,8 @@ def objective(trial):
     )
 
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
+    num_classes = len(train_dataset.labels)
+    model, _ = create_vivit_model(num_classes, model_name=MODEL_NAME)
     device = torch.device(
         "cuda"
         if torch.cuda.is_available()
@@ -333,6 +317,26 @@ def main():
     MODEL_NAME = args.model_name
     NUM_WORKERS = args.num_workers
 
+    # --- Caricamento Dati (una sola volta) ---
+    print("Caricamento e pre-processing dei dataset...")
+    # Usiamo un processore temporaneo per inizializzare i dataset
+    _, temp_image_processor = create_vivit_model(num_classes=2, model_name=MODEL_NAME)
+
+    # Creiamo il modello una volta per ottenere la configurazione corretta
+    # (es. num_frames) che serve al dataset
+    temp_model, image_processor = create_vivit_model(
+        num_classes=2, model_name=MODEL_NAME
+    )  # num_classes temporaneo
+    num_frames = temp_model.config.num_frames
+
+    train_dataset = VideoDataset(
+        TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, image_processor, num_frames=num_frames
+    )
+    val_dataset = VideoDataset(
+        VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, image_processor, num_frames=num_frames
+    )
+    print("Dataset caricati.")
+
     model_short_name = MODEL_NAME.split("/")[-1]
     run_name = f"Optuna_ViViT_{model_short_name}_tuning"
 
@@ -343,7 +347,11 @@ def main():
             pruner=MedianPruner(n_startup_trials=PATIENCE, n_warmup_steps=1),
             sampler=TPESampler(seed=seed),
         )
-        study.optimize(objective, n_trials=args.n_trials)
+        # Passiamo i dataset caricati alla funzione objective
+        study.optimize(
+            lambda trial: objective(trial, train_dataset, val_dataset),
+            n_trials=args.n_trials,
+        )
 
         mlflow.log_param("n_trials", args.n_trials)
         mlflow.log_params(study.best_trial.params)
