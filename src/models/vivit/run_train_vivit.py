@@ -56,6 +56,7 @@ import mlflow
 import mlflow.pytorch
 from collections import Counter
 import logging
+import gc  # Aggiunto per la garbage collection
 
 # --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
 sys.path.insert(
@@ -226,16 +227,7 @@ def main(args):
             model.train()
             optimizer.zero_grad()
             try:
-                logger.info(
-                    f"\nBatch keys: {batch.keys()}"
-                )  # Log delle chiavi del batch
                 pixel_values, labels = prepare_batch(batch, device=device)
-                logger.info(
-                    f"\nShape of pixel_values: {pixel_values.shape}"
-                )  # Log della forma del tensore
-                logger.info(
-                    f"\nActual shape of pixel_values: {pixel_values.shape}"
-                )  # Log dettagliato della forma del tensore
                 outputs = model(pixel_values=pixel_values, labels=labels)
                 loss = outputs.loss
                 loss.backward()
@@ -316,6 +308,10 @@ def main(args):
                 },
                 step=engine.state.epoch,
             )
+            # Aggiungiamo la pulizia della memoria
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
         # Early stopping
         handler = EarlyStopping(
