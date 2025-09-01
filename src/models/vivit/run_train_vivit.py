@@ -36,7 +36,7 @@
 #   `models/` e il training produce log sullo stdout.
 #
 # Esempio di esecuzione:
-# python src/models/vivit/run_train_vivit.py --num_epochs 10 --batch_size 4 --learning_rate 5e-5
+# python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.9106359131330718e-05 --seed 42 --weight_decay 0.006251373574521752
 #
 # Note tecniche veloci:
 # - Usa `AdamW` sull'head di classificazione; la loss è CrossEntropy con
@@ -135,8 +135,22 @@ def prepare_batch(batch, device=None, non_blocking=False):
     return pixel_values, labels
 
 
+def set_seed(seed):
+    """Imposta il seed per la riproducibilità."""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    # Per una riproducibilità completa (potrebbe rallentare il training)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 def main(args):
     """Funzione principale per l'addestramento."""
+    # Imposta il seed per la riproducibilità
+    set_seed(args.seed)
+
     mlflow.set_tracking_uri("http://127.0.0.1:8080")
     experiment_name = "ViViT - Emotion Recognition"
     if mlflow.get_experiment_by_name(experiment_name) is None:
@@ -216,7 +230,9 @@ def main(args):
 
         # --- Setup Addestramento ---
         optimizer = torch.optim.AdamW(  # Usiamo AdamW che è spesso migliore
-            model.classifier.parameters(), lr=args.learning_rate, weight_decay=1e-2
+            model.classifier.parameters(),
+            lr=args.learning_rate,
+            weight_decay=args.weight_decay,
         )
         # Calcoliamo i pesi per la loss in base al dataset di training
         class_weights_tensor = get_class_weights(train_dataset).to(device)
@@ -357,7 +373,13 @@ if __name__ == "__main__":
         "--learning_rate", type=float, default=5e-5, help="Learning rate."
     )
     parser.add_argument(
+        "--weight_decay", type=float, default=1e-2, help="Weight decay for AdamW."
+    )
+    parser.add_argument(
         "--patience", type=int, default=5, help="Patience for early stopping."
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility."
     )
     parser.add_argument(
         "--num_workers",
