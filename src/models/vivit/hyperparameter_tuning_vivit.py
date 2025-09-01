@@ -43,6 +43,7 @@ from ignite.handlers import ModelCheckpoint
 from optuna.integration import PyTorchIgnitePruningHandler
 from optuna.exceptions import TrialPruned
 from ignite.metrics import Loss, Accuracy, Fbeta, Precision, Recall
+from ignite.contrib.handlers import ProgressBar
 
 # --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
 sys.path.insert(
@@ -120,10 +121,10 @@ def objective(trial, train_dataset, val_dataset):
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-6, 1e-4)
+    learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-4, log=True)
     # Batch size è fisso a 1 per problemi di memoria
     batch_size = 1
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-4, 1e-1)
+    weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
 
     # --- Sezione 6: Caricamento Dati ---
     # I dataset sono già caricati, creiamo solo i dataloader
@@ -171,6 +172,10 @@ def objective(trial, train_dataset, val_dataset):
         return loss.item()
 
     trainer = Engine(train_step)
+
+    # Aggiungiamo una progress bar per avere un feedback visivo
+    pbar = ProgressBar(persist=True)
+    pbar.attach(trainer, output_transform=lambda x: {"batch loss": x})
 
     def eval_step(engine, batch):
         model.eval()
