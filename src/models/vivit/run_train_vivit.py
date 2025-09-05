@@ -36,7 +36,7 @@
 #   `models/` e il training produce log sullo stdout.
 #
 # Esempio di esecuzione:
-# python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.9106359131330718e-05 --seed 42 --weight_decay 0.006251373574521752
+# python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.310201887845294e-06 --seed 42 --weight_decay 0.0003549878832196505
 #
 # Note tecniche veloci:
 # - Usa `AdamW` sull'head di classificazione; la loss è CrossEntropy con
@@ -238,6 +238,18 @@ def main(args):
         class_weights_tensor = get_class_weights(train_dataset).to(device)
         criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
 
+        # ! TODO DA AGGIUNGERE IN SEGUITO
+        # Aggiungiamo uno scheduler per il learning rate
+        # from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+        # scheduler = ReduceLROnPlateau(
+        #     optimizer,
+        #     mode="min",
+        #     factor=args.scheduler_factor,
+        #     patience=args.scheduler_patience,
+        #     verbose=True,
+        # )
+
         # --- Ignite Trainer ed Evaluator ---
         def train_step(engine, batch):
             model.train()
@@ -290,6 +302,13 @@ def main(args):
             ),
         }
 
+        # --- Per f1 per classe e best metrics ---
+        from sklearn.metrics import f1_score
+
+        best_val_loss = float("inf")
+        best_val_f1 = 0.0
+        best_val_f1_macro = 0.0
+
         def eval_step(engine, batch):
             model.eval()
             with torch.no_grad():
@@ -302,15 +321,53 @@ def main(args):
             metric.attach(evaluator, name)
 
         # --- Handlers e Callbacks ---
+        train_losses = []
+
+        @trainer.on(Events.ITERATION_COMPLETED(every=len(train_loader)))
+        def log_train_loss(engine):
+            # Log train loss a fine epoca
+            train_loss = engine.state.output
+            train_losses.append(train_loss)
+            mlflow.log_metric("train_loss", train_loss, step=engine.state.epoch)
+
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
+            nonlocal best_val_loss, best_val_f1, best_val_f1_macro
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
+            # Calcolo f1 per classe
+            y_true = []
+            y_pred = []
+            model.eval()
+            with torch.no_grad():
+                for batch in val_loader:
+                    pixel_values, labels = prepare_batch(batch, device=device)
+                    outputs = model(pixel_values=pixel_values)
+                    preds = torch.argmax(outputs.logits, dim=1)
+                    y_true.extend(labels.cpu().numpy())
+                    y_pred.extend(preds.cpu().numpy())
+            f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
+            val_f1_class_0 = float(f1_per_class[0]) if len(f1_per_class) > 0 else 0.0
+            val_f1_class_1 = float(f1_per_class[1]) if len(f1_per_class) > 1 else 0.0
+
+            # Migliori metriche
+            if metrics["loss"] < best_val_loss:
+                best_val_loss = metrics["loss"]
+            if metrics["accuracy"] > best_val_f1:
+                best_val_f1 = metrics["accuracy"]
+            if metrics["f1"] > best_val_f1_macro:
+                best_val_f1_macro = metrics["f1"]
+
+            # ! TODO DA AGGIUNGERE IN SEGUITO
+            # Step dello scheduler
+            # scheduler.step(metrics["loss"])
+
             logger.info(
                 f"Validation Results - Epoch: {engine.state.epoch} | "
                 f"Loss: {metrics['loss']:.4f} | "
                 f"Accuracy: {metrics['accuracy']:.4f} | "
                 f"F1: {metrics['f1']:.4f} | "
+                f"F1_class_0: {val_f1_class_0:.4f} | F1_class_1: {val_f1_class_1:.4f} | "
                 f"Precision: {metrics['precision']:.4f} | "
                 f"Recall: {metrics['recall']:.4f}"
             )
@@ -319,12 +376,16 @@ def main(args):
                     "val_loss": metrics["loss"],
                     "val_accuracy": metrics["accuracy"],
                     "val_f1_macro": metrics["f1"],
+                    "val_f1_class_0": val_f1_class_0,
+                    "val_f1_class_1": val_f1_class_1,
                     "val_precision_macro": metrics["precision"],
                     "val_recall_macro": metrics["recall"],
+                    "best_val_loss": best_val_loss,
+                    "best_val_f1": best_val_f1,
+                    "best_val_f1_macro": best_val_f1_macro,
                 },
                 step=engine.state.epoch,
             )
-            # Aggiungiamo la pulizia della memoria
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -376,8 +437,16 @@ if __name__ == "__main__":
         "--weight_decay", type=float, default=1e-2, help="Weight decay for AdamW."
     )
     parser.add_argument(
-        "--patience", type=int, default=5, help="Patience for early stopping."
+        "--patience", type=int, default=10, help="Patience for early stopping."
     )
+
+    # ! TODO DA AGGIUNGERE IN SEGUITO
+    # parser.add_argument(
+    #     "--scheduler_patience", type=int, default=3, help="Patience for LR scheduler."
+    # )
+    # parser.add_argument(
+    #     "--scheduler_factor", type=float, default=0.1, help="Factor for LR scheduler."
+    # )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility."
     )
