@@ -240,15 +240,15 @@ def main(args):
 
         # ! TODO DA AGGIUNGERE IN SEGUITO
         # Aggiungiamo uno scheduler per il learning rate
-        # from torch.optim.lr_scheduler import ReduceLROnPlateau
+        from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-        # scheduler = ReduceLROnPlateau(
-        #     optimizer,
-        #     mode="min",
-        #     factor=args.scheduler_factor,
-        #     patience=args.scheduler_patience,
-        #     verbose=True,
-        # )
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=args.scheduler_factor,
+            patience=args.scheduler_patience,
+            # verbose=True,
+        )
 
         # --- Ignite Trainer ed Evaluator ---
         def train_step(engine, batch):
@@ -360,7 +360,7 @@ def main(args):
 
             # ! TODO DA AGGIUNGERE IN SEGUITO
             # Step dello scheduler
-            # scheduler.step(metrics["loss"])
+            scheduler.step(metrics["loss"])
 
             logger.info(
                 f"Validation Results - Epoch: {engine.state.epoch} | "
@@ -441,12 +441,12 @@ if __name__ == "__main__":
     )
 
     # ! TODO DA AGGIUNGERE IN SEGUITO
-    # parser.add_argument(
-    #     "--scheduler_patience", type=int, default=3, help="Patience for LR scheduler."
-    # )
-    # parser.add_argument(
-    #     "--scheduler_factor", type=float, default=0.1, help="Factor for LR scheduler."
-    # )
+    parser.add_argument(
+        "--scheduler_patience", type=int, default=3, help="Patience for LR scheduler."
+    )
+    parser.add_argument(
+        "--scheduler_factor", type=float, default=0.1, help="Factor for LR scheduler."
+    )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility."
     )
