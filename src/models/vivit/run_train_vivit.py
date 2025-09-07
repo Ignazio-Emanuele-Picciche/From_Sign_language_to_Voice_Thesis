@@ -362,6 +362,10 @@ def main(args):
             # Step dello scheduler
             scheduler.step(metrics["loss"])
 
+            # Log learning rate
+            current_lr = optimizer.param_groups[0]["lr"]
+            mlflow.log_metric("learning_rate", current_lr, step=engine.state.epoch)
+
             logger.info(
                 f"Validation Results - Epoch: {engine.state.epoch} | "
                 f"Loss: {metrics['loss']:.4f} | "
@@ -442,10 +446,11 @@ if __name__ == "__main__":
 
     # ! TODO DA AGGIUNGERE IN SEGUITO
     parser.add_argument(
-        "--scheduler_patience", type=int, default=3, help="Patience for LR scheduler."
+        "--scheduler_patience", type=int, default=5, help="Patience for LR scheduler."
     )
+    # NOTE: passo da 0.1 a 0.2 perche dopo l'aggiornamneto del LR la loss smette di migliorare. Significa che abbiamo auvuto un aggiornamento troppo drastico del LR.
     parser.add_argument(
-        "--scheduler_factor", type=float, default=0.1, help="Factor for LR scheduler."
+        "--scheduler_factor", type=float, default=0.3, help="Factor for LR scheduler."
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility."
