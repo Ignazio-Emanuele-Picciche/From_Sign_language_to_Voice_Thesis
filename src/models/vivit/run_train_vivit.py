@@ -247,7 +247,7 @@ def main(args):
             mode="min",
             factor=args.scheduler_factor,
             patience=args.scheduler_patience,
-            # verbose=True,
+            verbose=False,
         )
 
         # --- Ignite Trainer ed Evaluator ---
