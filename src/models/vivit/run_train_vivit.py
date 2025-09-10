@@ -37,6 +37,8 @@
 #
 # Esempio di esecuzione:
 # python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.310201887845294e-06 --seed 42 --weight_decay 0.0003549878832196505
+# python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 1.5930522616241016e-05 --seed 42 --weight_decay 0.013311216080736894
+# python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.9106359131330718e-05 --seed 42 --weight_decay 0.006251373574521752
 #
 # Note tecniche veloci:
 # - Usa `AdamW` sull'head di classificazione; la loss è CrossEntropy con
@@ -247,7 +249,6 @@ def main(args):
             mode="min",
             factor=args.scheduler_factor,
             patience=args.scheduler_patience,
-            verbose=False,
         )
 
         # --- Ignite Trainer ed Evaluator ---
