@@ -96,7 +96,7 @@ def main(args):
     print(f"Training su dispositivo: {device}")
 
     mlflow.set_tracking_uri(uri="http://127.0.0.1:8080")
-    mlflow.set_experiment("VADER 0.65 - Emotion Recognition Experiment")
+    mlflow.set_experiment("VADER 0.34 - Emotion Recognition Experiment")
 
     # --- Sezione 3: Caricamento Dati e Creazione del Modello ---
     (

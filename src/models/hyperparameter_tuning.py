@@ -67,7 +67,7 @@ from src.utils.training_utils import (
 
 # --- Sezione 2: Setup di MLflow ---
 mlflow.set_tracking_uri("http://127.0.0.1:8080")
-experiment_name = "VADER 0.65 - Emotion Recognition Experiment"
+experiment_name = "VADER 0.34 - HT Emotion Recognition Experiment"
 if mlflow.get_experiment_by_name(experiment_name) is None:
     mlflow.create_experiment(experiment_name)
 else:

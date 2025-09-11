@@ -28,13 +28,13 @@ def get_data_paths(base_dir):
         base_dir, "data", "raw", "train", "openpose_output_train", "json"
     )
     train_processed_file = os.path.join(
-        base_dir, "data", "processed", "train", "video_sentiment_data_0.65.csv"
+        base_dir, "data", "processed", "train", "video_sentiment_data_0.34.csv"
     )
     val_landmarks_dir = os.path.join(
         base_dir, "data", "raw", "val", "openpose_output_val", "json"
     )
     val_processed_file = os.path.join(
-        base_dir, "data", "processed", "val", "video_sentiment_data_0.65.csv"
+        base_dir, "data", "processed", "val", "video_sentiment_data_0.34.csv"
     )
     return (
         train_landmarks_dir,
