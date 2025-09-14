@@ -127,7 +127,9 @@ def objective(trial, train_dataset, val_dataset):
             "learning_rate", 1e-6, 1e-5, log=True
         )  # Range ridotto
         batch_size = trial.suggest_categorical("batch_size", [64, 96, 128, 160])
-        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        weight_decay = trial.suggest_float(
+            "weight_decay", 1e-3, 0.1, log=True
+        )  # Partiamo da un valore più alto
         model_params = {
             "hidden_size": hidden_size,
             "num_layers": num_layers,
