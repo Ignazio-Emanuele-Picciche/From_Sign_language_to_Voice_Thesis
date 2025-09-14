@@ -177,7 +177,7 @@ def objective(trial, train_dataset, val_dataset):
         f"Trial {trial.number}: lr={learning_rate}, batch_size={batch_size}, weight_decay={weight_decay}, dropout={model_params.get('dropout', None)}"
     )
     print("Class weights:", class_weights_tensor.cpu().numpy())
-    scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.1, patience=3)
+    scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.1, patience=5)
 
     # --- Ignite Trainer ed Evaluator ---
     def train_step(engine, batch):
