@@ -116,9 +116,13 @@ def objective(trial, train_dataset, val_dataset):
     """
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
     if MODEL_TYPE == "lstm":
-        hidden_size = trial.suggest_int("hidden_size", 768, 1024, step=32)
-        num_layers = trial.suggest_int("num_layers", 2, 5)
-        dropout = trial.suggest_float("dropout", 0.2, 0.5)
+        hidden_size = trial.suggest_int(
+            "hidden_size", 256, 768, step=32
+        )  # Riduciamo la dimensione
+        num_layers = trial.suggest_int("num_layers", 1, 3)  # Riduciamo i layer
+        dropout = trial.suggest_float(
+            "dropout", 0.3, 0.7
+        )  # Aumentiamo il range del dropout
         learning_rate = trial.suggest_float(
             "learning_rate", 1e-6, 1e-5, log=True
         )  # Range ridotto
