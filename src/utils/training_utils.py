@@ -2,8 +2,14 @@
 """
 Modulo di utilità per l'addestramento dei modelli.
 
-Questo file centralizza le funzioni comuni utilizzate sia per l'addestramento standard
-(`run_train.py`) sia per l'ottimizzazione degli iperparametri (`hyperparameter_tuning.py`).
+Questo file centralizza le funzioni comuni utilizzate sia per l'addestramento stand        with torch.no_grad():
+            for xb, yb in val_loader:
+                xb, yb = prepare_batch_fn((xb, yb), device, non_blocking=False)
+                # Cast esplicito a float32 per compatibilità con MPS
+                outputs = model(xb.to(torch.float32))
+                preds = torch.argmax(outputs, dim=1)
+                y_true.extend(yb.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())un_train.py`) sia per l'ottimizzazione degli iperparametri (`hyperparameter_tuning.py`).
 L'obiettivo è ridurre la duplicazione del codice e migliorare la manutenibilità.
 """
 
@@ -44,15 +50,11 @@ def get_data_paths(base_dir):
     )
 
 
-def get_dataloaders(
-    train_landmarks_dir,
-    train_processed_file,
-    val_landmarks_dir,
-    val_processed_file,
-    batch_size,
+def get_datasets(
+    train_landmarks_dir, train_processed_file, val_landmarks_dir, val_processed_file
 ):
     """
-    Crea e restituisce i DataLoader per training e validazione, gestendo lo sbilanciamento delle classi.
+    Carica e restituisce i dataset di training e validazione.
     """
     train_dataset = LandmarkDataset(
         landmarks_dir=train_landmarks_dir, processed_file=train_processed_file
@@ -60,34 +62,49 @@ def get_dataloaders(
     val_dataset = LandmarkDataset(
         landmarks_dir=val_landmarks_dir, processed_file=val_processed_file
     )
+    return train_dataset, val_dataset
 
-    # Weighted Sampler per bilanciare i batch di training
-    labels_arr = train_dataset.processed["emotion"].map(train_dataset.label_map).values
-    class_counts = np.bincount(labels_arr)
-    class_weights_for_sampler = 1.0 / class_counts
-    sample_weights = np.array(
-        [class_weights_for_sampler[label] for label in labels_arr]
+
+def get_dataloaders(
+    train_landmarks_dir,
+    train_processed_file,
+    val_landmarks_dir,
+    val_processed_file,
+    batch_size,
+    num_workers=0,  # Aggiunto parametro con default 0
+):
+    """
+    Crea e restituisce i DataLoader per training e validazione.
+    """
+    train_dataset, val_dataset = get_datasets(
+        train_landmarks_dir, train_processed_file, val_landmarks_dir, val_processed_file
     )
-    sampler = WeightedRandomSampler(
-        weights=torch.from_numpy(sample_weights).double(),
-        num_samples=len(sample_weights),
-        replacement=True,
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,  # Utilizzo del parametro
     )
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=sampler)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,  # Utilizzo del parametro
+    )
     return train_loader, val_loader, train_dataset
 
 
-def get_class_weights(train_dataset, device):
+def get_class_weights(dataset, device):
     """Calcola i pesi per la funzione di loss per contrastare lo sbilanciamento delle classi."""
-    labels_arr = train_dataset.processed["emotion"].map(train_dataset.label_map).values
+    labels_arr = dataset.processed["emotion"].map(dataset.label_map).values
     class_counts = np.bincount(labels_arr)
     num_classes = len(class_counts)
     total_samples = len(labels_arr)
+
+    # Esegui i calcoli in float32 per evitare problemi di cast su MPS
     class_weights = torch.tensor(
-        [total_samples / (num_classes * count) for count in class_counts],
+        [np.float32(total_samples / (num_classes * count)) for count in class_counts],
         dtype=torch.float32,
     )
     return class_weights.to(device)
@@ -155,7 +172,7 @@ def setup_ignite_evaluator(model, criterion, device, model_type, val_loader):
         with torch.no_grad():
             for xb, yb in val_loader:
                 xb, yb = prepare_batch_fn((xb, yb), device, non_blocking=False)
-                outputs = model(xb.float())
+                outputs = model(xb.to(torch.float32))
                 preds = torch.argmax(outputs, dim=1)
                 y_true.extend(yb.cpu().numpy())
                 y_pred.extend(preds.cpu().numpy())

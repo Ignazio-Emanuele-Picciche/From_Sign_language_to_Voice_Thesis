@@ -118,7 +118,8 @@ class LandmarkDataset(Dataset):
                 else:  # Assume che non ci siano punteggi di confidenza (es. MediaPipe)
                     flat_landmarks = keypoints
 
-                sequence.append(flat_landmarks)
+                # Converti esplicitamente in float32 qui
+                sequence.append(np.array(flat_landmarks, dtype=np.float32))
 
             except (json.JSONDecodeError, IndexError) as e:
                 logging.warning(

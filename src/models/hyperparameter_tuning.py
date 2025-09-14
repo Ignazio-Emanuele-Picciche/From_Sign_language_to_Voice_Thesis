@@ -23,6 +23,7 @@
 #
 #    python3 src/models/hyperparameter_tuning.py --model_type stgcn --n_trials 20 --num_epochs 25
 #
+#    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40 --num_workers 2
 # =================================================================================================
 
 import os
@@ -40,13 +41,18 @@ import random
 from torch.backends import cudnn
 from optuna.samplers import TPESampler
 
+import gc
+from torch.utils.data import WeightedRandomSampler
+
 # Ignite imports
-os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
-from ignite.engine import Events, create_supervised_trainer
+# os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+from ignite.engine import Engine, Events
 from ignite.handlers import EarlyStopping as IgniteEarlyStopping
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from optuna.integration import PyTorchIgnitePruningHandler
 from optuna.exceptions import TrialPruned
+from ignite.metrics import Loss, Accuracy, Fbeta, Precision, Recall
+from ignite.contrib.handlers import ProgressBar
 
 # --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
 sys.path.insert(
@@ -58,7 +64,7 @@ BASE_DIR = os.path.abspath(
 
 from src.utils.training_utils import (
     get_data_paths,
-    get_dataloaders,
+    get_datasets,  # Modificato da get_dataloaders
     get_class_weights,
     create_model,
     prepare_batch,
@@ -85,9 +91,26 @@ else:
 NUM_EPOCHS = 5
 MODEL_TYPE = "lstm"
 PATIENCE = 10
+NUM_WORKERS = 0
+
+torch.set_default_dtype(torch.float32)  # IMPOSTA IL TIPO DI DEFAULT
 
 
-def objective(trial):
+# --- Funzioni di Utilità ---
+def get_sampler(dataset):
+    """Crea un WeightedRandomSampler per bilanciare le classi."""
+    class_weights_dict = {
+        i: weight
+        for i, weight in enumerate(get_class_weights(dataset, device="cpu").tolist())
+    }
+    sample_weights = [class_weights_dict[label.item()] for _, label in dataset]
+    sampler = WeightedRandomSampler(
+        weights=sample_weights, num_samples=len(sample_weights), replacement=True
+    )
+    return sampler
+
+
+def objective(trial, train_dataset, val_dataset):
     """
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
@@ -96,120 +119,144 @@ def objective(trial):
         hidden_size = trial.suggest_int("hidden_size", 768, 1024, step=32)
         num_layers = trial.suggest_int("num_layers", 2, 5)
         dropout = trial.suggest_float("dropout", 0.2, 0.5)
-        learning_rate = trial.suggest_loguniform("learning_rate", 1e-6, 1e-4)
+        learning_rate = trial.suggest_float(
+            "learning_rate", 1e-6, 1e-5, log=True
+        )  # Range ridotto
         batch_size = trial.suggest_categorical("batch_size", [64, 96, 128, 160])
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         model_params = {
             "hidden_size": hidden_size,
             "num_layers": num_layers,
             "dropout": dropout,
         }
     else:  # stgcn
-        learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-2)
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
-        dropout = trial.suggest_float("dropout", 0, 0.2)
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         model_params = {"dropout": dropout}
 
     # --- Sezione 6: Caricamento Dati ---
-    train_loader, val_loader, train_dataset = get_dataloaders(
-        TRAIN_LANDMARKS_DIR,
-        TRAIN_PROCESSED_FILE,
-        VAL_LANDMARKS_DIR,
-        VAL_PROCESSED_FILE,
-        batch_size,
+    train_sampler = get_sampler(train_dataset)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
     )
 
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    # FORZIAMO L'USO DELLA CPU per evitare problemi di compatibilità con MPS
+    device = torch.device("cpu")
 
-    class_weights = get_class_weights(train_dataset, device)
+    class_weights_tensor = get_class_weights(train_dataset, device)
     input_size = train_dataset[0][0].shape[1]
     num_classes = len(train_dataset.labels)
 
     model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.1, patience=3
-    )  # NOTE: scheduler learning rate adjustment
-
-    prepare_batch_fn = lambda batch, device, non_blocking: prepare_batch(
-        batch, device, MODEL_TYPE, non_blocking
+    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
-
-    trainer = create_supervised_trainer(
-        model, optimizer, criterion, device=device, prepare_batch=prepare_batch_fn
+    print(
+        f"Trial {trial.number}: lr={learning_rate}, batch_size={batch_size}, weight_decay={weight_decay}, dropout={model_params.get('dropout', None)}"
     )
-    evaluator = setup_ignite_evaluator(model, criterion, device, MODEL_TYPE, val_loader)
+    print("Class weights:", class_weights_tensor.cpu().numpy())
+    scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.1, patience=3)
+
+    # --- Ignite Trainer ed Evaluator ---
+    def train_step(engine, batch):
+        model.train()
+        optimizer.zero_grad()
+        x, y = prepare_batch(batch, device, MODEL_TYPE)
+        y_pred = model(x)
+        loss = criterion(y_pred, y)
+        loss.backward()
+        optimizer.step()
+        # Assicura che il tipo di dato sia float32 per la compatibilità con MPS
+        return torch.tensor(loss.item(), dtype=torch.float32)
+
+    trainer = Engine(train_step)
+    pbar = ProgressBar(persist=True)
+    pbar.attach(trainer, output_transform=lambda x: {"batch loss": x})
+
+    def eval_step(engine, batch):
+        model.eval()
+        with torch.no_grad():
+            x, y = prepare_batch(batch, device, MODEL_TYPE)
+            y_pred = model(x)
+            # Cast esplicito per garantire la compatibilità con le metriche su MPS
+            return y_pred.to(dtype=torch.float32, device=device), y.to(
+                dtype=torch.long, device=device
+            )
+
+    evaluator = Engine(eval_step)
+    val_metrics = {
+        "accuracy": Accuracy(),
+        "loss": Loss(criterion),
+        "f1_macro": Fbeta(1, average="macro"),
+        "precision_macro": Precision(average="macro"),
+        "recall_macro": Recall(average="macro"),
+    }
+    for name, metric in val_metrics.items():
+        metric.attach(evaluator, name)
 
     # --- Sezione 8: Esecuzione del Trial e Logging ---
     with mlflow.start_run(nested=True):
         base_params = {
             "learning_rate": learning_rate,
             "batch_size": batch_size,
+            "weight_decay": weight_decay,
             "model_type": MODEL_TYPE,
         }
         mlflow.log_params({**base_params, **model_params})
-        class_map = {i: label for i, label in enumerate(train_dataset.labels)}
-        mlflow.log_params({f"class_{i}": label for i, label in class_map.items()})
 
-        best_metrics = {"val_loss": float("inf"), "val_f1": 0.0, "val_f1_macro": 0.0}
+        best_f1_macro = 0.0
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
-            model.eval()
-            train_loss_sum = 0.0
-            with torch.no_grad():
-                for xb, yb in train_loader:
-                    xb, yb = prepare_batch_fn((xb, yb), device, non_blocking=False)
-                    outputs = model(xb.float())
-                    loss = criterion(outputs, yb)
-                    train_loss_sum += loss.item() * xb.size(0)
-            train_loss = train_loss_sum / len(train_loader.dataset)
-
+            nonlocal best_f1_macro
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
-            val_loss = metrics["val_loss"]
-            val_f1 = metrics["val_f1"]
-            val_f1_macro = metrics["val_f1_macro"]
+            val_f1_macro = metrics["f1_macro"]
+            val_loss = metrics["loss"]
 
-            if val_f1_macro > best_metrics["val_f1_macro"]:
-                best_metrics["val_f1_macro"] = val_f1_macro
-            if val_loss < best_metrics["val_loss"]:
-                best_metrics["val_loss"] = val_loss
-            if val_f1 > best_metrics["val_f1"]:
-                best_metrics["val_f1"] = val_f1
+            if val_f1_macro > best_f1_macro:
+                best_f1_macro = val_f1_macro
 
             mlflow.log_metrics(
                 {
-                    "train_loss": train_loss,
                     "val_loss": val_loss,
-                    "val_acc": metrics["val_acc"],
-                    "val_f1": val_f1,
                     "val_f1_macro": val_f1_macro,
-                    "val_f1_class_0": metrics["val_f1_class_0"],
-                    "val_f1_class_1": metrics["val_f1_class_1"],
+                    "val_accuracy": metrics["accuracy"],
+                    "val_precision_macro": metrics["precision_macro"],
+                    "val_recall_macro": metrics["recall_macro"],
                 },
                 step=engine.state.epoch,
             )
-            scheduler.step(val_f1_macro)  # NOTE: scheduler learning rate adjustment
-            if device.type == "cuda":
-                torch.cuda.empty_cache()
-            elif device.type == "mps":
-                torch.mps.empty_cache()
+
+            scheduler.step(val_f1_macro)
+            trial.report(val_f1_macro, engine.state.epoch)
+            if trial.should_prune():
+                raise TrialPruned()
+
+            gc.collect()
+            # if torch.backends.mps.is_available():
+            #     torch.mps.empty_cache()
 
         # --- Sezione 9: Pruning e Early Stopping ---
-        pruning_handler = PyTorchIgnitePruningHandler(trial, "val_f1_macro", trainer)
-        evaluator.add_event_handler(Events.COMPLETED, pruning_handler)
-
         early_stopper = IgniteEarlyStopping(
             patience=PATIENCE,
-            score_function=lambda eng: eng.state.metrics["val_f1_macro"],
+            score_function=lambda eng: eng.state.metrics["f1_macro"],
             trainer=trainer,
         )
         evaluator.add_event_handler(Events.COMPLETED, early_stopper)
@@ -220,18 +267,13 @@ def objective(trial):
             mlflow.set_tag("status", "pruned")
             raise
 
-        mlflow.log_metrics(
-            {
-                "best_val_loss": best_metrics["val_loss"],
-                "best_val_f1": best_metrics["val_f1"],
-                "best_val_f1_macro": best_metrics["val_f1_macro"],
-            }
-        )
-        if device.type == "cuda":
-            torch.cuda.empty_cache()
-        elif device.type == "mps":
-            torch.mps.empty_cache()
-        return best_metrics["val_f1_macro"]
+        mlflow.log_metric("best_val_f1_macro", best_f1_macro)
+
+        gc.collect()
+        # if torch.backends.mps.is_available():
+        #     torch.mps.empty_cache()
+
+        return best_f1_macro
 
 
 def main():
@@ -252,6 +294,13 @@ def main():
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
     )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=0,
+        help="Number of worker processes for data loading.",
+    )
+
     args = parser.parse_args()
     seed = args.seed
     random.seed(seed)
@@ -261,12 +310,24 @@ def main():
         torch.cuda.manual_seed_all(seed)
     cudnn.deterministic = True
     cudnn.benchmark = False
-    torch.use_deterministic_algorithms(True)
+    # torch.use_deterministic_algorithms(True) # Può causare problemi
 
-    global NUM_EPOCHS, MODEL_TYPE
+    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS
     NUM_EPOCHS = args.num_epochs
     MODEL_TYPE = args.model_type
-    run_name = f"Optuna_{MODEL_TYPE}_tuning"
+    NUM_WORKERS = args.num_workers
+
+    # --- Caricamento Dati (una sola volta) ---
+    print("Caricamento dei dataset...")
+    train_dataset, val_dataset = get_datasets(
+        TRAIN_LANDMARKS_DIR, TRAIN_PROCESSED_FILE, VAL_LANDMARKS_DIR, VAL_PROCESSED_FILE
+    )
+    print("Dataset caricati.")
+
+    print("Train label distribution:", np.bincount([y for _, y in train_dataset]))
+    print("Val label distribution:", np.bincount([y for _, y in val_dataset]))
+
+    run_name = f"Optuna_{MODEL_TYPE}_tuning_optimized"
     with mlflow.start_run(run_name=run_name):
         mlflow.log_param("seed", seed)
         study = optuna.create_study(
@@ -274,7 +335,11 @@ def main():
             pruner=MedianPruner(n_startup_trials=PATIENCE, n_warmup_steps=1),
             sampler=TPESampler(seed=seed),
         )
-        study.optimize(objective, n_trials=args.n_trials)
+        study.optimize(
+            lambda trial: objective(trial, train_dataset, val_dataset),
+            n_trials=args.n_trials,
+        )
+
         mlflow.log_param("n_trials", args.n_trials)
         mlflow.log_params(study.best_trial.params)
         mlflow.log_metric("best_val_f1_macro_study", study.best_value)
@@ -285,7 +350,9 @@ def main():
                 "model_family": MODEL_TYPE,
             }
         )
+
     print("Best trial:", study.best_trial.params)
+    print("Best value:", study.best_value)
 
 
 if __name__ == "__main__":
