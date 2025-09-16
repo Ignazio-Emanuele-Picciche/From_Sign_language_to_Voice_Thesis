@@ -117,8 +117,8 @@ def objective(trial, train_loader, val_loader):
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
     if MODEL_TYPE == "lstm":
         hidden_size = trial.suggest_int(
-            "hidden_size", 256, 768, step=32
-        )  # Riduciamo la dimensione
+            "hidden_size", 256, 512, step=32
+        )  # RIDOTTO: Limite superiore ridotto da 768 a 512
         num_layers = trial.suggest_int("num_layers", 1, 3)  # Riduciamo i layer
         dropout = trial.suggest_float(
             "dropout", 0.3, 0.7
@@ -126,7 +126,9 @@ def objective(trial, train_loader, val_loader):
         learning_rate = trial.suggest_float(
             "learning_rate", 1e-6, 1e-5, log=True
         )  # Range ridotto
-        batch_size = trial.suggest_categorical("batch_size", [64, 96, 128, 160])
+        batch_size = trial.suggest_categorical(
+            "batch_size", [32, 64, 96]
+        )  # RIDOTTO: Rimossi i valori più alti
         weight_decay = trial.suggest_float(
             "weight_decay", 1e-3, 0.1, log=True
         )  # Partiamo da un valore più alto
@@ -282,6 +284,17 @@ def objective(trial, train_loader, val_loader):
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
 
+        # --- Sezione 11: Pulizia della Memoria ---
+        # Rilascia esplicitamente la memoria occupata da modello, optimizer e dataloader
+        del (
+            model,
+            optimizer,
+            criterion,
+            trainer,
+            evaluator,
+            current_train_loader,
+            current_val_loader,
+        )
         gc.collect()
         # if torch.backends.mps.is_available():
         #     torch.mps.empty_cache()
