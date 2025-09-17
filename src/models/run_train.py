@@ -38,6 +38,19 @@
 #      --num_epochs 100 \
 #      --seed 44
 #
+# *   Comando per LSTM con VADER 0.34
+#    python src/models/run_train.py \
+#       --model_type lstm \
+#       --batch_size 96 \
+#       --hidden_size 288 \
+#       --num_layers 1 \
+#       --learning_rate 1.7231e-06 \
+#       --dropout 0.3321 \
+#       --weight_decay 0.00295 \
+#       --num_epochs 100 \
+#       --patience 15 \
+#       --seed 42
+
 # =================================================================================================
 
 
