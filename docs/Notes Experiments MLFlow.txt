@@ -1,0 +1,88 @@
+!!!! EXPERIMENT ID MLflow: 756974149527453824
+    python src/models/run_train.py \
+       --model_type lstm \
+       --batch_size 96 \
+       --hidden_size 288 \
+       --num_layers 1 \
+       --learning_rate 1.7231e-06 \
+       --dropout 0.3321 \
+       --weight_decay 0.00295 \
+       --num_epochs 100 \
+       --patience 15 \
+       --seed 42
+
+ *NOTE: EXPERIMENT ID MLflow: 756974149527453824
+ =================================================================================================
+ ANALISI DEI RISULTATI DI TRAINING (ESPERIMENTO VADER 0.34)
+ =================================================================================================
+
+ L'esecuzione del training con gli iperparametri sopra riportati (ottenuti da un precedente
+ tuning) ha prodotto i seguenti risultati, visualizzati tramite MLflow, che meritano
+ un'analisi approfondita per la stesura della tesi.
+
+ --- PUNTI POSITIVI (Il modello sta imparando correttamente) ---
+
+ 1.  **Andamento della Loss**: Sia la `train_loss` che la `val_loss` mostrano un andamento
+     decrescente e coerente. Questo è un segnale fondamentale che indica che il modello
+     non solo sta apprendendo dai dati di training, ma sta anche generalizzando
+     correttamente sui dati di validazione, senza cadere in un evidente overfitting.
+
+ 2.  **Convergenza e Stabilità**: Le metriche di performance (accuratezza, F1-score) e
+     la loss si stabilizzano dopo circa 7-8 epoche. Questo suggerisce che il modello
+     ha raggiunto un punto di convergenza e che continuare l'addestramento per un
+     numero eccessivo di epoche non porterebbe a miglioramenti significativi.
+     L'handler `EarlyStopping` ha infatti interrotto il training in modo appropriato,
+     evitando spreco di risorse computazionali.
+
+ --- PUNTI CRITICI (Problema di Sbilanciamento delle Classi) ---
+
+ 1.  **Forte Disparità nelle Performance per Classe**: Questo è il problema più critico
+     emerso dall'analisi. Le metriche `val_f1_class_0` e `val_f1_class_1` mostrano
+     una differenza abissale:
+     -   `val_f1_class_0` raggiunge un valore elevato (circa 0.74), indicando che il
+         modello è molto competente nel riconoscere la classe "0".
+     -   `val_f1_class_1` si attesta su un valore estremamente basso (circa 0.26),
+         dimostrando che il modello ha enormi difficoltà a identificare la classe "1".
+
+ 2.  **Metrica `val_f1_macro` come Indicatore Insufficiente**: L'F1-score macro, che
+     calcola la media non pesata degli F1-score per classe, si attesta su un mediocre
+     0.50. Questo valore, pur essendo un indicatore utile, può essere fuorviante se
+     analizzato da solo, poiché maschera la grave discrepanza di performance tra le
+     classi. Evidenzia che, in media, il modello non è performante, ma non ne spiega
+     la causa radice.
+
+ --- INTERPRETAZIONE E CAUSE PROBABILI ---
+
+ La causa più probabile di questo comportamento è un **forte sbilanciamento nel dataset**:
+ la classe "0" è probabilmente molto più rappresentata della classe "1". Di conseguenza,
+ durante l'addestramento, il modello "impara" che predire la classe maggioritaria è una
+ strategia a basso rischio per minimizzare la funzione di loss complessiva, finendo per
+ ignorare quasi completamente la classe minoritaria.
+
+ Sebbene nello script si utilizzi `weight=class_weights` nella `CrossEntropyLoss` per
+ mitigare questo problema, l'efficacia di questa tecnica potrebbe non essere stata
+ sufficiente a compensare un divario molto ampio nella distribuzione dei dati.
+
+ --- SUGGERIMENTI PER I PROSSIMI PASSI ---
+
+ Per ottenere un modello più robusto ed equo, è fondamentale affrontare lo sbilanciamento
+ in modo più aggressivo:
+
+ 1.  **Analisi Quantitativa del Dataset**: Verificare numericamente la distribuzione delle
+     classi nel dataset di training per confermare l'ipotesi.
+
+ 2.  **Oversampling della Classe Minoritaria**: Utilizzare un `WeightedRandomSampler` nel
+     `DataLoader` di training. Questa tecnica, già presente nello script di
+     `hyperparameter_tuning.py`, forza il caricatore di dati a presentare al modello un
+     numero bilanciato di campioni per ogni classe ad ogni epoca. È spesso più efficace
+     del solo bilanciamento dei pesi nella funzione di loss.
+
+ 3.  **Data Augmentation Specifica**: Applicare tecniche di data augmentation (es. piccole
+     rotazioni, traslazioni dei keypoint, aggiunta di rumore) selettivamente sui campioni
+     della classe minoritaria per aumentarne artificialmente la numerosità e la variabilità.
+
+ In conclusione, il training ha avuto successo dal punto di vista tecnico, ma ha prodotto
+ un modello "biased". Il focus futuro deve essere sul bilanciamento dei dati per
+ migliorare significativamente il riconoscimento della classe minoritaria.
+
+ =================================================================================================

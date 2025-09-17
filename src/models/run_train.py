@@ -39,6 +39,7 @@
 #      --seed 44
 #
 # *   Comando per LSTM con VADER 0.34
+# *   EXPERIMENT ID MLflow: 756974149527453824
 #    python src/models/run_train.py \
 #       --model_type lstm \
 #       --batch_size 96 \
@@ -50,8 +51,6 @@
 #       --num_epochs 100 \
 #       --patience 15 \
 #       --seed 42
-
-# =================================================================================================
 
 
 import torch
