@@ -130,7 +130,9 @@ def main(args):
     ).to(device)
 
     criterion = nn.CrossEntropyLoss(weight=class_weights)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+    )
     scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.1, patience=3)
 
     prepare_batch_fn = lambda batch, device, non_blocking: prepare_batch(
@@ -174,6 +176,7 @@ def main(args):
             "batch_size": args.batch_size,
             "num_epochs": args.num_epochs,
             "learning_rate": args.learning_rate,
+            "weight_decay": args.weight_decay,
             "patience": args.patience,
             "seed": args.seed,
         }
@@ -273,6 +276,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed for reproducibility"
