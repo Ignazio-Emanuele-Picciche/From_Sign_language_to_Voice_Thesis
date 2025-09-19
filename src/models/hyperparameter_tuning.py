@@ -285,6 +285,28 @@ def objective(trial, train_loader, val_loader):
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
 
         # --- Sezione 11: Pulizia della Memoria ---
+        # !Versione attuale (commentata per riferimento)
+        # # Rilascia esplicitamente la memoria occupata da modello, optimizer e dataloader
+        # del (
+        #     model,
+        #     optimizer,
+        #     criterion,
+        #     trainer,
+        #     evaluator,
+        #     current_train_loader,
+        #     current_val_loader,
+        # )
+        # gc.collect()
+        # # if torch.backends.mps.is_available():
+        # #     torch.mps.empty_cache()
+
+        # !NUOVA VERSIONE: Pulizia aggressiva per prevenire memory leak
+        # Rimuovi esplicitamente gli handler per prevenire memory leak
+        trainer.remove_event_handler(log_validation_results, Events.EPOCH_COMPLETED)
+        evaluator.remove_event_handler(early_stopper, Events.COMPLETED)
+        pbar.attach(trainer)
+
+        # !Versione attuale
         # Rilascia esplicitamente la memoria occupata da modello, optimizer e dataloader
         del (
             model,
@@ -296,8 +318,9 @@ def objective(trial, train_loader, val_loader):
             current_val_loader,
         )
         gc.collect()
-        # if torch.backends.mps.is_available():
-        #     torch.mps.empty_cache()
+        # !NUOVA VERSIONE: Pulizia aggressiva per prevenire memory leak
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
         return best_f1_macro
 
