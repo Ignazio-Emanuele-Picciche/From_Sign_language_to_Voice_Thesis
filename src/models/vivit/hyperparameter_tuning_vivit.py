@@ -61,7 +61,7 @@ from src.models.vivit.video_dataset import VideoDataset
 
 # --- Sezione 2: Setup di MLflow ---
 mlflow.set_tracking_uri("http://127.0.0.1:8080")
-experiment_name = "ViViT - Hyperparameter Tuning V2"
+experiment_name = "ViViT - Hyperparameter Tuning VADE 0.34"
 if mlflow.get_experiment_by_name(experiment_name) is None:
     mlflow.create_experiment(experiment_name)
 else:
@@ -73,10 +73,10 @@ TRAIN_VIDEO_DIR = os.path.join(
 )
 VAL_VIDEO_DIR = os.path.join(BASE_DIR, "data", "raw", "val", "raw_videos_front_val")
 TRAIN_ANNOTATIONS_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.65.csv"
+    BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.34.csv"
 )
 VAL_ANNOTATIONS_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.65.csv"
+    BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.34.csv"
 )
 
 # --- Sezione 4: Variabili Globali ---
