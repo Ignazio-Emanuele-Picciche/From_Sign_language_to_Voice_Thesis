@@ -122,8 +122,7 @@ def objective(trial, train_dataset, val_dataset):
     """
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
     learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-4, log=True)
-    # Batch size è fisso a 1 per problemi di memoria
-    batch_size = 1
+    batch_size = trial.suggest_categorical("batch_size", [1, 2, 4])
     weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
 
     # --- Sezione 6: Caricamento Dati ---
@@ -266,6 +265,14 @@ def objective(trial, train_dataset, val_dataset):
         except TrialPruned:
             mlflow.set_tag("status", "pruned")
             raise
+        except RuntimeError as e:
+            if "out of memory" in str(e):
+                mlflow.set_tag("status", "oom")
+                # Segnala a Optuna di potare il trial, ma non come un fallimento
+                # Restituiamo un valore molto basso per indicare una cattiva performance
+                return 0.0
+            else:
+                raise e
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
 
@@ -324,15 +331,13 @@ def main():
 
     # --- Caricamento Dati (una sola volta) ---
     print("Caricamento e pre-processing dei dataset...")
-    # Usiamo un processore temporaneo per inizializzare i dataset
-    _, temp_image_processor = create_vivit_model(num_classes=2, model_name=MODEL_NAME)
-
     # Creiamo il modello una volta per ottenere la configurazione corretta
-    # (es. num_frames) che serve al dataset
+    # (es. num_frames) e l'image_processor che servono al dataset
     temp_model, image_processor = create_vivit_model(
         num_classes=2, model_name=MODEL_NAME
-    )  # num_classes temporaneo
+    )  # num_classes è temporaneo
     num_frames = temp_model.config.num_frames
+    del temp_model  # Liberiamo la memoria
 
     train_dataset = VideoDataset(
         TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, image_processor, num_frames=num_frames

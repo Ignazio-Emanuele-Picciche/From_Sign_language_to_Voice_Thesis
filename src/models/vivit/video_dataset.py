@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
-import imageio.v3 as iio
+import av
 import numpy as np
 import logging
 
@@ -57,20 +57,45 @@ class VideoDataset(Dataset):
         label_str = self.video_info.iloc[idx]["emotion"]
         label_id = self.label2id[label_str]
 
+        frames = []
         try:
-            # Usa imageio per leggere il video
-            # TODO: provare a scrippare sui prossimi video, onde evitare errori di lettura sul primo video
-            video = iio.imread(video_path_full)
-            # pyav plugin is not always available, so we use the default reader
-            num_total_frames = video.shape[0]
+            with av.open(video_path_full) as container:
+                stream = container.streams.video[0]
+                num_total_frames = stream.frames
 
-            if num_total_frames == 0:
-                raise ValueError("Il video è vuoto o non può essere letto.")
+                if num_total_frames == 0:
+                    raise ValueError("Il video è vuoto o non può essere letto.")
 
-            frame_indices = self._sample_frames(num_total_frames)
+                frame_indices = self._sample_frames(num_total_frames)
 
-            # Estrai i fotogrammi campionati
-            frames = [video[i] for i in frame_indices]
+                # Ottimizzazione per la ricerca dei fotogrammi
+                frames_to_decode = {f: None for f in frame_indices}
+                frame_idx_counter = 0
+
+                for frame in container.decode(video=0):
+                    if frame_idx_counter in frames_to_decode:
+                        frames_to_decode[frame_idx_counter] = frame.to_image()
+                    frame_idx_counter += 1
+                    # Interrompi se abbiamo trovato tutti i fotogrammi necessari
+                    if all(v is not None for v in frames_to_decode.values()):
+                        break
+
+                frames = [
+                    frames_to_decode[i]
+                    for i in frame_indices
+                    if frames_to_decode[i] is not None
+                ]
+
+                if len(frames) != self.num_frames:
+                    logger.warning(
+                        f"Expected {self.num_frames} frames, but got {len(frames)} for video {video_path_full}"
+                    )
+                    # Pad if necessary, though sampling should be correct
+                    if len(frames) > 0:
+                        while len(frames) < self.num_frames:
+                            frames.append(frames[-1])
+                    else:
+                        raise ValueError("Could not extract any frames.")
 
             # Pre-processa i fotogrammi usando l'image processor di ViViT
             pixel_values = self.image_processor(
@@ -78,10 +103,6 @@ class VideoDataset(Dataset):
             ).pixel_values  # shape: (1, num_frames, C, H, W)
             # Rimuovi la dimensione batch extra restituita dall'image_processor
             pixel_values = pixel_values.squeeze(0)  # shape: (num_frames, C, H, W)
-
-            logger.info(
-                f"Shape of pixel_values after processing: {pixel_values.shape}"
-            )  # Log della forma di pixel_values
 
             return {
                 "pixel_values": pixel_values,
