@@ -46,7 +46,12 @@ class LandmarkDataset(Dataset):
         """
         # Memorizza i percorsi e i parametri passati
         self.landmarks_dir = landmarks_dir
-        self.processed = pd.read_csv(processed_file)
+        if isinstance(processed_file, list):
+            self.processed = pd.concat(
+                [pd.read_csv(f) for f in processed_file], ignore_index=True
+            )
+        else:
+            self.processed = pd.read_csv(processed_file)
         self.max_seq_length = max_seq_length
         self.keypoint_type = keypoint_type
 

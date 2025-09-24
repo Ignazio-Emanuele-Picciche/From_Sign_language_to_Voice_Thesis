@@ -33,9 +33,17 @@ def get_data_paths(base_dir):
     train_landmarks_dir = os.path.join(
         base_dir, "data", "raw", "train", "openpose_output_train", "json"
     )
-    train_processed_file = os.path.join(
-        base_dir, "data", "processed", "train", "video_sentiment_data_0.34.csv"
-    )
+    train_processed_files = [
+        os.path.join(
+            base_dir, "data", "processed", "train", "video_sentiment_data_0.34.csv"
+        ),
+        os.path.join(
+            base_dir,
+            "data",
+            "processed",
+            "asllrp_video_sentiment_data_0.34_without_golden.csv",
+        ),
+    ]
     val_landmarks_dir = os.path.join(
         base_dir, "data", "raw", "val", "openpose_output_val", "json"
     )
@@ -44,7 +52,7 @@ def get_data_paths(base_dir):
     )
     return (
         train_landmarks_dir,
-        train_processed_file,
+        train_processed_files,
         val_landmarks_dir,
         val_processed_file,
     )

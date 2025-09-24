@@ -90,7 +90,7 @@ else:
 # --- Sezione 4: Variabili Globali ---
 NUM_EPOCHS = 5
 MODEL_TYPE = "lstm"
-PATIENCE = 10
+PATIENCE = 8
 NUM_WORKERS = 0
 
 torch.set_default_dtype(torch.float32)  # IMPOSTA IL TIPO DI DEFAULT
