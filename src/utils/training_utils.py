@@ -24,6 +24,7 @@ from ignite.engine import Events, create_supervised_evaluator
 from ignite.metrics import Loss, Accuracy
 
 from src.data_pipeline.landmark_dataset import LandmarkDataset
+from src.models.vivit.video_dataset import VideoDataset  # Aggiunto import
 from src.models.lstm_model import EmotionLSTM
 from src.models.stgcn_model import STGCN
 
@@ -74,13 +75,34 @@ def get_datasets(
     return train_dataset, val_dataset
 
 
+def get_sampler(dataset):
+    """Crea un WeightedRandomSampler per bilanciare le classi."""
+    class_weights = get_class_weights(dataset, device="cpu")
+    class_weights_dict = {i: weight for i, weight in enumerate(class_weights.tolist())}
+
+    if hasattr(dataset, "video_info"):  # Caso per VideoDataset
+        sample_weights = [
+            class_weights_dict[dataset.label2id[label]]
+            for label in dataset.video_info["emotion"]
+        ]
+    else:  # Caso per LandmarkDataset
+        labels_arr = dataset.processed["emotion"].map(dataset.label_map).values
+        sample_weights = [class_weights_dict[label] for label in labels_arr]
+
+    sampler = WeightedRandomSampler(
+        weights=sample_weights, num_samples=len(sample_weights), replacement=True
+    )
+    return sampler
+
+
 def get_dataloaders(
     train_landmarks_dirs,
     train_processed_file,
     val_landmarks_dir,
     val_processed_file,
     batch_size,
-    num_workers=0,  # Aggiunto parametro con default 0
+    num_workers=0,
+    use_sampler=False,
 ):
     """
     Crea e restituisce i DataLoader per training e validazione.
@@ -92,27 +114,41 @@ def get_dataloaders(
         val_processed_file,
     )
 
+    train_sampler = None
+    shuffle = True
+    if use_sampler:
+        train_sampler = get_sampler(train_dataset)
+        shuffle = False  # Sampler e shuffle sono mutuamente esclusivi
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,  # Utilizzo del parametro
+        shuffle=shuffle,
+        sampler=train_sampler,
+        num_workers=num_workers,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,  # Utilizzo del parametro
+        num_workers=num_workers,
     )
     return train_loader, val_loader, train_dataset
 
 
 def get_class_weights(dataset, device):
     """Calcola i pesi per la funzione di loss per contrastare lo sbilanciamento delle classi."""
-    labels_arr = dataset.processed["emotion"].map(dataset.label_map).values
-    class_counts = np.bincount(labels_arr)
+    if hasattr(dataset, "video_info"):  # Caso per VideoDataset
+        class_counts = np.bincount(
+            [dataset.label2id[label] for label in dataset.video_info["emotion"]]
+        )
+        total_samples = len(dataset.video_info)
+    else:  # Caso per LandmarkDataset
+        labels_arr = dataset.processed["emotion"].map(dataset.label_map).values
+        class_counts = np.bincount(labels_arr)
+        total_samples = len(labels_arr)
+
     num_classes = len(class_counts)
-    total_samples = len(labels_arr)
 
     # Esegui i calcoli in float32 per evitare problemi di cast su MPS
     class_weights = torch.tensor(

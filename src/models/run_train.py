@@ -124,6 +124,7 @@ def main(args):
         val_landmarks_dir,
         val_processed_file,
         args.batch_size,
+        use_sampler=True,  # Attiva il campionamento ponderato
     )
 
     class_weights = get_class_weights(train_dataset, device)

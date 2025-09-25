@@ -73,7 +73,11 @@ BASE_DIR = os.path.abspath(
 
 from src.models.vivit.vivit_model import create_vivit_model
 from src.models.vivit.video_dataset import VideoDataset
-from src.utils.training_utils import setup_ignite_evaluator  # Riutilizziamo l'evaluator
+from src.utils.training_utils import (
+    setup_ignite_evaluator,
+    get_class_weights,
+    get_sampler,
+)  # Aggiornato
 
 # Ignite imports
 from ignite.engine import Engine, Events
@@ -102,32 +106,6 @@ VAL_ANNOTATIONS_FILE = os.path.join(
     BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.65.csv"
 )
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "vivit_emotion.pth")
-
-
-def get_class_weights(dataset):
-    """Calcola i pesi per ogni classe per gestire lo sbilanciamento."""
-    # La colonna delle etichette nel CSV si chiama 'emotion'
-    class_counts = Counter(dataset.video_info["emotion"])
-    class_weights = {
-        dataset.label2id[cls]: 1.0 / count for cls, count in class_counts.items()
-    }
-    # Assicura che l'ordine sia corretto
-    weights = [class_weights[i] for i in sorted(class_weights.keys())]
-    return torch.tensor(weights, dtype=torch.float)
-
-
-def get_sampler(dataset):
-    """Crea un WeightedRandomSampler per il dataloader di training."""
-    class_weights = get_class_weights(dataset)
-    # La colonna delle etichette nel CSV si chiama 'emotion'
-    sample_weights = [
-        class_weights[dataset.label2id[label]]
-        for label in dataset.video_info["emotion"]
-    ]
-    sampler = WeightedRandomSampler(
-        weights=sample_weights, num_samples=len(sample_weights), replacement=True
-    )
-    return sampler
 
 
 def prepare_batch(batch, device=None, non_blocking=False):

@@ -64,11 +64,12 @@ BASE_DIR = os.path.abspath(
 
 from src.utils.training_utils import (
     get_data_paths,
-    get_datasets,  # Modificato da get_dataloaders
+    get_datasets,
     get_class_weights,
     create_model,
     prepare_batch,
     setup_ignite_evaluator,
+    get_sampler,  # Aggiunto import
 )
 
 # --- Sezione 2: Setup di MLflow ---
@@ -90,24 +91,10 @@ else:
 # --- Sezione 4: Variabili Globali ---
 NUM_EPOCHS = 5
 MODEL_TYPE = "lstm"
-PATIENCE = 3
+PATIENCE = 4
 NUM_WORKERS = 0
 
 torch.set_default_dtype(torch.float32)  # IMPOSTA IL TIPO DI DEFAULT
-
-
-# --- Funzioni di Utilità ---
-def get_sampler(dataset):
-    """Crea un WeightedRandomSampler per bilanciare le classi."""
-    class_weights_dict = {
-        i: weight
-        for i, weight in enumerate(get_class_weights(dataset, device="cpu").tolist())
-    }
-    sample_weights = [class_weights_dict[label.item()] for _, label in dataset]
-    sampler = WeightedRandomSampler(
-        weights=sample_weights, num_samples=len(sample_weights), replacement=True
-    )
-    return sampler
 
 
 def objective(trial, train_loader, val_loader):

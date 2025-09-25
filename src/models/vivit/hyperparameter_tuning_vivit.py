@@ -58,6 +58,10 @@ BASE_DIR = os.path.abspath(
 
 from src.models.vivit.vivit_model import create_vivit_model
 from src.models.vivit.video_dataset import VideoDataset
+from src.utils.training_utils import (
+    get_class_weights,
+    get_sampler,
+)  # Aggiunto import
 
 # --- Sezione 2: Setup di MLflow ---
 mlflow.set_tracking_uri("http://127.0.0.1:8080")
@@ -87,27 +91,6 @@ NUM_WORKERS = 0
 
 
 # --- Funzioni di Utilità per Dati e Modello ---
-
-
-def get_class_weights(dataset):
-    class_counts = Counter(dataset.video_info["emotion"])
-    class_weights = {
-        dataset.label2id[cls]: 1.0 / count for cls, count in class_counts.items()
-    }
-    weights = [class_weights[i] for i in sorted(class_weights.keys())]
-    return torch.tensor(weights, dtype=torch.float)
-
-
-def get_sampler(dataset):
-    class_weights = get_class_weights(dataset)
-    sample_weights = [
-        class_weights[dataset.label2id[label]]
-        for label in dataset.video_info["emotion"]
-    ]
-    sampler = WeightedRandomSampler(
-        weights=sample_weights, num_samples=len(sample_weights), replacement=True
-    )
-    return sampler
 
 
 def prepare_batch(batch, device=None, non_blocking=False):
