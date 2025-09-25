@@ -69,7 +69,7 @@ from src.utils.training_utils import (
     create_model,
     prepare_batch,
     setup_ignite_evaluator,
-    get_sampler,  # Aggiunto import
+    get_sampler,
 )
 
 # --- Sezione 2: Setup di MLflow ---
@@ -94,10 +94,10 @@ MODEL_TYPE = "lstm"
 PATIENCE = 4
 NUM_WORKERS = 0
 
-torch.set_default_dtype(torch.float32)  # IMPOSTA IL TIPO DI DEFAULT
+torch.set_default_dtype(torch.float32)
 
 
-def objective(trial, train_loader, val_loader):
+def objective(trial, train_dataset, val_dataset):
     """
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
@@ -131,24 +131,19 @@ def objective(trial, train_loader, val_loader):
         weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         model_params = {"dropout": dropout}
 
-    # --- Sezione 6: Aggiornamento dei Dataloader ---
-    # Ricrea il sampler e il batch_sampler per il train_loader
-    train_sampler = get_sampler(train_loader.dataset)
-    train_batch_sampler = torch.utils.data.BatchSampler(
-        train_sampler, batch_size, drop_last=False
-    )
-
-    # Crea una nuova istanza del DataLoader per l'addestramento con il nuovo batch_sampler
-    current_train_loader = DataLoader(
-        train_loader.dataset,
-        batch_sampler=train_batch_sampler,
+    # --- Sezione 6: Creazione dei Dataloader specifici per il trial ---
+    train_sampler = get_sampler(train_dataset)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_sampler=torch.utils.data.BatchSampler(
+            train_sampler, batch_size, drop_last=False
+        ),
         num_workers=NUM_WORKERS,
         pin_memory=True,
     )
 
-    # Crea una nuova istanza del DataLoader per la validazione con il nuovo batch_size
-    current_val_loader = DataLoader(
-        val_loader.dataset,
+    val_loader = DataLoader(
+        val_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=NUM_WORKERS,
@@ -156,12 +151,11 @@ def objective(trial, train_loader, val_loader):
     )
 
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
-    # FORZIAMO L'USO DELLA CPU per evitare problemi di compatibilità con MPS
     device = torch.device("cpu")
 
-    class_weights_tensor = get_class_weights(train_loader.dataset, device)
-    input_size = train_loader.dataset[0][0].shape[1]
-    num_classes = len(train_loader.dataset.labels)
+    class_weights_tensor = get_class_weights(train_dataset, device)
+    input_size = train_dataset[0][0].shape[1]
+    num_classes = len(train_dataset.labels)
 
     model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)
 
@@ -227,7 +221,7 @@ def objective(trial, train_loader, val_loader):
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
             nonlocal best_f1_macro
-            evaluator.run(current_val_loader)
+            evaluator.run(val_loader)
             metrics = evaluator.state.metrics
             val_f1_macro = metrics["f1_macro"]
             val_loss = metrics["loss"]
@@ -264,7 +258,7 @@ def objective(trial, train_loader, val_loader):
         evaluator.add_event_handler(Events.COMPLETED, early_stopper)
 
         try:
-            trainer.run(current_train_loader, max_epochs=NUM_EPOCHS)
+            trainer.run(train_loader, max_epochs=NUM_EPOCHS)
         except TrialPruned:
             mlflow.set_tag("status", "pruned")
             raise
@@ -301,8 +295,8 @@ def objective(trial, train_loader, val_loader):
             criterion,
             trainer,
             evaluator,
-            current_train_loader,
-            current_val_loader,
+            train_loader,
+            val_loader,
         )
         gc.collect()
         # !NUOVA VERSIONE: Pulizia aggressiva per prevenire memory leak
@@ -363,23 +357,6 @@ def main():
     print("Train label distribution:", np.bincount([y for _, y in train_dataset]))
     print("Val label distribution:", np.bincount([y for _, y in val_dataset]))
 
-    # --- Creazione dei DataLoader (una sola volta) ---
-    # Usiamo un batch_size fittizio che verrà sovrascritto in ogni trial
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=1,  # Placeholder, verrà ignorato grazie al batch_sampler
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-        sampler=get_sampler(train_dataset),  # Sampler iniziale
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=128,  # Un batch_size di default per la validazione
-        shuffle=False,
-        num_workers=NUM_WORKERS,
-        pin_memory=True,
-    )
-
     run_name = f"Optuna_{MODEL_TYPE}_tuning_optimized"
     with mlflow.start_run(run_name=run_name):
         mlflow.log_param("seed", seed)
@@ -389,7 +366,7 @@ def main():
             sampler=TPESampler(seed=seed),
         )
         study.optimize(
-            lambda trial: objective(trial, train_loader, val_loader),
+            lambda trial: objective(trial, train_dataset, val_dataset),
             n_trials=args.n_trials,
         )
 
