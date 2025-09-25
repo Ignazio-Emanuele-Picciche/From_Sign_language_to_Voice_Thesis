@@ -38,14 +38,18 @@ class LandmarkDataset(Dataset):
     ):
         """
         Args:
-            landmarks_dir (string): Directory che contiene le cartelle dei video con i file JSON.
+            landmarks_dir (string or list): Directory o lista di directory che contengono le cartelle dei video.
             processed_file (string): Percorso del file CSV che contiene i metadati.
             max_seq_length (int): Lunghezza massima a cui standardizzare le sequenze.
             keypoint_type (string): Tipo di keypoint da estrarre ('pose_keypoints_2d' per OpenPose,
                                     'face_keypoints_2d' per MediaPipe, ecc.).
         """
         # Memorizza i percorsi e i parametri passati
-        self.landmarks_dir = landmarks_dir
+        if isinstance(landmarks_dir, str):
+            self.landmarks_dirs = [landmarks_dir]
+        else:
+            self.landmarks_dirs = landmarks_dir
+
         if isinstance(processed_file, list):
             self.processed = pd.concat(
                 [pd.read_csv(f) for f in processed_file], ignore_index=True
@@ -68,19 +72,22 @@ class LandmarkDataset(Dataset):
     def __getitem__(self, idx):
         # 1. Ottiene le informazioni per il campione richiesto
         video_info = self.processed.iloc[idx]
-        video_name = video_info["video_name"]
+        video_name = str(video_info["video_name"])  # <-- MODIFICA APPORTATA
         label_str = video_info["emotion"]
         label = self.label_map[label_str]
 
-        # 2. Costruisce il percorso alla cartella dei file JSON per questo video
-        video_dir = os.path.join(self.landmarks_dir, video_name)
-        if not os.path.isdir(video_dir):
+        # 2. Cerca la cartella dei landmark del video in tutte le directory specificate
+        video_dir = None
+        for l_dir in self.landmarks_dirs:
+            potential_dir = os.path.join(l_dir, video_name)
+            if os.path.isdir(potential_dir):
+                video_dir = potential_dir
+                break
+
+        if video_dir is None:
             logging.warning(
-                f"Directory non trovata per il video {video_name} in {self.landmarks_dir}. Salto il campione."
+                f"Directory non trovata per il video {video_name} in nessuna delle directory fornite. Salto il campione."
             )
-            # Restituisce un campione vuoto o gestisce l'errore come preferito
-            # Qui, per semplicità, restituiamo il primo campione valido del dataset.
-            # Una gestione più robusta potrebbe sollevare un'eccezione o filtrare questi campioni a monte.
             return self.__getitem__(0)
 
         # Lista dei file JSON ordinati per frame

@@ -30,9 +30,10 @@ from src.models.stgcn_model import STGCN
 
 def get_data_paths(base_dir):
     """Restituisce i percorsi standard per i dati di training e validazione."""
-    train_landmarks_dir = os.path.join(
-        base_dir, "data", "raw", "train", "openpose_output_train", "json"
-    )
+    train_landmarks_dirs = [
+        os.path.join(base_dir, "data", "raw", "train", "openpose_output_train", "json"),
+        os.path.join(base_dir, "data", "raw", "ASLLRP", "mediapipe_output", "json"),
+    ]
     train_processed_files = [
         os.path.join(
             base_dir, "data", "processed", "train", "video_sentiment_data_0.34.csv"
@@ -51,7 +52,7 @@ def get_data_paths(base_dir):
         base_dir, "data", "processed", "val", "video_sentiment_data_0.34.csv"
     )
     return (
-        train_landmarks_dir,
+        train_landmarks_dirs,
         train_processed_files,
         val_landmarks_dir,
         val_processed_file,
@@ -59,13 +60,13 @@ def get_data_paths(base_dir):
 
 
 def get_datasets(
-    train_landmarks_dir, train_processed_file, val_landmarks_dir, val_processed_file
+    train_landmarks_dirs, train_processed_file, val_landmarks_dir, val_processed_file
 ):
     """
     Carica e restituisce i dataset di training e validazione.
     """
     train_dataset = LandmarkDataset(
-        landmarks_dir=train_landmarks_dir, processed_file=train_processed_file
+        landmarks_dir=train_landmarks_dirs, processed_file=train_processed_file
     )
     val_dataset = LandmarkDataset(
         landmarks_dir=val_landmarks_dir, processed_file=val_processed_file
@@ -74,7 +75,7 @@ def get_datasets(
 
 
 def get_dataloaders(
-    train_landmarks_dir,
+    train_landmarks_dirs,
     train_processed_file,
     val_landmarks_dir,
     val_processed_file,
@@ -85,7 +86,10 @@ def get_dataloaders(
     Crea e restituisce i DataLoader per training e validazione.
     """
     train_dataset, val_dataset = get_datasets(
-        train_landmarks_dir, train_processed_file, val_landmarks_dir, val_processed_file
+        train_landmarks_dirs,
+        train_processed_file,
+        val_landmarks_dir,
+        val_processed_file,
     )
 
     train_loader = DataLoader(
