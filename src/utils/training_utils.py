@@ -139,9 +139,8 @@ def get_dataloaders(
 def get_class_weights(dataset, device):
     """Calcola i pesi per la funzione di loss per contrastare lo sbilanciamento delle classi."""
     if hasattr(dataset, "video_info"):  # Caso per VideoDataset
-        class_counts = np.bincount(
-            [dataset.label2id[label] for label in dataset.video_info["emotion"]]
-        )
+        labels_arr = [dataset.label2id[label] for label in dataset.video_info["emotion"]]
+        class_counts = np.bincount(labels_arr)
         total_samples = len(dataset.video_info)
     else:  # Caso per LandmarkDataset
         labels_arr = dataset.processed["emotion"].map(dataset.label_map).values

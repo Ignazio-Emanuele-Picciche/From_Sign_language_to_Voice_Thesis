@@ -59,8 +59,9 @@ class LandmarkDataset(Dataset):
         self.max_seq_length = max_seq_length
         self.keypoint_type = keypoint_type
 
-        # Crea una mappatura da etichetta testuale a un indice numerico.
-        self.labels = self.processed["emotion"].unique()
+        # Crea una mappatura da etichetta testuale a un indice numerico, ordinando le etichette
+        # per garantire coerenza (es. 'Negative' -> 0, 'Positive' -> 1).
+        self.labels = sorted(self.processed["emotion"].unique())
         self.label_map = {label: i for i, label in enumerate(self.labels)}
 
     # Il metodo __len__ deve restituire la dimensione totale del dataset.

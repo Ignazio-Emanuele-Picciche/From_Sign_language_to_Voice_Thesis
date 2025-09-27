@@ -43,6 +43,7 @@ from optuna.samplers import TPESampler
 
 import gc
 from torch.utils.data import WeightedRandomSampler
+import logging
 
 # Ignite imports
 # os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
@@ -260,7 +261,21 @@ def objective(trial, train_dataset, val_dataset):
         try:
             trainer.run(train_loader, max_epochs=NUM_EPOCHS)
         except TrialPruned:
+            # Questo blocco viene eseguito quando Optuna interrompe un trial non promettente.
+            # È un comportamento atteso, non un errore.
             mlflow.set_tag("status", "pruned")
+            # Rilanciamo l'eccezione per far sapere a Optuna di terminare il trial.
+            raise TrialPruned(
+                f"Trial pruned at epoch {trainer.state.epoch} because performance was not promising."
+            )
+        except Exception as e:
+            # Cattura qualsiasi altra eccezione imprevista durante il training
+            logging.error(
+                f"Trial {trial.number} failed due to an unexpected error: {e}",
+                exc_info=True,
+            )
+            mlflow.set_tag("status", "failed")
+            # Rilancia l'eccezione per far fallire il trial in Optuna
             raise
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
@@ -354,8 +369,25 @@ def main():
     )
     print("Dataset caricati.")
 
-    print("Train label distribution:", np.bincount([y for _, y in train_dataset]))
-    print("Val label distribution:", np.bincount([y for _, y in val_dataset]))
+    # Stampa la distribuzione delle etichette con i nomi delle classi
+    train_labels = train_dataset.processed["emotion"].map(train_dataset.label_map)
+    val_labels = val_dataset.processed["emotion"].map(val_dataset.label_map)
+    train_dist = {
+        label: count
+        for label, count in zip(
+            train_dataset.labels,
+            np.bincount(train_labels, minlength=len(train_dataset.labels)),
+        )
+    }
+    val_dist = {
+        label: count
+        for label, count in zip(
+            val_dataset.labels,
+            np.bincount(val_labels, minlength=len(val_dataset.labels)),
+        )
+    }
+    print("Train label distribution:", train_dist)
+    print("Val label distribution:", val_dist)
 
     run_name = f"Optuna_{MODEL_TYPE}_tuning_optimized"
     with mlflow.start_run(run_name=run_name):
