@@ -152,7 +152,7 @@ def objective(trial, train_dataset, val_dataset):
     device = torch.device("cpu")
 
     class_weights_tensor = get_class_weights(train_dataset, device)
-    input_size = train_dataset[0][0].shape[1]
+    input_size = train_dataset.num_features  # Usa la dimensione fissa
     num_classes = len(train_dataset.labels)
 
     model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)

@@ -35,14 +35,15 @@ class LandmarkDataset(Dataset):
         processed_file,
         max_seq_length=100,
         keypoint_type="pose_keypoints_2d",
+        num_features=50,  # Aggiunto per forzare una dimensione fissa
     ):
         """
         Args:
             landmarks_dir (string or list): Directory o lista di directory che contengono le cartelle dei video.
             processed_file (string): Percorso del file CSV che contiene i metadati.
             max_seq_length (int): Lunghezza massima a cui standardizzare le sequenze.
-            keypoint_type (string): Tipo di keypoint da estrarre ('pose_keypoints_2d' per OpenPose,
-                                    'face_keypoints_2d' per MediaPipe, ecc.).
+            keypoint_type (string): Tipo di keypoint da estrarre.
+            num_features (int): Numero fisso di feature per ogni frame.
         """
         # Memorizza i percorsi e i parametri passati
         if isinstance(landmarks_dir, str):
@@ -58,6 +59,7 @@ class LandmarkDataset(Dataset):
             self.processed = pd.read_csv(processed_file)
         self.max_seq_length = max_seq_length
         self.keypoint_type = keypoint_type
+        self.num_features = num_features  # Memorizza il numero di feature
 
         # Crea una mappatura da etichetta testuale a un indice numerico, ordinando le etichette
         # per garantire coerenza (es. 'Negative' -> 0, 'Positive' -> 1).
@@ -161,6 +163,19 @@ class LandmarkDataset(Dataset):
 
         # Converte la lista di liste Python in un array NumPy per efficienza
         sequence = np.array(sequence, dtype=np.float32)
+
+        # Standardizza la dimensione delle feature per ogni frame
+        current_features = sequence.shape[1]
+        if current_features > self.num_features:
+            # Tronca le feature se sono troppe
+            sequence = sequence[:, : self.num_features]
+        elif current_features < self.num_features:
+            # Aggiunge padding se le feature sono troppo poche
+            padding_features = np.zeros(
+                (sequence.shape[0], self.num_features - current_features),
+                dtype=np.float32,
+            )
+            sequence = np.hstack((sequence, padding_features))
 
         # 4. Standardizza la lunghezza della sequenza (Padding o Troncamento)
         if len(sequence) > self.max_seq_length:
