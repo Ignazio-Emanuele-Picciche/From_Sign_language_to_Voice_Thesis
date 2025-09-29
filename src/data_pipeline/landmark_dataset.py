@@ -71,9 +71,18 @@ class LandmarkDataset(Dataset):
     # Il metodo __getitem__ è il cuore del Dataset.
     # Carica e restituisce un singolo campione di dati dato un indice `idx`.
     def __getitem__(self, idx):
-        # 1. Ottiene le informazioni per il campione richiesto
+        if self.processed.empty:
+            raise IndexError("Dataset is empty")
+
+        if idx >= len(self.processed):
+            raise IndexError(
+                f"Index {idx} is out of range for dataset with size {len(self.processed)}"
+            )
+
         video_info = self.processed.iloc[idx]
-        video_name = str(video_info["video_name"])  # <-- MODIFICA APPORTATA
+        video_name = str(video_info["video_name"]).replace(".mp4", "")
+        # print("\n\nNOME VIDEO:", video_name, "\n\n")
+        # print("\n\nLANDMARKS DIR:", self.landmarks_dirs, "\n\n")
         label_str = video_info["emotion"]
         label = self.label_map[label_str]
 
@@ -86,10 +95,12 @@ class LandmarkDataset(Dataset):
                 break
 
         if video_dir is None:
-            logging.warning(
-                f"Directory non trovata per il video {video_name} in nessuna delle directory fornite. Salto il campione."
+            # If the directory is not found, we raise a FileNotFoundError.
+            # This is a critical error indicating a mismatch between the CSV and the filesystem.
+            # Raising an error is better than returning a default item, as it makes the problem visible.
+            raise FileNotFoundError(
+                f"Directory not found for video {video_name} in any of the provided directories."
             )
-            return self.__getitem__(0)
 
         # Lista dei file JSON ordinati per frame
         try:
@@ -97,10 +108,11 @@ class LandmarkDataset(Dataset):
                 [f for f in os.listdir(video_dir) if f.endswith(".json")]
             )
         except FileNotFoundError:
-            logging.warning(
-                f"Errore nel leggere la directory: {video_dir}. Salto il campione."
+            # This case should theoretically be caught by the `video_dir is None` check,
+            # but it's good practice to keep it for robustness.
+            raise FileNotFoundError(
+                f"Error reading directory: {video_dir}. It may have been deleted during execution."
             )
-            return self.__getitem__(0)
 
         # 3. Estrae e trasforma i keypoints da ogni JSON in un vettore di feature
         sequence = []
@@ -141,10 +153,11 @@ class LandmarkDataset(Dataset):
                 continue
 
         if not sequence:
-            logging.warning(
-                f"Nessun landmark valido trovato per il video {video_name}. Salto il campione."
+            # If a video directory is found but contains no valid landmarks, this is also a data error.
+            # Instead of returning a default item, we raise an error to signal that this sample is unusable.
+            raise ValueError(
+                f"No valid landmarks found for video {video_name}. The directory might be empty or contain corrupt files."
             )
-            return self.__getitem__(0)
 
         # Converte la lista di liste Python in un array NumPy per efficienza
         sequence = np.array(sequence, dtype=np.float32)

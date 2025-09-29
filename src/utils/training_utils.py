@@ -34,7 +34,9 @@ def get_data_paths(base_dir):
     """Restituisce i percorsi standard per i dati di training e validazione."""
     train_landmarks_dirs = [
         os.path.join(base_dir, "data", "raw", "train", "openpose_output_train", "json"),
-        os.path.join(base_dir, "data", "raw", "ASLLRP", "mediapipe_output_34", "json"),
+        os.path.join(
+            base_dir, "data", "raw", "ASLLRP", "mediapipe_output_0.34", "json"
+        ),
     ]
     train_processed_files = [
         os.path.join(
@@ -109,6 +111,10 @@ def get_datasets(
         df_train_downsampled = pd.concat(
             [df_majority_downsampled_train, df_minority_train]
         )
+
+        # Rimuovi le righe con valori NaN in 'video_name' prima di procedere
+        df_train_downsampled.dropna(subset=["video_name"], inplace=True)
+
         train_dataset.processed = df_train_downsampled.sample(
             frac=1, random_state=42
         ).reset_index(drop=True)
