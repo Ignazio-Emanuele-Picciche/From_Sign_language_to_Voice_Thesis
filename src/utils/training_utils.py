@@ -17,6 +17,7 @@ import os
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
 from torch.utils.data import DataLoader, WeightedRandomSampler
 from sklearn.metrics import f1_score
 
@@ -33,7 +34,7 @@ def get_data_paths(base_dir):
     """Restituisce i percorsi standard per i dati di training e validazione."""
     train_landmarks_dirs = [
         os.path.join(base_dir, "data", "raw", "train", "openpose_output_train", "json"),
-        os.path.join(base_dir, "data", "raw", "ASLLRP", "mediapipe_output", "json"),
+        os.path.join(base_dir, "data", "raw", "ASLLRP", "mediapipe_output_34", "json"),
     ]
     train_processed_files = [
         os.path.join(
@@ -61,10 +62,26 @@ def get_data_paths(base_dir):
 
 
 def get_datasets(
-    train_landmarks_dirs, train_processed_file, val_landmarks_dir, val_processed_file
+    train_landmarks_dirs,
+    train_processed_file,
+    val_landmarks_dir,
+    val_processed_file,
+    downsample_majority_class=False,
+    majority_class_label="Positive",
+    downsample_ratio=1.0,
 ):
     """
     Carica e restituisce i dataset di training e validazione.
+
+    Args:
+        train_landmarks_dirs (list): Percorsi alle directory dei landmark di training.
+        train_processed_file (str): Percorso al file CSV processato di training.
+        val_landmarks_dir (str): Percorso alla directory dei landmark di validazione.
+        val_processed_file (str): Percorso al file CSV processato di validazione.
+        downsample_majority_class (bool): Se True, esegue il downsampling della classe maggioritaria.
+        majority_class_label (str): L'etichetta della classe maggioritaria da sottocampionare.
+        downsample_ratio (float): Il rapporto a cui ridurre la classe maggioritaria.
+                                 1.0 significa che avrà la stessa dimensione della minoritaria.
     """
     train_dataset = LandmarkDataset(
         landmarks_dir=train_landmarks_dirs, processed_file=train_processed_file
@@ -72,6 +89,36 @@ def get_datasets(
     val_dataset = LandmarkDataset(
         landmarks_dir=val_landmarks_dir, processed_file=val_processed_file
     )
+
+    if downsample_majority_class:
+        print("Esecuzione del downsampling sulla classe maggioritaria...")
+        # Downsample del training set
+        df_train = train_dataset.processed
+        class_counts_train = df_train["emotion"].value_counts()
+        minority_class_label_train = class_counts_train.idxmin()
+        minority_count_train = class_counts_train.min()
+
+        n_majority_new = int(minority_count_train * downsample_ratio)
+
+        df_majority_train = df_train[df_train["emotion"] == majority_class_label]
+        df_minority_train = df_train[df_train["emotion"] == minority_class_label_train]
+
+        df_majority_downsampled_train = df_majority_train.sample(
+            n=n_majority_new, random_state=42
+        )
+        df_train_downsampled = pd.concat(
+            [df_majority_downsampled_train, df_minority_train]
+        )
+        train_dataset.processed = df_train_downsampled.sample(
+            frac=1, random_state=42
+        ).reset_index(drop=True)
+
+        print(f"Train set originale: {class_counts_train.to_dict()}")
+        print(
+            "Train set dopo downsampling:"
+            f" {train_dataset.processed['emotion'].value_counts().to_dict()}"
+        )
+
     return train_dataset, val_dataset
 
 
@@ -139,7 +186,9 @@ def get_dataloaders(
 def get_class_weights(dataset, device):
     """Calcola i pesi per la funzione di loss per contrastare lo sbilanciamento delle classi."""
     if hasattr(dataset, "video_info"):  # Caso per VideoDataset
-        labels_arr = [dataset.label2id[label] for label in dataset.video_info["emotion"]]
+        labels_arr = [
+            dataset.label2id[label] for label in dataset.video_info["emotion"]
+        ]
         class_counts = np.bincount(labels_arr)
         total_samples = len(dataset.video_info)
     else:  # Caso per LandmarkDataset

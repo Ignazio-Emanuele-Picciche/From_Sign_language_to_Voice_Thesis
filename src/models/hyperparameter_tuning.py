@@ -19,9 +19,9 @@
 #    python3 src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40
 #
 #    ESEMPIO DI COMANDO PER ST-GCN:
-#    Esegue 20 tentativi di ottimizzazione per il modello ST-GCN, addestrando per 25 epoche ogni volta.
+#    Esegue 20 tentativi di ottimizzazione per il modello ST-GCN, addestrando per 34 epoche ogni volta.
 #
-#    python3 src/models/hyperparameter_tuning.py --model_type stgcn --n_trials 20 --num_epochs 25
+#    python3 src/models/hyperparameter_tuning.py --model_type stgcn --n_trials 20 --num_epochs 34
 #
 #    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40 --num_workers 0
 # =================================================================================================
@@ -74,12 +74,7 @@ from src.utils.training_utils import (
 )
 
 # --- Sezione 2: Setup di MLflow ---
-mlflow.set_tracking_uri("http://127.0.0.1:8080")
-experiment_name = "VADER 0.34 - HT Emotion Recognition Experiment"
-if mlflow.get_experiment_by_name(experiment_name) is None:
-    mlflow.create_experiment(experiment_name)
-else:
-    mlflow.set_experiment(experiment_name)
+# Spostato all'interno della funzione main() per renderlo dinamico
 
 # --- Sezione 3: Definizione dei Percorsi Dati ---
 (
@@ -92,7 +87,7 @@ else:
 # --- Sezione 4: Variabili Globali ---
 NUM_EPOCHS = 5
 MODEL_TYPE = "lstm"
-PATIENCE = 4
+PATIENCE = 10  # Aumentata la pazienza per dare più tempo al modello
 NUM_WORKERS = 0
 
 torch.set_default_dtype(torch.float32)
@@ -105,21 +100,23 @@ def objective(trial, train_dataset, val_dataset):
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
     if MODEL_TYPE == "lstm":
         hidden_size = trial.suggest_int(
-            "hidden_size", 256, 512, step=32
-        )  # RIDOTTO: Limite superiore ridotto da 768 a 512
-        num_layers = trial.suggest_int("num_layers", 1, 3)  # Riduciamo i layer
+            "hidden_size", 128, 384, step=32
+        )  # Riduciamo la complessità del modello
+        num_layers = trial.suggest_int(
+            "num_layers", 1, 2
+        )  # Preferiamo modelli meno profondi
         dropout = trial.suggest_float(
-            "dropout", 0.3, 0.7
-        )  # Aumentiamo il range del dropout
+            "dropout", 0.5, 0.8
+        )  # Aumentiamo il range del dropout in modo aggressivo
         learning_rate = trial.suggest_float(
-            "learning_rate", 1e-6, 1e-5, log=True
-        )  # Range ridotto
+            "learning_rate", 5e-6, 5e-5, log=True
+        )  # Esploriamo learning rate più bassi
         batch_size = trial.suggest_categorical(
-            "batch_size", [32, 64, 96]
-        )  # RIDOTTO: Rimossi i valori più alti
+            "batch_size", [32, 64]
+        )  # Batch size più piccoli possono aiutare la generalizzazione
         weight_decay = trial.suggest_float(
-            "weight_decay", 1e-3, 0.1, log=True
-        )  # Partiamo da un valore più alto
+            "weight_decay", 5e-3, 0.5, log=True
+        )  # Aumentiamo il range del weight decay
         model_params = {
             "hidden_size": hidden_size,
             "num_layers": num_layers,
@@ -168,7 +165,9 @@ def objective(trial, train_dataset, val_dataset):
         f"Trial {trial.number}: lr={learning_rate}, batch_size={batch_size}, weight_decay={weight_decay}, dropout={model_params.get('dropout', None)}"
     )
     print("Class weights:", class_weights_tensor.cpu().numpy())
-    scheduler = ReduceLROnPlateau(optimizer, mode="max", factor=0.1, patience=5)
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode="max", factor=0.2, patience=3
+    )  # Scheduler più reattivo
 
     # --- Ignite Trainer ed Evaluator ---
     def train_step(engine, batch):
@@ -345,6 +344,12 @@ def main():
         default=0,
         help="Number of worker processes for data loading.",
     )
+    parser.add_argument(
+        "--downsample_ratio",
+        type=float,
+        default=0.0,  # 0.0 means no downsampling
+        help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
+    )
 
     args = parser.parse_args()
     seed = args.seed
@@ -365,7 +370,12 @@ def main():
     # --- Caricamento Dati (una sola volta) ---
     print("Caricamento dei dataset...")
     train_dataset, val_dataset = get_datasets(
-        TRAIN_LANDMARKS_DIR, TRAIN_PROCESSED_FILE, VAL_LANDMARKS_DIR, VAL_PROCESSED_FILE
+        TRAIN_LANDMARKS_DIR,
+        TRAIN_PROCESSED_FILE,
+        VAL_LANDMARKS_DIR,
+        VAL_PROCESSED_FILE,
+        downsample_majority_class=args.downsample_ratio > 0,
+        downsample_ratio=args.downsample_ratio,
     )
     print("Dataset caricati.")
 
@@ -389,9 +399,27 @@ def main():
     print("Train label distribution:", train_dist)
     print("Val label distribution:", val_dist)
 
+    # --- Setup di MLflow dinamico ---
+    mlflow.set_tracking_uri("http://127.0.0.1:8080")
+    base_experiment_name = "VADER 0.34 - HT Emotion Recognition"
+    if args.downsample_ratio > 0:
+        experiment_name = f"{base_experiment_name} (DS ratio: {args.downsample_ratio})"
+    else:
+        experiment_name = f"{base_experiment_name} (No DS)"
+
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(experiment_name)
+    mlflow.set_experiment(experiment_name)
+    # ---
+
     run_name = f"Optuna_{MODEL_TYPE}_tuning_optimized"
-    with mlflow.start_run(run_name=run_name):
+    with mlflow.start_run(run_name=run_name) as run:
         mlflow.log_param("seed", seed)
+        mlflow.log_param("downsample_ratio", args.downsample_ratio)
+        # Logga la distribuzione effettiva dopo il downsampling
+        mlflow.log_param("train_label_distribution", train_dist)
+        mlflow.log_param("val_label_distribution", val_dist)
+
         study = optuna.create_study(
             direction="maximize",
             pruner=MedianPruner(n_startup_trials=PATIENCE, n_warmup_steps=1),
@@ -410,6 +438,7 @@ def main():
                 "project": "EmoSign",
                 "optimizer_engine": "optuna",
                 "model_family": MODEL_TYPE,
+                "run_id": run.info.run_id,
             }
         )
 
