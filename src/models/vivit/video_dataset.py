@@ -32,7 +32,11 @@ class VideoDataset(Dataset):
         self, annotations_file, video_root_dir, image_processor, num_frames=16
     ):
         self.video_info = pd.read_csv(annotations_file)
-        self.video_root_dir = video_root_dir
+        # Supporta sia singola directory che lista di directory
+        if isinstance(video_root_dir, list):
+            self.video_root_dirs = video_root_dir
+        else:
+            self.video_root_dirs = [video_root_dir]
         self.image_processor = image_processor
         self.num_frames = num_frames
 
@@ -40,6 +44,7 @@ class VideoDataset(Dataset):
         self.labels = sorted(self.video_info["emotion"].unique())
         self.label2id = {label: i for i, label in enumerate(self.labels)}
         logger.info(f"Trovate {len(self.labels)} classi: {self.label2id}")
+        logger.info(f"Directory video: {self.video_root_dirs}")
 
     def __len__(self):
         return len(self.video_info)
@@ -51,8 +56,24 @@ class VideoDataset(Dataset):
 
     def __getitem__(self, idx):
         video_name = self.video_info.iloc[idx]["video_name"].strip()
-        video_filename = f"{video_name}.mp4"  # Aggiunge l'estensione .mp4
-        video_path_full = os.path.join(self.video_root_dir, video_filename)
+        # Aggiunge .mp4 solo se non è già presente (gestisce entrambi i formati CSV)
+        if video_name.endswith(".mp4"):
+            video_filename = video_name
+        else:
+            video_filename = f"{video_name}.mp4"
+
+        # Cerca il video in tutte le directory disponibili
+        video_path_full = None
+        for video_dir in self.video_root_dirs:
+            potential_path = os.path.join(video_dir, video_filename)
+            if os.path.exists(potential_path):
+                video_path_full = potential_path
+                break
+
+        if video_path_full is None:
+            raise FileNotFoundError(
+                f"Video {video_filename} non trovato in nessuna delle directory: {self.video_root_dirs}"
+            )
 
         label_str = self.video_info.iloc[idx]["emotion"]
         label_id = self.label2id[label_str]

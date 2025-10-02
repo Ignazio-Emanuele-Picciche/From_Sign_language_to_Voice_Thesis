@@ -24,6 +24,8 @@
 #    python3 src/models/hyperparameter_tuning.py --model_type stgcn --n_trials 20 --num_epochs 34
 #
 #    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40 --num_workers 0
+#
+#    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
 # =================================================================================================
 
 import os

@@ -128,6 +128,106 @@ def get_datasets(
     return train_dataset, val_dataset
 
 
+def get_video_datasets(
+    train_video_dirs,  # Ora accetta lista di directory
+    train_annotations_files,  # Ora accetta lista di file
+    val_video_dir,
+    val_annotations_file,
+    image_processor,
+    num_frames=16,
+    downsample_majority_class=False,
+    downsample_ratio=1.0,
+):
+    """
+    Carica e restituisce i VideoDataset di training e validazione con downsampling opzionale.
+    Supporta multiple directory video e file annotazioni per il training (come get_datasets).
+    """
+    # Assicurati che train_video_dirs e train_annotations_files siano liste
+    if isinstance(train_video_dirs, str):
+        train_video_dirs = [train_video_dirs]
+    if isinstance(train_annotations_files, str):
+        train_annotations_files = [train_annotations_files]
+
+    # Carica e combina tutti i dataset di training
+    train_datasets = []
+    for video_dir, annotations_file in zip(train_video_dirs, train_annotations_files):
+        dataset = VideoDataset(
+            annotations_file=annotations_file,
+            video_root_dir=video_dir,
+            image_processor=image_processor,
+            num_frames=num_frames,
+        )
+        train_datasets.append(dataset)
+
+    # Combina tutti i dataset di training
+    if len(train_datasets) == 1:
+        train_dataset = train_datasets[0]
+    else:
+        # Combina i video_info di tutti i dataset
+        combined_video_info = pd.concat(
+            [ds.video_info for ds in train_datasets], ignore_index=True
+        )
+
+        # Usa il primo dataset come base e sostituisci video_info
+        train_dataset = train_datasets[0]
+        train_dataset.video_info = combined_video_info
+
+        # IMPORTANTE: Passa TUTTE le directory al dataset combinato
+        train_dataset.video_root_dirs = train_video_dirs
+
+        # Aggiorna labels e label2id per includere tutte le classi
+        all_labels = sorted(combined_video_info["emotion"].unique())
+        train_dataset.labels = all_labels
+        train_dataset.label2id = {label: i for i, label in enumerate(all_labels)}
+
+        print(f"Combinati {len(train_datasets)} dataset di training:")
+        for i, (video_dir, annotations_file) in enumerate(
+            zip(train_video_dirs, train_annotations_files)
+        ):
+            print(
+                f"   Dataset {i+1}: {len(train_datasets[i].video_info)} campioni da {os.path.basename(video_dir)}"
+            )
+        print(f"   Totale combinato: {len(combined_video_info)} campioni")
+
+    val_dataset = VideoDataset(
+        annotations_file=val_annotations_file,
+        video_root_dir=val_video_dir,
+        image_processor=image_processor,
+        num_frames=num_frames,
+    )
+
+    if downsample_majority_class:
+        print("Esecuzione del downsampling sulla classe maggioritaria...")
+        df_train = train_dataset.video_info
+        class_counts_train = df_train["emotion"].value_counts()
+        majority_class_label = class_counts_train.idxmax()
+        minority_class_label = class_counts_train.idxmin()
+        minority_count = class_counts_train.min()
+
+        n_majority_new = int(minority_count * downsample_ratio)
+
+        df_majority = df_train[df_train["emotion"] == majority_class_label]
+        df_minority = df_train[df_train["emotion"] == minority_class_label]
+
+        df_majority_downsampled = df_majority.sample(n=n_majority_new, random_state=42)
+        df_train_downsampled = pd.concat([df_majority_downsampled, df_minority])
+
+        # Rimuovi le righe con valori NaN in 'video_name' prima di procedere
+        df_train_downsampled.dropna(subset=["video_name"], inplace=True)
+
+        train_dataset.video_info = df_train_downsampled.sample(
+            frac=1, random_state=42
+        ).reset_index(drop=True)
+
+        print(f"Train set originale: {class_counts_train.to_dict()}")
+        print(
+            "Train set dopo downsampling:"
+            f" {train_dataset.video_info['emotion'].value_counts().to_dict()}"
+        )
+
+    return train_dataset, val_dataset
+
+
 def get_sampler(dataset):
     """Crea un WeightedRandomSampler per bilanciare le classi."""
     class_weights = get_class_weights(dataset, device="cpu")
@@ -238,17 +338,32 @@ def create_model(model_type, input_size, num_classes, device, params):
 
 
 def prepare_batch(batch, device, model_type, non_blocking=False):
-    """Prepara un batch di dati, rimodellandolo se necessario per ST-GCN."""
-    x, y = batch
-    if model_type == "stgcn":
-        b, t, f = x.shape
-        coords_per_point = 2
-        num_point = f // coords_per_point
-        x = x.view(b, t, num_point, coords_per_point)
-    return (
-        x.to(device, non_blocking=non_blocking),
-        y.to(device, non_blocking=non_blocking),
-    )
+    """Prepara un batch di dati, rimodellandolo se necessario per ST-GCN o gestendo dict per ViViT."""
+    if model_type == "vivit":
+        # Per ViViT, gestisce sia formato dict che tuple
+        if isinstance(batch, dict):
+            pixel_values = batch["pixel_values"].to(device, non_blocking=non_blocking)
+            labels = batch["labels"].to(device, non_blocking=non_blocking)
+            return pixel_values, labels
+        else:
+            # Assume batch is a tuple/list: (pixel_values, labels)
+            pixel_values, labels = batch
+            return (
+                pixel_values.to(device, non_blocking=non_blocking),
+                labels.to(device, non_blocking=non_blocking),
+            )
+    else:
+        # Per LSTM e ST-GCN
+        x, y = batch
+        if model_type == "stgcn":
+            b, t, f = x.shape
+            coords_per_point = 2
+            num_point = f // coords_per_point
+            x = x.view(b, t, num_point, coords_per_point)
+        return (
+            x.to(device, non_blocking=non_blocking),
+            y.to(device, non_blocking=non_blocking),
+        )
 
 
 def setup_ignite_evaluator(model, criterion, device, model_type, val_loader):

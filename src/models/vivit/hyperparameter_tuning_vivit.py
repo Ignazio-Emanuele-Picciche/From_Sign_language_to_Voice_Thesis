@@ -12,9 +12,9 @@
 #    Questo script utilizza Optuna per trovare i migliori iperparametri per il modello ViViT.
 #
 #    ESEMPIO DI COMANDO:
-#    Esegue 10 tentativi di ottimizzazione, addestrando per 10 epoche ogni volta.
+#    Esegue 40 tentativi di ottimizzazione, addestrando per 20 epoche ogni volta.
 #
-#    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 10 --num_epochs 10
+#    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
 #
 # =================================================================================================
 
@@ -26,6 +26,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, WeightedRandomSampler
 import numpy as np
+import pandas as pd
 import mlflow
 import mlflow.pytorch
 from optuna.pruners import MedianPruner
@@ -61,6 +62,10 @@ from src.models.vivit.video_dataset import VideoDataset
 from src.utils.training_utils import (
     get_class_weights,
     get_sampler,
+    get_datasets,
+    get_data_paths,
+    prepare_batch,
+    get_video_datasets,
 )  # Aggiunto import
 
 # --- Sezione 2: Setup di MLflow ---
@@ -72,31 +77,45 @@ else:
     mlflow.set_experiment(experiment_name)
 
 # --- Sezione 3: Definizione dei Percorsi Dati ---
-TRAIN_VIDEO_DIR = os.path.join(
-    BASE_DIR, "data", "raw", "train", "raw_videos_front_train"
-)
+(
+    TRAIN_LANDMARKS_DIR,
+    TRAIN_PROCESSED_FILE,
+    VAL_LANDMARKS_DIR,
+    VAL_PROCESSED_FILE,
+) = get_data_paths(BASE_DIR)
+
+# Directory video per training (include ASLLRP per coerenza con hyperparameter_tuning.py)
+TRAIN_VIDEO_DIRS = [
+    os.path.join(BASE_DIR, "data", "raw", "train", "raw_videos_front_train"),
+    os.path.join(BASE_DIR, "data", "raw", "ASLLRP", "batch_utterance_video_v3_1"),
+]
 VAL_VIDEO_DIR = os.path.join(BASE_DIR, "data", "raw", "val", "raw_videos_front_val")
-TRAIN_ANNOTATIONS_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.34.csv"
-)
+
+# File annotazioni per training (include ASLLRP per coerenza con hyperparameter_tuning.py)
+TRAIN_ANNOTATIONS_FILES = [
+    os.path.join(
+        BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.34.csv"
+    ),
+    os.path.join(
+        BASE_DIR,
+        "data",
+        "processed",
+        "asllrp_video_sentiment_data_0.34_without_golden.csv",
+    ),
+]
 VAL_ANNOTATIONS_FILE = os.path.join(
     BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.34.csv"
 )
 
 # --- Sezione 4: Variabili Globali ---
 NUM_EPOCHS = 10
-PATIENCE = 5
+PATIENCE = 10
 MODEL_NAME = "google/vivit-b-16x2-kinetics400"
 NUM_WORKERS = 0
 
 
 # --- Funzioni di Utilità per Dati e Modello ---
-
-
-def prepare_batch(batch, device=None, non_blocking=False):
-    pixel_values = batch["pixel_values"].to(device, non_blocking=non_blocking)
-    labels = batch["labels"].to(device, non_blocking=non_blocking)
-    return pixel_values, labels
+# Le funzioni prepare_batch, get_sampler, get_class_weights sono ora in training_utils.py
 
 
 def objective(trial, train_dataset, val_dataset):
@@ -136,7 +155,7 @@ def objective(trial, train_dataset, val_dataset):
     )
     model.to(device)
 
-    class_weights_tensor = get_class_weights(train_dataset).to(device)
+    class_weights_tensor = get_class_weights(train_dataset, device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
     optimizer = torch.optim.AdamW(
         model.classifier.parameters(), lr=learning_rate, weight_decay=weight_decay
@@ -146,7 +165,7 @@ def objective(trial, train_dataset, val_dataset):
     def train_step(engine, batch):
         model.train()
         optimizer.zero_grad()
-        pixel_values, labels = prepare_batch(batch, device=device)
+        pixel_values, labels = prepare_batch(batch, device, "vivit")
         outputs = model(pixel_values=pixel_values, labels=labels)
         loss = outputs.loss
         loss.backward()
@@ -162,7 +181,7 @@ def objective(trial, train_dataset, val_dataset):
     def eval_step(engine, batch):
         model.eval()
         with torch.no_grad():
-            pixel_values, labels = prepare_batch(batch, device=device)
+            pixel_values, labels = prepare_batch(batch, device, "vivit")
             outputs = model(pixel_values=pixel_values)
             return outputs, labels
 
@@ -292,8 +311,14 @@ def main():
     parser.add_argument(
         "--num_workers",
         type=int,
-        default=2,
+        default=0,
         help="Number of worker processes for data loading.",
+    )
+    parser.add_argument(
+        "--downsample_ratio",
+        type=float,
+        default=0.0,
+        help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
     )
 
     args = parser.parse_args()
@@ -315,20 +340,57 @@ def main():
     # --- Caricamento Dati (una sola volta) ---
     print("Caricamento e pre-processing dei dataset...")
     # Creiamo il modello una volta per ottenere la configurazione corretta
-    # (es. num_frames) e l'image_processor che servono al dataset
     temp_model, image_processor = create_vivit_model(
         num_classes=2, model_name=MODEL_NAME
     )  # num_classes è temporaneo
     num_frames = temp_model.config.num_frames
     del temp_model  # Liberiamo la memoria
 
-    train_dataset = VideoDataset(
-        TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, image_processor, num_frames=num_frames
+    # Carica i dataset video per ViViT usando la funzione condivisa con supporto completo
+    # Ora include TUTTI i dataset (train + ASLLRP) per coerenza con hyperparameter_tuning.py
+    train_dataset, val_dataset = get_video_datasets(
+        train_video_dirs=TRAIN_VIDEO_DIRS,  # Tutte le directory
+        train_annotations_files=TRAIN_ANNOTATIONS_FILES,  # Tutti i file annotazioni
+        val_video_dir=VAL_VIDEO_DIR,
+        val_annotations_file=VAL_ANNOTATIONS_FILE,
+        image_processor=image_processor,
+        num_frames=num_frames,
+        downsample_majority_class=args.downsample_ratio > 0,
+        downsample_ratio=args.downsample_ratio,
     )
-    val_dataset = VideoDataset(
-        VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, image_processor, num_frames=num_frames
+
+    print(
+        f"   Directory video: {len(TRAIN_VIDEO_DIRS)} ({[os.path.basename(d) for d in TRAIN_VIDEO_DIRS]})"
     )
+    print(
+        f"   File annotazioni: {len(TRAIN_ANNOTATIONS_FILES)} ({[os.path.basename(f) for f in TRAIN_ANNOTATIONS_FILES]})"
+    )
+
     print("Dataset caricati.")
+
+    # Stampa la distribuzione delle etichette con i nomi delle classi
+    if hasattr(train_dataset, "video_info"):
+        train_dist = Counter(train_dataset.video_info["emotion"])
+        val_dist = Counter(val_dataset.video_info["emotion"])
+    else:
+        train_dist = Counter(train_dataset.labels)
+        val_dist = Counter(val_dataset.labels)
+    print("Train label distribution:", train_dist)
+    print("Val label distribution:", val_dist)
+
+    # --- Setup di MLflow dinamico ---
+    mlflow.set_tracking_uri("http://127.0.0.1:8080")
+    base_experiment_name = "VIVIT - VADER 0.34 - HT Emotion Recognition"
+    if args.downsample_ratio > 0:
+        experiment_name = (
+            f"{base_experiment_name} - Downsampled {args.downsample_ratio}"
+        )
+    else:
+        experiment_name = f"{base_experiment_name} - Full"
+
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(experiment_name)
+    mlflow.set_experiment(experiment_name)
 
     model_short_name = MODEL_NAME.split("/")[-1]
     run_name = f"Optuna_ViViT_{model_short_name}_tuning"
