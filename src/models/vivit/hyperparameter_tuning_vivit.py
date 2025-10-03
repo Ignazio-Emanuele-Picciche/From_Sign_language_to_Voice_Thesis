@@ -16,6 +16,8 @@
 #
 #    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
 #
+#    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 20 --num_epochs 7 --downsample_ratio 1.0 --num_workers 2
+#
 # =================================================================================================
 
 import os
@@ -109,9 +111,9 @@ VAL_ANNOTATIONS_FILE = os.path.join(
 
 # --- Sezione 4: Variabili Globali ---
 NUM_EPOCHS = 10
-PATIENCE = 10
+PATIENCE = 5
 MODEL_NAME = "google/vivit-b-16x2-kinetics400"
-NUM_WORKERS = 0
+NUM_WORKERS = 2  # Aumentato da 0 per parallelizzare il caricamento
 
 
 # --- Funzioni di Utilità per Dati e Modello ---
@@ -123,26 +125,33 @@ def objective(trial, train_dataset, val_dataset):
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
-    learning_rate = trial.suggest_float("learning_rate", 1e-6, 1e-4, log=True)
-    batch_size = trial.suggest_categorical("batch_size", [1, 2, 4])
+    learning_rate = trial.suggest_float(
+        "learning_rate", 1e-5, 1e-3, log=True
+    )  # Range più ampio
+    batch_size = trial.suggest_categorical(
+        "batch_size", [1, 2]
+    )  # Solo 1 e 2 per memoria
     weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
 
     # --- Sezione 6: Caricamento Dati ---
-    # I dataset sono già caricati, creiamo solo i dataloader
     train_sampler = get_sampler(train_dataset)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         sampler=train_sampler,
         num_workers=NUM_WORKERS,
-        pin_memory=True,
+        pin_memory=False,  # Disabilitato per risparmiare memoria
+        prefetch_factor=1,  # Ridotto per memoria
+        persistent_workers=True,  # Mantiene worker attivi per efficienza
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=NUM_WORKERS,
-        pin_memory=True,
+        pin_memory=False,
+        prefetch_factor=1,
+        persistent_workers=True,
     )
 
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
@@ -161,28 +170,44 @@ def objective(trial, train_dataset, val_dataset):
         model.classifier.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
 
-    # --- Ignite Trainer ed Evaluator ---
+    # --- Ignite Trainer ed Evaluator con ottimizzazioni memoria ---
     def train_step(engine, batch):
         model.train()
         optimizer.zero_grad()
+
+        # Gradient accumulation per simulare batch più grandi
         pixel_values, labels = prepare_batch(batch, device, "vivit")
         outputs = model(pixel_values=pixel_values, labels=labels)
         loss = outputs.loss
+
+        # Normalizza loss per gradient accumulation se batch_size è 1
+        if batch_size == 1:
+            loss = loss / 2  # Simula batch_size 2
+
         loss.backward()
-        optimizer.step()
+
+        # Accumula gradienti ogni 2 step se batch_size è 1
+        if batch_size == 1 and engine.state.iteration % 2 == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+        elif batch_size > 1:
+            optimizer.step()
+
         return loss.item()
 
     trainer = Engine(train_step)
 
-    # Aggiungiamo una progress bar per avere un feedback visivo
-    pbar = ProgressBar(persist=True)
-    pbar.attach(trainer, output_transform=lambda x: {"batch loss": x})
+    # Progress bar meno verbosa
+    pbar = ProgressBar(persist=False)  # Non persistente per memoria
+    pbar.attach(trainer, output_transform=lambda x: {"loss": f"{x:.4f}"})
 
     def eval_step(engine, batch):
         model.eval()
         with torch.no_grad():
             pixel_values, labels = prepare_batch(batch, device, "vivit")
+            # Libera memoria immediatamente dopo ogni batch
             outputs = model(pixel_values=pixel_values)
+            del pixel_values  # Explicit cleanup
             return outputs, labels
 
     def output_transform(output):
@@ -248,6 +273,7 @@ def objective(trial, train_dataset, val_dataset):
             if trial.should_prune():
                 raise TrialPruned()
 
+            # Pulizia memoria più aggressiva
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -278,6 +304,8 @@ def objective(trial, train_dataset, val_dataset):
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
 
+        # Pulizia finale più aggressiva
+        del model, optimizer, class_weights_tensor, criterion
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
