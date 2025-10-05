@@ -26,6 +26,15 @@
 #    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40 --num_workers 0
 #
 #    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
+
+#    ESEMPIO DI COMANDO PER LSTM CON FOCAL LOSS E OTTIMIZZAZIONE SU WEIGHTED F1:
+#    python src/models/hyperparameter_tuning.py \
+#     --model_type lstm \
+#     --n_trials 50 \
+#     --num_epochs 20 \
+#     --downsample_ratio 1.0 \
+#     --use_focal_loss \
+#     --optimize_metric weighted_f1
 # =================================================================================================
 
 import os
@@ -34,8 +43,15 @@ import argparse
 import optuna
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    accuracy_score,
+)
 import mlflow
 import mlflow.pytorch
 from optuna.pruners import MedianPruner
@@ -91,8 +107,42 @@ NUM_EPOCHS = 5
 MODEL_TYPE = "lstm"
 PATIENCE = 10  # Aumentata la pazienza per dare più tempo al modello
 NUM_WORKERS = 0
+USE_FOCAL_LOSS = False  # Controllato da argomenti CLI
+OPTIMIZE_METRIC = "f1_macro"  # Metrica di ottimizzazione
 
 torch.set_default_dtype(torch.float32)
+
+
+# =================================================================================================
+# FOCAL LOSS IMPLEMENTATION
+# =================================================================================================
+class FocalLoss(nn.Module):
+    """
+    Focal Loss per gestire dataset sbilanciati.
+
+    Args:
+        alpha (float): Peso per bilanciare le classi (default: 1.0)
+        gamma (float): Parametro di focusing per ridurre il peso dei campioni facili (default: 2.0)
+        weight (Tensor): Pesi delle classi (come in CrossEntropyLoss)
+    """
+
+    def __init__(self, alpha=1.0, gamma=2.0, weight=None):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, inputs, targets):
+        # Calcola cross entropy loss
+        ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction="none")
+
+        # Calcola pt = e^(-ce_loss)
+        pt = torch.exp(-ce_loss)
+
+        # Calcola focal loss: α * (1-pt)^γ * ce_loss
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+
+        return focal_loss.mean()
 
 
 def objective(trial, train_dataset, val_dataset):
@@ -100,6 +150,21 @@ def objective(trial, train_dataset, val_dataset):
     Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
     """
     # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
+
+    # Loss function selection
+    if USE_FOCAL_LOSS:
+        use_focal_loss = trial.suggest_categorical("use_focal_loss", [True, False])
+        focal_alpha = (
+            trial.suggest_float("focal_alpha", 0.5, 2.0) if use_focal_loss else 1.0
+        )
+        focal_gamma = (
+            trial.suggest_float("focal_gamma", 0.5, 3.0) if use_focal_loss else 2.0
+        )
+    else:
+        use_focal_loss = False
+        focal_alpha = 1.0
+        focal_gamma = 2.0
+
     if MODEL_TYPE == "lstm":
         hidden_size = trial.suggest_int(
             "hidden_size", 128, 384, step=32
@@ -113,6 +178,11 @@ def objective(trial, train_dataset, val_dataset):
         learning_rate = trial.suggest_float(
             "learning_rate", 5e-6, 5e-5, log=True
         )  # Esploriamo learning rate più bassi
+        # Adjust learning rate for Focal Loss
+        if use_focal_loss:
+            learning_rate = learning_rate * trial.suggest_float(
+                "lr_focal_multiplier", 1.0, 2.5
+            )
         batch_size = trial.suggest_categorical(
             "batch_size", [32, 64]
         )  # Batch size più piccoli possono aiutare la generalizzazione
@@ -159,7 +229,15 @@ def objective(trial, train_dataset, val_dataset):
 
     model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)
 
-    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
+    # --- LOSS FUNCTION SELECTION ---
+    if use_focal_loss:
+        criterion = FocalLoss(
+            alpha=focal_alpha, gamma=focal_gamma, weight=class_weights_tensor
+        )
+        loss_type = "FocalLoss"
+    else:
+        criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
+        loss_type = "CrossEntropyLoss"
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
@@ -215,35 +293,101 @@ def objective(trial, train_dataset, val_dataset):
             "batch_size": batch_size,
             "weight_decay": weight_decay,
             "model_type": MODEL_TYPE,
+            "loss_function": loss_type,
         }
+        if use_focal_loss:
+            base_params.update(
+                {
+                    "focal_alpha": focal_alpha,
+                    "focal_gamma": focal_gamma,
+                }
+            )
         mlflow.log_params({**base_params, **model_params})
 
         best_f1_macro = 0.0
+        best_weighted_f1 = 0.0
+        best_class_gap = float("inf")
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
-            nonlocal best_f1_macro
+            nonlocal best_f1_macro, best_weighted_f1, best_class_gap
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
             val_f1_macro = metrics["f1_macro"]
             val_loss = metrics["loss"]
 
+            # Calcola metriche weighted e analisi dettagliata
+            with torch.no_grad():
+                all_preds = []
+                all_labels = []
+                all_probs = []
+
+                for xb, yb in val_loader:
+                    x, y = prepare_batch((xb, yb), device, MODEL_TYPE)
+                    outputs = model(x)
+                    probs = torch.softmax(outputs, dim=1)
+                    preds = torch.argmax(outputs, dim=1)
+
+                    all_preds.extend(preds.cpu().numpy())
+                    all_labels.extend(y.cpu().numpy())
+                    all_probs.extend(
+                        probs[:, 1].cpu().numpy()
+                        if probs.shape[1] > 1
+                        else probs[:, 0].cpu().numpy()
+                    )  # Probabilità classe Positive
+
+                # Calcola weighted metrics
+                val_weighted_f1 = f1_score(all_labels, all_preds, average="weighted")
+                val_weighted_acc = accuracy_score(all_labels, all_preds)
+
+                # Calcola class gap (differenza F1 tra classi)
+                class_f1_scores = f1_score(all_labels, all_preds, average=None)
+                if len(class_f1_scores) >= 2:
+                    class_gap = abs(class_f1_scores[1] - class_f1_scores[0])
+                else:
+                    class_gap = 0.0
+
+                # Analisi per classe
+                neg_probs = [p for p, l in zip(all_probs, all_labels) if l == 0]
+                pos_probs = [p for p, l in zip(all_probs, all_labels) if l == 1]
+
+                avg_neg_prob = np.mean(neg_probs) if neg_probs else 0
+                avg_pos_prob = np.mean(pos_probs) if pos_probs else 0
+
+            # Update best metrics
             if val_f1_macro > best_f1_macro:
                 best_f1_macro = val_f1_macro
+            if val_weighted_f1 > best_weighted_f1:
+                best_weighted_f1 = val_weighted_f1
+            if class_gap < best_class_gap:
+                best_class_gap = class_gap
 
             mlflow.log_metrics(
                 {
                     "val_loss": val_loss,
                     "val_f1_macro": val_f1_macro,
+                    "val_weighted_f1": val_weighted_f1,
+                    "val_weighted_acc": val_weighted_acc,
                     "val_accuracy": metrics["accuracy"],
                     "val_precision_macro": metrics["precision_macro"],
                     "val_recall_macro": metrics["recall_macro"],
+                    "val_class_gap": class_gap,
+                    "avg_prob_negative": avg_neg_prob,
+                    "avg_prob_positive": avg_pos_prob,
                 },
                 step=engine.state.epoch,
             )
 
-            scheduler.step(val_f1_macro)
-            trial.report(val_f1_macro, engine.state.epoch)
+            # Scegli la metrica per il scheduler e il pruning
+            if OPTIMIZE_METRIC == "weighted_f1":
+                optimize_value = val_weighted_f1
+            elif OPTIMIZE_METRIC == "class_gap":
+                optimize_value = -class_gap  # Minimizziamo il gap
+            else:
+                optimize_value = val_f1_macro
+
+            scheduler.step(optimize_value)
+            trial.report(optimize_value, engine.state.epoch)
             if trial.should_prune():
                 raise TrialPruned()
 
@@ -280,6 +424,8 @@ def objective(trial, train_dataset, val_dataset):
             raise
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
+        mlflow.log_metric("best_val_weighted_f1", best_weighted_f1)
+        mlflow.log_metric("best_val_class_gap", best_class_gap)
 
         # --- Sezione 11: Pulizia della Memoria ---
         # !Versione attuale (commentata per riferimento)
@@ -319,7 +465,13 @@ def objective(trial, train_dataset, val_dataset):
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
 
-        return best_f1_macro
+        # Return the metric we're optimizing for
+        if OPTIMIZE_METRIC == "weighted_f1":
+            return best_weighted_f1
+        elif OPTIMIZE_METRIC == "class_gap":
+            return -best_class_gap  # Optuna maximizes, so negative gap
+        else:
+            return best_f1_macro
 
 
 def main():
@@ -352,6 +504,18 @@ def main():
         default=0.0,  # 0.0 means no downsampling
         help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
     )
+    parser.add_argument(
+        "--use_focal_loss",
+        action="store_true",
+        help="Enable Focal Loss optimization in hyperparameter search.",
+    )
+    parser.add_argument(
+        "--optimize_metric",
+        type=str,
+        choices=["f1_macro", "weighted_f1", "class_gap"],
+        default="f1_macro",
+        help="Metric to optimize during hyperparameter tuning.",
+    )
 
     args = parser.parse_args()
     seed = args.seed
@@ -364,10 +528,12 @@ def main():
     cudnn.benchmark = False
     # torch.use_deterministic_algorithms(True) # Può causare problemi
 
-    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS
+    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS, USE_FOCAL_LOSS, OPTIMIZE_METRIC
     NUM_EPOCHS = args.num_epochs
     MODEL_TYPE = args.model_type
     NUM_WORKERS = args.num_workers
+    USE_FOCAL_LOSS = args.use_focal_loss
+    OPTIMIZE_METRIC = args.optimize_metric
 
     # --- Caricamento Dati (una sola volta) ---
     print("Caricamento dei dataset...")
@@ -404,10 +570,20 @@ def main():
     # --- Setup di MLflow dinamico ---
     mlflow.set_tracking_uri("http://127.0.0.1:8080")
     base_experiment_name = "VADER 0.34 - HT Emotion Recognition"
+
+    # Build experiment name with configuration details
+    name_parts = []
     if args.downsample_ratio > 0:
-        experiment_name = f"{base_experiment_name} (DS ratio: {args.downsample_ratio})"
+        name_parts.append(f"DS:{args.downsample_ratio}")
+    if args.use_focal_loss:
+        name_parts.append("FocalLoss")
+    if args.optimize_metric != "f1_macro":
+        name_parts.append(f"Opt:{args.optimize_metric}")
+
+    if name_parts:
+        experiment_name = f"{base_experiment_name} ({', '.join(name_parts)})"
     else:
-        experiment_name = f"{base_experiment_name} (No DS)"
+        experiment_name = f"{base_experiment_name} (Baseline)"
 
     if mlflow.get_experiment_by_name(experiment_name) is None:
         mlflow.create_experiment(experiment_name)
@@ -418,6 +594,8 @@ def main():
     with mlflow.start_run(run_name=run_name) as run:
         mlflow.log_param("seed", seed)
         mlflow.log_param("downsample_ratio", args.downsample_ratio)
+        mlflow.log_param("use_focal_loss", args.use_focal_loss)
+        mlflow.log_param("optimize_metric", args.optimize_metric)
         # Logga la distribuzione effettiva dopo il downsampling
         mlflow.log_param("train_label_distribution", train_dist)
         mlflow.log_param("val_label_distribution", val_dist)
