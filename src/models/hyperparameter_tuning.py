@@ -28,13 +28,14 @@
 #    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
 
 #    ESEMPIO DI COMANDO PER LSTM CON FOCAL LOSS E OTTIMIZZAZIONE SU WEIGHTED F1:
-#    python src/models/hyperparameter_tuning.py \
-#     --model_type lstm \
-#     --n_trials 50 \
-#     --num_epochs 20 \
-#     --downsample_ratio 1.0 \
-#     --use_focal_loss \
-#     --optimize_metric weighted_f1
+# python src/models/hyperparameter_tuning.py \
+# --model_type lstm \
+# --n_trials 50 \
+# --num_epochs 20 \
+# --downsample_ratio 1.0 \
+# --use_focal_loss \
+# --optimize_metric weighted_f1 \
+# --normalize_data
 # =================================================================================================
 
 import os
@@ -52,6 +53,7 @@ from sklearn.metrics import (
     f1_score,
     accuracy_score,
 )
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import mlflow
 import mlflow.pytorch
 from optuna.pruners import MedianPruner
@@ -109,8 +111,92 @@ PATIENCE = 10  # Aumentata la pazienza per dare più tempo al modello
 NUM_WORKERS = 0
 USE_FOCAL_LOSS = False  # Controllato da argomenti CLI
 OPTIMIZE_METRIC = "f1_macro"  # Metrica di ottimizzazione
+NORMALIZE_DATA = False  # Controllato da argomenti CLI
+NORMALIZATION_TYPE = "minmax"  # Tipo di normalizzazione
 
 torch.set_default_dtype(torch.float32)
+
+
+# =================================================================================================
+# NORMALIZED DATASET WRAPPER
+# =================================================================================================
+class NormalizedDatasetWrapper:
+    """
+    Wrapper per applicare normalizzazione ai dataset esistenti
+    """
+
+    def __init__(
+        self, dataset, scaler=None, fit_scaler=True, normalization_type="minmax"
+    ):
+        self.dataset = dataset
+        self.scaler = scaler
+        self.fit_scaler = fit_scaler
+        self.normalization_type = normalization_type
+
+        # Crea lo scaler se non fornito
+        if self.scaler is None:
+            if normalization_type == "minmax":
+                self.scaler = MinMaxScaler(feature_range=(0, 1))
+            elif normalization_type == "standard":
+                self.scaler = StandardScaler()
+            else:
+                raise ValueError(
+                    f"Normalizzazione non supportata: {normalization_type}"
+                )
+
+        # Fitta lo scaler sui dati se richiesto (solo per hyperparameter tuning con campione piccolo)
+        if self.fit_scaler:
+            self._fit_scaler()
+
+    def _fit_scaler(self):
+        """Fitta lo scaler su un campione ridotto di dati per efficienza"""
+        all_features = []
+        sample_size = min(
+            50, len(self.dataset)
+        )  # Campione più piccolo per hyperparameter tuning
+        indices = np.random.choice(len(self.dataset), sample_size, replace=False)
+
+        for idx in indices:
+            features, _ = self.dataset[idx]
+            features_flat = features.reshape(-1).numpy()
+            all_features.extend(features_flat)
+
+        all_features = np.array(all_features).reshape(-1, 1)
+        self.scaler.fit(all_features)
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        """Applica normalizzazione al campione"""
+        features, label = self.dataset[idx]
+
+        if self.scaler is not None:
+            original_shape = features.shape
+            features_flat = features.reshape(-1).numpy().reshape(-1, 1)
+            features_normalized = self.scaler.transform(features_flat)
+            features = torch.from_numpy(
+                features_normalized.reshape(original_shape)
+            ).float()
+
+        return features, label
+
+    # Proxy attributes per compatibilità
+    @property
+    def labels(self):
+        return self.dataset.labels
+
+    @property
+    def label_map(self):
+        return self.dataset.label_map
+
+    @property
+    def num_features(self):
+        return self.dataset.num_features
+
+    @property
+    def processed(self):
+        return self.dataset.processed
 
 
 # =================================================================================================
@@ -201,10 +287,50 @@ def objective(trial, train_dataset, val_dataset):
         weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
         model_params = {"dropout": dropout}
 
+    # --- Sezione 6: Applicazione Normalizzazione (se abilitata) ---
+    current_train_dataset = train_dataset
+    current_val_dataset = val_dataset
+
+    if NORMALIZE_DATA:
+        # Per hyperparameter tuning, usiamo lo stesso scaler per tutti i trial per consistenza
+        if not hasattr(train_dataset, "_global_scaler"):
+            # Prima volta: crea e fitta lo scaler
+            if NORMALIZATION_TYPE == "minmax":
+                global_scaler = MinMaxScaler(feature_range=(0, 1))
+            else:
+                global_scaler = StandardScaler()
+
+            # Fitta su un campione del training set
+            print(f"Fitting scaler '{NORMALIZATION_TYPE}' per hyperparameter tuning...")
+            sample_features = []
+            sample_size = min(100, len(train_dataset))
+            for i in range(sample_size):
+                features, _ = train_dataset[i]
+                sample_features.extend(features.reshape(-1).numpy())
+
+            sample_features = np.array(sample_features).reshape(-1, 1)
+            global_scaler.fit(sample_features)
+            train_dataset._global_scaler = global_scaler
+
+        # Wrappa i dataset con normalizzazione
+        current_train_dataset = NormalizedDatasetWrapper(
+            train_dataset,
+            scaler=train_dataset._global_scaler,
+            fit_scaler=False,
+            normalization_type=NORMALIZATION_TYPE,
+        )
+
+        current_val_dataset = NormalizedDatasetWrapper(
+            val_dataset,
+            scaler=train_dataset._global_scaler,
+            fit_scaler=False,
+            normalization_type=NORMALIZATION_TYPE,
+        )
+
     # --- Sezione 6: Creazione dei Dataloader specifici per il trial ---
-    train_sampler = get_sampler(train_dataset)
+    train_sampler = get_sampler(current_train_dataset)
     train_loader = DataLoader(
-        train_dataset,
+        current_train_dataset,
         batch_sampler=torch.utils.data.BatchSampler(
             train_sampler, batch_size, drop_last=False
         ),
@@ -213,7 +339,7 @@ def objective(trial, train_dataset, val_dataset):
     )
 
     val_loader = DataLoader(
-        val_dataset,
+        current_val_dataset,
         batch_size=batch_size,
         shuffle=False,
         num_workers=NUM_WORKERS,
@@ -223,9 +349,9 @@ def objective(trial, train_dataset, val_dataset):
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
     device = torch.device("cpu")
 
-    class_weights_tensor = get_class_weights(train_dataset, device)
-    input_size = train_dataset.num_features  # Usa la dimensione fissa
-    num_classes = len(train_dataset.labels)
+    class_weights_tensor = get_class_weights(current_train_dataset, device)
+    input_size = current_train_dataset.num_features  # Usa la dimensione fissa
+    num_classes = len(current_train_dataset.labels)
 
     model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)
 
@@ -294,6 +420,8 @@ def objective(trial, train_dataset, val_dataset):
             "weight_decay": weight_decay,
             "model_type": MODEL_TYPE,
             "loss_function": loss_type,
+            "normalize_data": NORMALIZE_DATA,
+            "normalization_type": NORMALIZATION_TYPE if NORMALIZE_DATA else None,
         }
         if use_focal_loss:
             base_params.update(
@@ -362,6 +490,11 @@ def objective(trial, train_dataset, val_dataset):
             if class_gap < best_class_gap:
                 best_class_gap = class_gap
 
+            # Calcola F1 per classe
+            class_f1_scores = f1_score(all_labels, all_preds, average=None)
+            val_f1_class_0 = class_f1_scores[0] if len(class_f1_scores) > 0 else 0.0
+            val_f1_class_1 = class_f1_scores[1] if len(class_f1_scores) > 1 else 0.0
+
             mlflow.log_metrics(
                 {
                     "val_loss": val_loss,
@@ -372,11 +505,41 @@ def objective(trial, train_dataset, val_dataset):
                     "val_precision_macro": metrics["precision_macro"],
                     "val_recall_macro": metrics["recall_macro"],
                     "val_class_gap": class_gap,
+                    "val_f1_class_0": val_f1_class_0,
+                    "val_f1_class_1": val_f1_class_1,
                     "avg_prob_negative": avg_neg_prob,
                     "avg_prob_positive": avg_pos_prob,
                 },
                 step=engine.state.epoch,
             )
+
+            # Stampa progress base
+            print(
+                f"Trial {trial.number}, Epoch {engine.state.epoch}: "
+                f"F1 Macro: {val_f1_macro:.4f}, Weighted F1: {val_weighted_f1:.4f}, "
+                f"Weighted Acc: {val_weighted_acc:.4f}, Class Gap: {class_gap:.4f}"
+            )
+
+            # Stampa dettagliata ogni 5 epoche (per hyperparameter tuning)
+            if engine.state.epoch % 5 == 0:
+                print(
+                    f"\nDetailed Analysis - Trial {trial.number} (Epoch {engine.state.epoch}):"
+                )
+                print(f"Avg prob for Negative samples: {avg_neg_prob:.4f}")
+                print(f"Avg prob for Positive samples: {avg_pos_prob:.4f}")
+                print(
+                    f"Val F1 Class 0: {val_f1_class_0:.4f}, Val F1 Class 1: {val_f1_class_1:.4f}"
+                )
+                print(f"Class Gap: {class_gap:.4f}")
+                print("Classification Report:")
+                print(
+                    classification_report(
+                        all_labels, all_preds, target_names=["Negative", "Positive"]
+                    )
+                )
+                print("Confusion Matrix:")
+                print(confusion_matrix(all_labels, all_preds))
+                print("-" * 50)
 
             # Scegli la metrica per il scheduler e il pruning
             if OPTIMIZE_METRIC == "weighted_f1":
@@ -516,6 +679,18 @@ def main():
         default="f1_macro",
         help="Metric to optimize during hyperparameter tuning.",
     )
+    parser.add_argument(
+        "--normalize_data",
+        action="store_true",
+        help="Applica normalizzazione ai dati durante hyperparameter tuning",
+    )
+    parser.add_argument(
+        "--normalization_type",
+        type=str,
+        default="minmax",
+        choices=["minmax", "standard"],
+        help="Tipo di normalizzazione: 'minmax' per [0,1], 'standard' per z-score",
+    )
 
     args = parser.parse_args()
     seed = args.seed
@@ -528,12 +703,14 @@ def main():
     cudnn.benchmark = False
     # torch.use_deterministic_algorithms(True) # Può causare problemi
 
-    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS, USE_FOCAL_LOSS, OPTIMIZE_METRIC
+    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS, USE_FOCAL_LOSS, OPTIMIZE_METRIC, NORMALIZE_DATA, NORMALIZATION_TYPE
     NUM_EPOCHS = args.num_epochs
     MODEL_TYPE = args.model_type
     NUM_WORKERS = args.num_workers
     USE_FOCAL_LOSS = args.use_focal_loss
     OPTIMIZE_METRIC = args.optimize_metric
+    NORMALIZE_DATA = args.normalize_data
+    NORMALIZATION_TYPE = args.normalization_type
 
     # --- Caricamento Dati (una sola volta) ---
     print("Caricamento dei dataset...")
@@ -577,6 +754,8 @@ def main():
         name_parts.append(f"DS:{args.downsample_ratio}")
     if args.use_focal_loss:
         name_parts.append("FocalLoss")
+    if args.normalize_data:
+        name_parts.append(f"Norm:{args.normalization_type}")
     if args.optimize_metric != "f1_macro":
         name_parts.append(f"Opt:{args.optimize_metric}")
 
@@ -596,6 +775,8 @@ def main():
         mlflow.log_param("downsample_ratio", args.downsample_ratio)
         mlflow.log_param("use_focal_loss", args.use_focal_loss)
         mlflow.log_param("optimize_metric", args.optimize_metric)
+        mlflow.log_param("normalize_data", args.normalize_data)
+        mlflow.log_param("normalization_type", args.normalization_type)
         # Logga la distribuzione effettiva dopo il downsampling
         mlflow.log_param("train_label_distribution", train_dist)
         mlflow.log_param("val_label_distribution", val_dist)

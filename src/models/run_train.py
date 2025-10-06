@@ -39,19 +39,62 @@
 #      --seed 44
 #
 # *   Comando per LSTM con VADER 0.34
-# python src/models/run_train.py \
-#   --model_type lstm \
-#   --batch_size 32 \
-#   --hidden_size 352 \
-#   --num_layers 1 \
-#   --learning_rate 2.4165903162442322e-05 \
-#   --dropout 0.5293016342019151 \
-#   --weight_decay 0.04890168508329703 \
-#   --num_epochs 100 \
-#   --patience 20 \
-#   --seed 42 \
-#   --downsample_ratio 1.0
+#   python src/models/run_train.py \
+#       --model_type lstm \
+#      --batch_size 32 \
+#      --hidden_size 352 \
+#      --num_layers 1 \
+#      --learning_rate 2.4165903162442322e-05 \
+#      --dropout 0.5293016342019151 \
+#      --weight_decay 0.04890168508329703 \
+#      --num_epochs 100 \
+#      --patience 20 \
+#      --seed 42 \
+#      --downsample_ratio 1.0
 
+
+# python src/models/run_train.py \
+#     --model_type lstm \
+#     --batch_size 32 \
+#     --hidden_size 384 \
+#     --num_layers 2 \
+#     --learning_rate 1.2686928153291844e-05 \
+#     --dropout 0.5913841307520112   \
+#     --weight_decay 0.04890168508329703 \
+#     --num_epochs 100 \
+#     --patience 20 \
+#     --seed 42 \
+#     --downsample_ratio 1.0
+
+
+# python src/models/run_train.py \
+# --model_type lstm \
+# --batch_size 32 \
+# --hidden_size 192 \
+# --num_layers 2 \
+# --learning_rate 3.5253626370141006e-05 \
+# --dropout 0.5422772674924288   \
+# --weight_decay 0.012485368572526356 \
+# --num_epochs 100 \
+# --patience 20 \
+# --seed 42 \
+# --downsample_ratio 1.0 \
+# --normalize_data
+
+
+# python src/models/run_train.py \
+# --model_type lstm \
+# --batch_size 32 \
+# --hidden_size 192 \
+# --num_layers 2 \
+# --learning_rate 1.655914944036191e-05 \
+# --dropout 0.5935133228268233   \
+# --weight_decay 0.43464957555697725 \
+# --num_epochs 100 \
+# --patience 20 \
+# --seed 42 \
+# --downsample_ratio 1.0 \
+# --normalize_data
 
 import torch
 import torch.nn as nn
@@ -71,6 +114,7 @@ from sklearn.metrics import (
     f1_score,
     accuracy_score,
 )
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 # --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
 BASE_DIR = os.path.abspath(
@@ -101,6 +145,92 @@ torch.set_default_dtype(torch.float32)
 
 
 # =================================================================================================
+# NORMALIZED DATASET WRAPPER
+# =================================================================================================
+class NormalizedDatasetWrapper:
+    """
+    Wrapper per applicare normalizzazione ai dataset esistenti
+    """
+
+    def __init__(
+        self, dataset, scaler=None, fit_scaler=True, normalization_type="minmax"
+    ):
+        self.dataset = dataset
+        self.scaler = scaler
+        self.fit_scaler = fit_scaler
+        self.normalization_type = normalization_type
+
+        # Crea lo scaler se non fornito
+        if self.scaler is None:
+            if normalization_type == "minmax":
+                self.scaler = MinMaxScaler(feature_range=(0, 1))
+            elif normalization_type == "standard":
+                self.scaler = StandardScaler()
+            else:
+                raise ValueError(
+                    f"Normalizzazione non supportata: {normalization_type}"
+                )
+
+        # Fitta lo scaler sui dati se richiesto
+        if self.fit_scaler:
+            print(f"Fitting scaler '{normalization_type}' sui dati di training...")
+            self._fit_scaler()
+            print(f"Scaler fittato.")
+
+    def _fit_scaler(self):
+        """Fitta lo scaler su un campione di dati del dataset"""
+        all_features = []
+        sample_size = min(100, len(self.dataset))  # Usa un campione per efficienza
+        indices = np.random.choice(len(self.dataset), sample_size, replace=False)
+
+        for idx in indices:
+            if idx % 20 == 0:
+                print(f"  Elaborando campione {idx}/{sample_size} per scaler")
+
+            features, _ = self.dataset[idx]
+            features_flat = features.reshape(-1).numpy()
+            all_features.extend(features_flat)
+
+        all_features = np.array(all_features).reshape(-1, 1)
+        self.scaler.fit(all_features)
+        print(f"Scaler fittato su {len(all_features)} features")
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        """Applica normalizzazione al campione"""
+        features, label = self.dataset[idx]
+
+        if self.scaler is not None:
+            original_shape = features.shape
+            features_flat = features.reshape(-1).numpy().reshape(-1, 1)
+            features_normalized = self.scaler.transform(features_flat)
+            features = torch.from_numpy(
+                features_normalized.reshape(original_shape)
+            ).float()
+
+        return features, label
+
+    # Proxy attributes per compatibilità
+    @property
+    def labels(self):
+        return self.dataset.labels
+
+    @property
+    def label_map(self):
+        return self.dataset.label_map
+
+    @property
+    def num_features(self):
+        return self.dataset.num_features
+
+    @property
+    def processed(self):
+        return self.dataset.processed
+
+
+# =================================================================================================
 # FOCAL LOSS IMPLEMENTATION
 # =================================================================================================
 class FocalLoss(nn.Module):
@@ -113,7 +243,7 @@ class FocalLoss(nn.Module):
         weight (Tensor): Pesi delle classi (come in CrossEntropyLoss)
     """
 
-    def __init__(self, alpha=1.0, gamma=2.0, weight=None):
+    def __init__(self, alpha=1.743106263727894, gamma=1.3918833167339733, weight=None):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
@@ -155,10 +285,18 @@ def main(args):
 
     # --- Setup di MLflow dinamico (come in hyperparameter_tuning) ---
     base_experiment_name = "VADER 0.34 - Emotion Recognition"
+
+    # Costruisci nome esperimento con configurazioni
+    name_parts = []
     if args.downsample_ratio > 0:
-        experiment_name = f"{base_experiment_name} (DS ratio: {args.downsample_ratio})"
+        name_parts.append(f"DS:{args.downsample_ratio}")
+    if args.normalize_data:
+        name_parts.append(f"Norm:{args.normalization_type}")
+
+    if name_parts:
+        experiment_name = f"{base_experiment_name} ({', '.join(name_parts)})"
     else:
-        experiment_name = f"{base_experiment_name} (No DS)"
+        experiment_name = f"{base_experiment_name} (Baseline)"
 
     if mlflow.get_experiment_by_name(experiment_name) is None:
         mlflow.create_experiment(experiment_name)
@@ -182,7 +320,32 @@ def main(args):
         downsample_majority_class=args.downsample_ratio > 0,
         downsample_ratio=args.downsample_ratio,
     )
-    print("Dataset caricati.")
+
+    # --- Applicazione Normalizzazione (se abilitata) ---
+    if args.normalize_data:
+        print(f"\nApplicazione normalizzazione '{args.normalization_type}'...")
+
+        # Wrappa il training dataset con normalizzazione (fitta lo scaler)
+        train_dataset = NormalizedDatasetWrapper(
+            train_dataset, normalization_type=args.normalization_type, fit_scaler=True
+        )
+
+        # Wrappa il validation dataset con lo stesso scaler (senza fittare)
+        val_dataset = NormalizedDatasetWrapper(
+            val_dataset,
+            scaler=train_dataset.scaler,
+            fit_scaler=False,
+            normalization_type=args.normalization_type,
+        )
+
+        # Verifica normalizzazione
+        sample_features, _ = train_dataset[0]
+        print(f"Normalizzazione applicata:")
+        print(f"  Range: [{sample_features.min():.6f}, {sample_features.max():.6f}]")
+        print(f"  Media: {sample_features.mean():.6f}")
+        print(f"  Std: {sample_features.std():.6f}")
+
+    print("Dataset preparati.")
 
     # Stampa la distribuzione delle etichette con i nomi delle classi
     train_labels = train_dataset.processed["emotion"].map(train_dataset.label_map)
@@ -308,8 +471,12 @@ def main(args):
             "patience": args.patience,
             "seed": args.seed,
             "loss_function": "FocalLoss",
-            "focal_alpha": 1.0,
-            "focal_gamma": 2.0,
+            "focal_alpha": 0.5975773894779193,
+            "focal_gamma": 2.8722138431333333,
+            "normalize_data": args.normalize_data,
+            "normalization_type": (
+                args.normalization_type if args.normalize_data else None
+            ),
         }
         if args.model_type == "lstm":
             params.update(model_params)
@@ -389,13 +556,6 @@ def main(args):
             if val_weighted_acc > best_metrics["val_weighted_acc"]:
                 best_metrics["val_weighted_acc"] = val_weighted_acc
 
-            # Converti weighted metrics in percentuale
-            val_weighted_f1_pct = val_weighted_f1 * 100
-            val_weighted_acc_pct = val_weighted_acc * 100
-            val_acc_pct = val_acc * 100
-            val_f1_pct = val_f1 * 100
-            val_f1_macro_pct = val_f1_macro * 100
-
             mlflow.log_metrics(
                 {
                     "train_loss": train_loss,
@@ -405,12 +565,6 @@ def main(args):
                     "val_f1_macro": val_f1_macro,
                     "val_weighted_f1": val_weighted_f1,
                     "val_weighted_acc": val_weighted_acc,
-                    # Versioni percentuali per migliore leggibilità
-                    "val_acc_pct": val_acc_pct,
-                    "val_f1_pct": val_f1_pct,
-                    "val_f1_macro_pct": val_f1_macro_pct,
-                    "val_weighted_f1_pct": val_weighted_f1_pct,
-                    "val_weighted_acc_pct": val_weighted_acc_pct,
                     "val_f1_class_0": metrics["val_f1_class_0"],
                     "val_f1_class_1": metrics["val_f1_class_1"],
                     "avg_prob_negative": avg_neg_prob,
@@ -422,17 +576,17 @@ def main(args):
             print(
                 f"Epoch {engine.state.epoch}/{args.num_epochs}, "
                 f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
-                f"Val Acc: {val_acc_pct:.2f}%, Val F1: {val_f1_pct:.2f}%, Val F1 Macro: {val_f1_macro_pct:.2f}%, "
-                f"Val Weighted F1: {val_weighted_f1_pct:.2f}%, Val Weighted Acc: {val_weighted_acc_pct:.2f}%"
+                f"Val Acc: {val_acc:.4f}, Val F1: {val_f1:.4f}, Val F1 Macro: {val_f1_macro:.4f}, "
+                f"Val Weighted F1: {val_weighted_f1:.4f}, Val Weighted Acc: {val_weighted_acc:.4f}"
             )
 
             # Stampa dettagliata ogni 10 epoche
             if engine.state.epoch % 10 == 0:
                 print(f"\nDetailed Analysis (Epoch {engine.state.epoch}):")
-                print(f"Avg prob for Negative samples: {avg_neg_prob*100:.1f}%")
-                print(f"Avg prob for Positive samples: {avg_pos_prob*100:.1f}%")
+                print(f"Avg prob for Negative samples: {avg_neg_prob:.4f}")
+                print(f"Avg prob for Positive samples: {avg_pos_prob:.4f}")
                 print(
-                    f"Val Weighted F1: {val_weighted_f1_pct:.2f}%, Val Weighted Acc: {val_weighted_acc_pct:.2f}%"
+                    f"Val Weighted F1: {val_weighted_f1:.4f}, Val Weighted Acc: {val_weighted_acc:.4f}"
                 )
                 print("Classification Report:")
                 print(
@@ -463,13 +617,6 @@ def main(args):
         mlflow.log_metric("best_val_f1_macro", best_metrics["val_f1_macro"])
         mlflow.log_metric("best_val_weighted_f1", best_metrics["val_weighted_f1"])
         mlflow.log_metric("best_val_weighted_acc", best_metrics["val_weighted_acc"])
-        # Versioni percentuali dei migliori risultati
-        mlflow.log_metric(
-            "best_val_weighted_f1_pct", best_metrics["val_weighted_f1"] * 100
-        )
-        mlflow.log_metric(
-            "best_val_weighted_acc_pct", best_metrics["val_weighted_acc"] * 100
-        )
 
         data_sample, _ = next(iter(train_loader))
         data_sample, _ = prepare_batch_fn((data_sample, _), device, non_blocking=False)
@@ -509,6 +656,18 @@ if __name__ == "__main__":
         type=float,
         default=0.0,  # 0.0 means no downsampling
         help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
+    )
+    parser.add_argument(
+        "--normalize_data",
+        action="store_true",
+        help="Applica normalizzazione ai dati per migliorare robustezza e generalizzazione",
+    )
+    parser.add_argument(
+        "--normalization_type",
+        type=str,
+        default="minmax",
+        choices=["minmax", "standard"],
+        help="Tipo di normalizzazione: 'minmax' per [0,1], 'standard' per z-score",
     )
     args = parser.parse_args()
     main(args)
