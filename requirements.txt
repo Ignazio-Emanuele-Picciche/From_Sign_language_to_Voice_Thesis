@@ -144,3 +144,8 @@ xarray
 yarl
 zipp
 imageio[ffmpeg]
+# Qwen2.5-VL specific dependencies
+qwen-vl-utils
+accelerate
+flash-attn
+av

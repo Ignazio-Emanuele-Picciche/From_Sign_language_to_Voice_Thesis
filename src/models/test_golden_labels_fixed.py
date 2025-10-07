@@ -27,6 +27,7 @@ from sklearn.metrics import (
     accuracy_score,
     precision_score,
     recall_score,
+    balanced_accuracy_score,
 )
 from torch.utils.data import DataLoader
 
@@ -93,16 +94,45 @@ def print_detailed_results_fixed(y_true, y_pred, y_probs, labels):
 
     # Metriche generali
     accuracy = accuracy_score(y_true, y_pred)
+    balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
     f1_macro = f1_score(y_true, y_pred, average="macro")
     f1_weighted = f1_score(y_true, y_pred, average="weighted")
     precision_macro = precision_score(y_true, y_pred, average="macro")
+    precision_weighted = precision_score(y_true, y_pred, average="weighted")
     recall_macro = recall_score(y_true, y_pred, average="macro")
+    recall_weighted = recall_score(y_true, y_pred, average="weighted")
 
-    print(f"Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
-    print(f"F1-Score (Macro): {f1_macro:.4f} ({f1_macro*100:.2f}%)")
+    # Calcola weighted accuracy personalizzata
+    # La weighted accuracy considera la distribuzione delle classi
+    class_weights = np.bincount(y_true) / len(y_true)
+    class_accuracies = []
+    for i in range(len(labels)):
+        mask = y_true == i
+        if np.sum(mask) > 0:
+            class_acc = accuracy_score(y_true[mask], y_pred[mask])
+            class_accuracies.append(class_acc)
+        else:
+            class_accuracies.append(0.0)
+    weighted_accuracy = np.sum(
+        [class_weights[i] * class_accuracies[i] for i in range(len(labels))]
+    )
+
+    print(f"\n=== METRICHE PRINCIPALI ===")
+    print(f"Accuracy (Standard): {accuracy:.4f} ({accuracy*100:.2f}%)")
+    print(
+        f"Accuracy (Balanced): {balanced_accuracy:.4f} ({balanced_accuracy*100:.2f}%)"
+    )
+    print(
+        f"Accuracy (Weighted): {weighted_accuracy:.4f} ({weighted_accuracy*100:.2f}%)"
+    )
+    print(f"\nF1-Score (Macro): {f1_macro:.4f} ({f1_macro*100:.2f}%)")
     print(f"F1-Score (Weighted): {f1_weighted:.4f} ({f1_weighted*100:.2f}%)")
-    print(f"Precision (Macro): {precision_macro:.4f} ({precision_macro*100:.2f}%)")
-    print(f"Recall (Macro): {recall_macro:.4f} ({recall_macro*100:.2f}%)")
+    print(f"\nPrecision (Macro): {precision_macro:.4f} ({precision_macro*100:.2f}%)")
+    print(
+        f"Precision (Weighted): {precision_weighted:.4f} ({precision_weighted*100:.2f}%)"
+    )
+    print(f"\nRecall (Macro): {recall_macro:.4f} ({recall_macro*100:.2f}%)")
+    print(f"Recall (Weighted): {recall_weighted:.4f} ({recall_weighted*100:.2f}%)")
 
     print(f"\nNumero totale di campioni: {len(y_true)}")
 
@@ -282,6 +312,34 @@ def main(args):
 
     # Salva risultati dettagliati in CSV
     if args.save_results:
+        # Calcola tutte le metriche per il salvataggio
+        accuracy = accuracy_score(y_true, y_pred)
+        balanced_accuracy = balanced_accuracy_score(y_true, y_pred)
+        f1_macro = f1_score(y_true, y_pred, average="macro")
+        f1_weighted = f1_score(y_true, y_pred, average="weighted")
+        precision_macro = precision_score(y_true, y_pred, average="macro")
+        precision_weighted = precision_score(y_true, y_pred, average="weighted")
+        recall_macro = recall_score(y_true, y_pred, average="macro")
+        recall_weighted = recall_score(y_true, y_pred, average="weighted")
+
+        # Calcola weighted accuracy personalizzata
+        class_weights = np.bincount(y_true) / len(y_true)
+        class_accuracies = []
+        for i in range(len(test_dataset.labels)):
+            mask = y_true == i
+            if np.sum(mask) > 0:
+                class_acc = accuracy_score(y_true[mask], y_pred[mask])
+                class_accuracies.append(class_acc)
+            else:
+                class_accuracies.append(0.0)
+        weighted_accuracy = np.sum(
+            [
+                class_weights[i] * class_accuracies[i]
+                for i in range(len(test_dataset.labels))
+            ]
+        )
+
+        # Salva risultati per-sample
         results_df = pd.DataFrame(
             {
                 "video_name": test_dataset.processed["video_name"],
@@ -300,6 +358,62 @@ def main(args):
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         results_df.to_csv(output_file, index=False)
         print(f"\nRisultati dettagliati salvati in: {output_file}")
+
+        # Salva metriche aggregate
+        metrics_df = pd.DataFrame(
+            {
+                "metric": [
+                    "accuracy_standard",
+                    "accuracy_balanced",
+                    "accuracy_weighted",
+                    "f1_macro",
+                    "f1_weighted",
+                    "precision_macro",
+                    "precision_weighted",
+                    "recall_macro",
+                    "recall_weighted",
+                ],
+                "value": [
+                    accuracy,
+                    balanced_accuracy,
+                    weighted_accuracy,
+                    f1_macro,
+                    f1_weighted,
+                    precision_macro,
+                    precision_weighted,
+                    recall_macro,
+                    recall_weighted,
+                ],
+                "percentage": [
+                    accuracy * 100,
+                    balanced_accuracy * 100,
+                    weighted_accuracy * 100,
+                    f1_macro * 100,
+                    f1_weighted * 100,
+                    precision_macro * 100,
+                    precision_weighted * 100,
+                    recall_macro * 100,
+                    recall_weighted * 100,
+                ],
+                "description": [
+                    "Accuracy standard: % di predizioni corrette sul totale",
+                    "Accuracy bilanciata: accuracy robusta al class imbalance",
+                    "Accuracy pesata: accuracy che considera la distribuzione delle classi",
+                    "F1-Score macro: media non pesata dell'F1 per ogni classe",
+                    "F1-Score weighted: F1 pesato per il supporto di ogni classe",
+                    "Precision macro: media non pesata della precision per ogni classe",
+                    "Precision weighted: precision pesata per il supporto di ogni classe",
+                    "Recall macro: media non pesata del recall per ogni classe",
+                    "Recall weighted: recall pesato per il supporto di ogni classe",
+                ],
+            }
+        )
+
+        metrics_file = os.path.join(
+            BASE_DIR, "results", "golden_labels_metrics_summary_fixed.csv"
+        )
+        metrics_df.to_csv(metrics_file, index=False)
+        print(f"Metriche aggregate salvate in: {metrics_file}")
 
 
 if __name__ == "__main__":
