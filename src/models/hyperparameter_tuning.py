@@ -149,20 +149,21 @@ class NormalizedDatasetWrapper:
             self._fit_scaler()
 
     def _fit_scaler(self):
-        """Fitta lo scaler su un campione ridotto di dati per efficienza"""
+        """Fitta lo scaler su un campione deterministico di dati del dataset"""
         all_features = []
         sample_size = min(
-            50, len(self.dataset)
-        )  # Campione più piccolo per hyperparameter tuning
-        indices = np.random.choice(len(self.dataset), sample_size, replace=False)
+            100, len(self.dataset)
+        )  # Stesso sample_size di run_train.py per consistenza
 
-        for idx in indices:
-            features, _ = self.dataset[idx]
+        print(f"  Fitting scaler su {sample_size} campioni sequenziali...")
+        for i in range(sample_size):
+            features, _ = self.dataset[i]
             features_flat = features.reshape(-1).numpy()
             all_features.extend(features_flat)
 
         all_features = np.array(all_features).reshape(-1, 1)
         self.scaler.fit(all_features)
+        print(f"  Scaler fittato su {len(all_features)} features")
 
     def __len__(self):
         return len(self.dataset)
@@ -300,16 +301,20 @@ def objective(trial, train_dataset, val_dataset):
             else:
                 global_scaler = StandardScaler()
 
-            # Fitta su un campione del training set
-            print(f"Fitting scaler '{NORMALIZATION_TYPE}' per hyperparameter tuning...")
+            # Fitta su un campione deterministico del training set
+            print(
+                f"Fitting scaler globale '{NORMALIZATION_TYPE}' per hyperparameter tuning..."
+            )
             sample_features = []
             sample_size = min(100, len(train_dataset))
+            print(f"  Usando {sample_size} campioni sequenziali per determinismo...")
             for i in range(sample_size):
                 features, _ = train_dataset[i]
                 sample_features.extend(features.reshape(-1).numpy())
 
             sample_features = np.array(sample_features).reshape(-1, 1)
             global_scaler.fit(sample_features)
+            print(f"  Scaler globale fittato su {len(sample_features)} features")
             train_dataset._global_scaler = global_scaler
 
         # Wrappa i dataset con normalizzazione

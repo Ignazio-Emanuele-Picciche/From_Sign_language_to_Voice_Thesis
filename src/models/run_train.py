@@ -54,17 +54,18 @@
 
 
 # python src/models/run_train.py \
-#     --model_type lstm \
-#     --batch_size 32 \
-#     --hidden_size 384 \
-#     --num_layers 2 \
-#     --learning_rate 1.2686928153291844e-05 \
-#     --dropout 0.5913841307520112   \
-#     --weight_decay 0.04890168508329703 \
-#     --num_epochs 100 \
-#     --patience 20 \
-#     --seed 42 \
-#     --downsample_ratio 1.0
+# --model_type lstm \
+# --batch_size 32 \
+# --hidden_size 384 \
+# --num_layers 2 \
+# --learning_rate 1.2686928153291844e-05 \
+# --dropout 0.5913841307520112   \
+# --weight_decay 0.04890168508329703 \
+# --num_epochs 100 \
+# --patience 20 \
+# --seed 42 \
+# --downsample_ratio 1.0 \
+# --normalize_data
 
 
 # python src/models/run_train.py \
@@ -178,22 +179,21 @@ class NormalizedDatasetWrapper:
             print(f"Scaler fittato.")
 
     def _fit_scaler(self):
-        """Fitta lo scaler su un campione di dati del dataset"""
+        """Fitta lo scaler su un campione deterministico di dati del dataset"""
         all_features = []
-        sample_size = min(100, len(self.dataset))  # Usa un campione per efficienza
-        indices = np.random.choice(len(self.dataset), sample_size, replace=False)
+        sample_size = min(
+            100, len(self.dataset)
+        )  # Usa campioni sequenziali per determinismo
 
-        for idx in indices:
-            if idx % 20 == 0:
-                print(f"  Elaborando campione {idx}/{sample_size} per scaler")
-
-            features, _ = self.dataset[idx]
+        print(f"  Fitting scaler su {sample_size} campioni sequenziali...")
+        for i in range(sample_size):
+            features, _ = self.dataset[i]
             features_flat = features.reshape(-1).numpy()
             all_features.extend(features_flat)
 
         all_features = np.array(all_features).reshape(-1, 1)
         self.scaler.fit(all_features)
-        print(f"Scaler fittato su {len(all_features)} features")
+        print(f"  Scaler fittato su {len(all_features)} features")
 
     def __len__(self):
         return len(self.dataset)
@@ -243,7 +243,7 @@ class FocalLoss(nn.Module):
         weight (Tensor): Pesi delle classi (come in CrossEntropyLoss)
     """
 
-    def __init__(self, alpha=1.743106263727894, gamma=1.3918833167339733, weight=None):
+    def __init__(self, alpha=0.5975773894779193, gamma=2.8722138431333333, weight=None):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma

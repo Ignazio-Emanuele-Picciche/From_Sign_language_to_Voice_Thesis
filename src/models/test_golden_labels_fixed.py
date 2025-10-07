@@ -7,7 +7,7 @@
 # dove i dati di training e golden labels erano su scale completamente diverse.
 #
 # COMANDO PER ESEGUIRE IL TEST:
-# python src/models/test_golden_labels_fixed.py --model_uri mlartifacts/706529698863051015/models/m-10259532e0724d4bbac9583c52923b06/artifacts --batch_size 32 --save_results
+# python src/models/test_golden_labels_fixed.py --model_uri mlartifacts/505616919019850588/models/m-c8c87c699cf14e4a91b1b9765feb9943/artifacts --batch_size 32 --save_results
 #
 # =================================================================================================
 
