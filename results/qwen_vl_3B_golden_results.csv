@@ -29,10 +29,10 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 36292794.mp4,Positive,Positive,0.9,"Yes, I like pineapple cream cheese.",True
 36291796.mp4,Negative,Positive,0.9,No! I don't like pineapple cream cheese.,False
 36288803.mp4,Positive,Positive,0.9,Dad is like me. He likes chocolate cereal.,True
-5596228.mp4,Negative,Negative,0.9,Why is dad upset? I have no idea...,True
+5596228.mp4,Negative,Positive,0.9,Why is dad upset? I have no idea...,False
 154108.mp4,Positive,Positive,0.9,"""Today I went out and the weather was lousy."" ""No, it's beautiful and warm outside. It's perfect.""",True
 1540612.mp4,Negative,Positive,0.9,"""The book you read was really good."" ""No, it was lousy I didn't like it.""",False
-1540613.mp4,Negative,Negative,0.9,"""Texas has a good football team."" ""No they have a lousy team and they are losing. They haven't won a game yet.""",True
+1540613.mp4,Negative,Positive,0.9,"""Texas has a good football team."" ""No they have a lousy team and they are losing. They haven't won a game yet.""",False
 1540021.mp4,Negative,Positive,0.9,"""Mc Donalds is a snobby restaurant right?"" ""No, Mcdonalds is a cheap restaurant. They serve hamburgers.""",False
 1539625.mp4,Positive,Positive,0.9,"""Your mom will love the surprise party."" ""No, my mom hates surprises.""",True
 17602177.mp4,Negative,Positive,0.9,"Last night, there was an accident and traffic was horrible.",False
@@ -88,9 +88,9 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 7700328.mp4,Positive,Positive,0.9,Friends went out camping; they enjoyed it.,True
 7987410.mp4,Negative,Positive,0.9,"If I fail a test, my mom will blow her top.",False
 7986817.mp4,Positive,Positive,0.9,Was the movie good? Yes it was wonderful.,True
-7986818.mp4,Positive,Negative,0.9,"Is it raining outside? No, it's beautiful and warm outside.",False
+7986818.mp4,Positive,Positive,0.9,"Is it raining outside? No, it's beautiful and warm outside.",True
 7986324.mp4,Positive,Positive,0.9,Bob frequently gives his sweetheart roses.,True
-7986027.mp4,Negative,Negative,0.9,Mom is sick.,True
+7986027.mp4,Negative,Positive,0.9,Mom is sick.,False
 7985731.mp4,Negative,Positive,0.9,Bad weather will come to Boston soon.,False
 7984743.mp4,Positive,Positive,0.9,Friends play frisbee.,True
 7984644.mp4,Positive,Positive,0.9,I invited my friends to a barbeque party.,True
