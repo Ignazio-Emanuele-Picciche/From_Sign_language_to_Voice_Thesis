@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # --- Setup del Percorso di Base ---
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
@@ -156,15 +156,16 @@ class QwenVLGoldenLabelEvaluator:
             - Hand gesture intensity and fluidity
             - Overall emotional energy conveyed through signing
 
-            The person may be expressing one of these emotions: joy, excited, surprise (positive), surprise (negative), worry, sadness, fear, disgust, frustration, anger.
+            The person may be expressing one of these emotions: joy, excited, surprise (positive), surprise (negative), worry, sadness, fear, disgust, frustration, anger, or a neutral state.
 
-            Your job is to classify these into two categories:
-            - Positive: joy, excited, surprise (positive) - shows happiness, enthusiasm, pleasant surprise
-            - Negative: surprise (negative), worry, sadness, fear, disgust, frustration, anger - shows distress, unpleasant emotions
+            Your job is to classify these into three categories:
+            - Positive: joy, excited, surprise (positive) - shows happiness, enthusiasm, pleasant surprise.
+            - Negative: surprise (negative), worry, sadness, fear, disgust, frustration, anger - shows distress, unpleasant emotions.
+            - Neutral: a lack of strong emotional expression, or a calm, baseline state.
 
             IMPORTANT: Completely ignore any text overlays, watermarks, background elements, or video interface components.
             
-            Respond with exactly ONE word only: "Positive" or "Negative\""""
+            Respond with exactly ONE word only: "Positive", "Negative", or "Neutral\""""
 
     def extract_frames_from_video(
         self, video_path, max_frames=8, target_size=(336, 336)
@@ -371,6 +372,10 @@ class QwenVLGoldenLabelEvaluator:
             prediction = "Negative"
             confidence = 0.9
             logger.debug("Exact match: negative")
+        elif output_clean == "neutral":
+            prediction = "Neutral"
+            confidence = 0.9
+            logger.debug("Exact match: neutral")
         # Poi cerca contenute
         elif "positive" in output_clean:
             prediction = "Positive"
@@ -380,6 +385,10 @@ class QwenVLGoldenLabelEvaluator:
             prediction = "Negative"
             confidence = 0.8
             logger.debug("Found 'negative' keyword")
+        elif "neutral" in output_clean:
+            prediction = "Neutral"
+            confidence = 0.8
+            logger.debug("Found 'neutral' keyword")
         else:
             # Fallback: analizza il contenuto per indizi
             positive_words = [
@@ -397,6 +406,7 @@ class QwenVLGoldenLabelEvaluator:
                 "cheerful",
                 "content",
                 "glad",
+                "excited",
             ]
             negative_words = [
                 "sad",
@@ -413,31 +423,47 @@ class QwenVLGoldenLabelEvaluator:
                 "unhappy",
                 "miserable",
                 "depressed",
+                "fear",
+                "disgust",
+            ]
+            neutral_words = [
+                "neutral",
+                "calm",
+                "baseline",
+                "normal",
+                "standard",
+                "no emotion",
+                "plain",
+                "expressionless",
             ]
 
             pos_count = sum(1 for word in positive_words if word in output_clean)
             neg_count = sum(1 for word in negative_words if word in output_clean)
+            neu_count = sum(1 for word in neutral_words if word in output_clean)
 
-            if pos_count > neg_count:
+            if pos_count > neg_count and pos_count > neu_count:
                 prediction = "Positive"
                 confidence = 0.6
                 logger.debug(
-                    f"Positive words found: {pos_count} vs negative: {neg_count}"
+                    f"Positive words ({pos_count}) > Negative ({neg_count}) & Neutral ({neu_count})"
                 )
-            elif neg_count > pos_count:
+            elif neg_count > pos_count and neg_count > neu_count:
                 prediction = "Negative"
                 confidence = 0.6
                 logger.debug(
-                    f"Negative words found: {neg_count} vs positive: {pos_count}"
+                    f"Negative words ({neg_count}) > Positive ({pos_count}) & Neutral ({neu_count})"
+                )
+            elif neu_count > pos_count and neu_count > neg_count:
+                prediction = "Neutral"
+                confidence = 0.6
+                logger.debug(
+                    f"Neutral words ({neu_count}) > Positive ({pos_count}) & Negative ({neg_count})"
                 )
             else:
-                # Fallback più bilanciato basato su hash del testo (invece della lunghezza)
-                import hashlib
-
-                hash_val = int(hashlib.md5(output_clean.encode()).hexdigest(), 16)
-                prediction = "Negative" if hash_val % 2 == 0 else "Positive"
+                # Se non c'è un chiaro vincitore, assegna Neutral come default
+                prediction = "Neutral"
                 confidence = 0.5
-                logger.warning(f"FALLBACK used for: '{output_clean}' -> {prediction}")
+                logger.warning(f"FALLBACK to Neutral for: '{output_clean}'")
 
         return prediction, confidence
 
@@ -493,7 +519,7 @@ def load_golden_labels_data():
     """
     # Percorsi
     processed_file = os.path.join(
-        BASE_DIR, "data", "processed", "golden_label_sentiment.csv"
+        BASE_DIR, "data", "processed", "golden_label_sentiment_with_neutral.csv"
     )
     video_dir = os.path.join(
         BASE_DIR, "data", "raw", "ASLLRP", "batch_utterance_video_v3_1"
@@ -650,7 +676,9 @@ def save_results(results_data, metrics, model_size, save_dir):
 
     # Salva risultati per-sample
     results_df = pd.DataFrame(results_data)
-    results_file = os.path.join(save_dir, f"qwen_vl_{model_size}_golden_results.csv")
+    results_file = os.path.join(
+        save_dir, f"qwen_vl_{model_size}_with_neutral_golden_results.csv"
+    )
     results_df.to_csv(results_file, index=False)
     print(f"\nRisultati dettagliati salvati in: {results_file}")
 
@@ -674,7 +702,9 @@ def save_results(results_data, metrics, model_size, save_dir):
         }
     )
 
-    metrics_file = os.path.join(save_dir, f"qwen_vl_{model_size}_metrics_summary.csv")
+    metrics_file = os.path.join(
+        save_dir, f"qwen_vl_{model_size}_with_neutral__metrics_summary.csv"
+    )
     metrics_df.to_csv(metrics_file, index=False)
     print(f"Metriche aggregate salvate in: {metrics_file}")
 
@@ -748,7 +778,10 @@ def main(args):
         return
 
     # Calcola le metriche
-    labels = sorted(list(set(y_true)))
+    labels = sorted(list(set(y_true) | set(y_pred)))
+    if "Neutral" not in labels:
+        labels.append("Neutral")
+    labels = sorted(labels)
     metrics = calculate_metrics(y_true, y_pred, labels)
 
     # Stampa i risultati

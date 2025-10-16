@@ -1,0 +1,10 @@
+metric,value,percentage,description
+accuracy_standard,0.005,0.5,Accuracy standard: % di predizioni corrette sul totale
+accuracy_balanced,0.0049504950495049506,0.49504950495049505,Accuracy bilanciata: accuracy robusta al class imbalance
+accuracy_weighted,0.005,0.5,Accuracy pesata: accuracy che considera la distribuzione delle classi
+f1_macro,0.006535947712418301,0.6535947712418301,F1-Score macro: media non pesata dell'F1 per ogni classe
+f1_weighted,0.009901960784313726,0.9901960784313726,F1-Score weighted: F1 pesato per il supporto di ogni classe
+precision_macro,0.3333333333333333,33.33333333333333,Precision macro: media non pesata della precision per ogni classe
+precision_weighted,0.505,50.5,Precision weighted: precision pesata per il supporto di ogni classe
+recall_macro,0.0033003300330033004,0.33003300330033003,Recall macro: media non pesata del recall per ogni classe
+recall_weighted,0.005,0.5,Recall weighted: recall pesato per il supporto di ogni classe
