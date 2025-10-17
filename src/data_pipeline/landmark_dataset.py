@@ -36,6 +36,7 @@ class LandmarkDataset(Dataset):
         max_seq_length=100,
         keypoint_type="pose_keypoints_2d",
         num_features=50,  # Aggiunto per forzare una dimensione fissa
+        labels=None,  # Aggiunto per forzare una lista di etichette
     ):
         """
         Args:
@@ -44,6 +45,7 @@ class LandmarkDataset(Dataset):
             max_seq_length (int): Lunghezza massima a cui standardizzare le sequenze.
             keypoint_type (string): Tipo di keypoint da estrarre.
             num_features (int): Numero fisso di feature per ogni frame.
+            labels (list, optional): Lista di etichette da usare per la mappatura. Defaults to None.
         """
         # Memorizza i percorsi e i parametri passati
         if isinstance(landmarks_dir, str):
@@ -61,9 +63,13 @@ class LandmarkDataset(Dataset):
         self.keypoint_type = keypoint_type
         self.num_features = num_features  # Memorizza il numero di feature
 
-        # Crea una mappatura da etichetta testuale a un indice numerico, ordinando le etichette
-        # per garantire coerenza (es. 'Negative' -> 0, 'Positive' -> 1).
-        self.labels = sorted(self.processed["emotion"].unique())
+        # Crea una mappatura da etichetta testuale a un indice numerico
+        if labels:
+            # Usa la lista di etichette fornita per coerenza tra dataset
+            self.labels = sorted(labels)
+        else:
+            # Altrimenti, derivale dal file CSV, ordinando per coerenza
+            self.labels = sorted(self.processed["emotion"].unique())
         self.label_map = {label: i for i, label in enumerate(self.labels)}
 
     # Il metodo __len__ deve restituire la dimensione totale del dataset.
@@ -97,6 +103,7 @@ class LandmarkDataset(Dataset):
                 break
 
         if video_dir is None:
+            print("\nPROVA: ", video_dir)
             # If the directory is not found, we raise a FileNotFoundError.
             # This is a critical error indicating a mismatch between the CSV and the filesystem.
             # Raising an error is better than returning a default item, as it makes the problem visible.

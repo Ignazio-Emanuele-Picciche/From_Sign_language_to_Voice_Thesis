@@ -142,7 +142,7 @@ class QwenVLGoldenLabelEvaluator:
     def _create_sentiment_prompt(self):
         return """You are an expert in the field of emotions.
             Please focus on facial expressions, body language, environmental cues, and events in the video and predict the
-            emotional state of the character. Please ignore the character’s identity. We uniformly sample 10 frames per
+            emotional state of the character. Please ignore the character's identity. We uniformly sample 10 frames per
             second from this clip. Please consider the temporal relationship between these frames.
             The video involves a person signing a sentence in ASL.
 
@@ -161,8 +161,14 @@ class QwenVLGoldenLabelEvaluator:
             Your job is to classify these into three categories:
             - Positive: joy, excited, surprise (positive) - shows happiness, enthusiasm, pleasant surprise.
             - Negative: surprise (negative), worry, sadness, fear, disgust, frustration, anger - shows distress, unpleasant emotions.
-            - Neutral: a lack of strong emotional expression, or a calm, baseline state.
+            - Neutral: ONLY if there is absolutely NO emotional expression whatsoever. This should be RARE in sign language.
 
+            CRITICAL INSTRUCTIONS:
+            1. Sign language is inherently expressive - most videos will show clear emotions
+            2. Do NOT default to "Neutral" - actively look for positive or negative cues
+            3. Even subtle facial expressions indicate emotion - classify them as Positive or Negative
+            4. Only choose "Neutral" if you see a completely blank, expressionless face
+            
             IMPORTANT: Completely ignore any text overlays, watermarks, background elements, or video interface components.
             
             Respond with exactly ONE word only: "Positive", "Negative", or "Neutral\""""
@@ -295,12 +301,9 @@ class QwenVLGoldenLabelEvaluator:
                     generated_ids = self.model.generate(
                         **inputs,
                         max_new_tokens=15,  # Ridotto per risposte concise
-                        do_sample=(
-                            True if attempt > 0 else False
-                        ),  # Deterministico al primo tentativo
-                        temperature=0.3
-                        + (attempt * 0.3),  # Aumenta temperatura nei retry
-                        top_p=0.9,
+                        do_sample=True,  # Sempre sampling per più varietà
+                        temperature=1.0 + (attempt * 0.3),  # Temperature MOLTO più alta
+                        top_p=0.95,  # Aumentato anche top_p
                         pad_token_id=self.processor.tokenizer.eos_token_id,
                     )
 

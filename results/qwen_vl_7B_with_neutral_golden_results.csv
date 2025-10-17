@@ -9,11 +9,11 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 254525.mp4,Negative,Neutral,0.9,"Of course the parents would be scared. ""I am sorry"" is never a good thing.",False
 254728.mp4,Negative,Neutral,0.9,"It is very intimidating. There will be seven professionals informing the two parents that their child seem to be sick or have the ""cancer"".",False
 257368.mp4,Negative,Neutral,0.9,"They often use the word ""diagnosis"" It's very negative and it's used for more negative references, such as sickness or cancer. Or maybe terminal illness.",False
-254829.mp4,Positive,Neutral,0.9,"Why don't they use a word like ""identified"" as in ""I've identified this child deaf""? Now it does not seem bad at all.",False
-254931.mp4,Negative,Neutral,0.9,"""Intervention"" implies the need of intervening such as an intervention for drug addicts, stopping something from happening, or when a kid is not behaving well.",False
-255033.mp4,Positive,Neutral,0.9,"The baby is just deaf. It's not their fault, they're doing perfectly fine.",False
+254829.mp4,Positive,Positive,0.9,"Why don't they use a word like ""identified"" as in ""I've identified this child deaf""? Now it does not seem bad at all.",True
+254931.mp4,Neutral,Neutral,0.9,"""Intervention"" implies the need of intervening such as an intervention for drug addicts, stopping something from happening, or when a kid is not behaving well.",True
+255033.mp4,Positive,Positive,0.9,"The baby is just deaf. It's not their fault, they're doing perfectly fine.",True
 255844.mp4,Positive,Neutral,0.9,That makes it to seem like an opportunity to do more than one.,False
-255946.mp4,Negative,Neutral,0.9,The parents might will perceive this as something they should to be upset about.,False
+255946.mp4,Neutral,Neutral,0.9,The parents might will perceive this as something they should to be upset about.,True
 256351.mp4,Positive,Neutral,0.9,A Deaf role model who has been trained can show the parents that he/she is perfectly fine.,False
 256352.mp4,Positive,Neutral,0.9,He/she can read and write. He/she can communicate. He/she can work. He/she has an education. There's a long list of that and he/she is perfectly fine.,False
 257265.mp4,Negative,Neutral,0.9,"When a deaf child does not have a Deaf mentor, the family will continue to be disappointed and their grief will last longer.",False
@@ -27,11 +27,11 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 36295789.mp4,Negative,Neutral,0.9,Mom doesn't like surprises.,False
 36294790.mp4,Negative,Neutral,0.9,The weather isn't beautiful today.,False
 36292794.mp4,Positive,Neutral,0.9,"Yes, I like pineapple cream cheese.",False
-36291796.mp4,Negative,Neutral,0.9,No! I don't like pineapple cream cheese.,False
+36291796.mp4,Neutral,Neutral,0.9,No! I don't like pineapple cream cheese.,True
 36288803.mp4,Positive,Neutral,0.9,Dad is like me. He likes chocolate cereal.,False
 5596228.mp4,Negative,Neutral,0.9,Why is dad upset? I have no idea...,False
 154108.mp4,Positive,Neutral,0.9,"""Today I went out and the weather was lousy."" ""No, it's beautiful and warm outside. It's perfect.""",False
-1540612.mp4,Negative,Neutral,0.9,"""The book you read was really good."" ""No, it was lousy I didn't like it.""",False
+1540612.mp4,Neutral,Neutral,0.9,"""The book you read was really good."" ""No, it was lousy I didn't like it.""",True
 1540613.mp4,Negative,Neutral,0.9,"""Texas has a good football team."" ""No they have a lousy team and they are losing. They haven't won a game yet.""",False
 1540021.mp4,Negative,Neutral,0.9,"""Mc Donalds is a snobby restaurant right?"" ""No, Mcdonalds is a cheap restaurant. They serve hamburgers.""",False
 1539625.mp4,Positive,Neutral,0.9,"""Your mom will love the surprise party."" ""No, my mom hates surprises.""",False
@@ -42,10 +42,10 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 17596188.mp4,Negative,Neutral,0.9,The movie is really scary.,False
 17593193.mp4,Positive,Neutral,0.9,I love riding in airplanes and flying different places.,False
 17590198.mp4,Negative,Neutral,0.9,My worst enemy is my alarm clock.,False
-17592194.mp4,Negative,Neutral,0.9,Alcohol is not always good.,False
+17592194.mp4,Neutral,Neutral,0.9,Alcohol is not always good.,True
 17588201.mp4,Negative,Neutral,0.9,I analyzed and looked over the math problem.,False
 17586206.mp4,Positive,Neutral,0.9,I love apples in the fall.,False
-17584208.mp4,Positive,Neutral,0.9,"I was picked to join the club. Wow, it was an honor.",False
+17584208.mp4,Positive,Positive,0.9,"I was picked to join the club. Wow, it was an honor.",True
 28816.mp4,Positive,Neutral,0.9,"To tell the truth, I love you because you make people laugh so hard!",False
 29019.mp4,Positive,Neutral,0.9,"Last night, I played a close game of basketball with my friend. The score was 30-28 when it ended.",False
 29423.mp4,Negative,Neutral,0.9,I always get sick in winter because I wear flip-flops.,False
@@ -58,7 +58,7 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 841314.mp4,Positive,Neutral,0.9,My friend is playing video games.,False
 841618.mp4,Positive,Neutral,0.9,Is your friend`s party good?,False
 841720.mp4,Positive,Neutral,0.9,"Is it fun going fishing with your friends? (starts out signing ""fishing"" but repairs to ""friend"")",False
-841821.mp4,Positive,Neutral,0.9,Will Bob be surprised at his surprise party?,False
+841821.mp4,Positive,Positive,0.9,Will Bob be surprised at his surprise party?,True
 842226.mp4,Positive,Neutral,0.9,Does your friend really love surfing the internet?,False
 842327.mp4,Positive,Neutral,0.9,Does your friend love surfing the Internet?,False
 843443.mp4,Positive,Neutral,0.9,Why does your friend love travelling?,False
@@ -100,11 +100,11 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 7983363.mp4,Positive,Neutral,0.9,My aunt makes the best blueberry pie.,False
 7983165.mp4,Negative,Neutral,0.9,Is bad weather coming to Boston?,False
 7982377.mp4,Positive,Neutral,0.9,Is playing frisbee fun?,False
-7981687.mp4,Negative,Neutral,0.9,Was I passed out drunk last night?,False
+7981687.mp4,Neutral,Neutral,0.9,Was I passed out drunk last night?,True
 7981589.mp4,Positive,Neutral,0.9,Did my friend go ahead with crashing the party?,False
 7981490.mp4,Positive,Neutral,0.9,Bob wrote and sent a love letter to his wife because their anniversary is coming up soon.,False
 7981194.mp4,Positive,Neutral,0.9,The teacher must clean the classroom everyday so that when the students come to class it will be clean.,False
-7980898.mp4,Negative,Neutral,0.9,I missed last months rent so now I have to pay double.,False
+7980898.mp4,Neutral,Neutral,0.9,I missed last months rent so now I have to pay double.,True
 7980799.mp4,Negative,Neutral,0.9,Bad weather is coming to Boston because the city is close to the ocean.,False
 79797114.mp4,Positive,Neutral,0.9,My friend wants to buy a plaid shrit because his friend invited him to a costume party.,False
 79792122.mp4,Positive,Neutral,0.9,My friend just crashed a party because he recently finished his last exam.,False
@@ -113,9 +113,9 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 58734811.mp4,Negative,Neutral,0.9,"When I don't study, I am guaranteed to fail.",False
 58734712.mp4,Negative,Neutral,0.9,"If I don't study, I am guaranteed to fail.",False
 58734613.mp4,Negative,Neutral,0.9,"If I don't study, I am guaranteed to fail.",False
-58734317.mp4,Negative,Neutral,0.9,"If there's an emergency, where will you go?",False
+58734317.mp4,Neutral,Neutral,0.9,"If there's an emergency, where will you go?",True
 58734020.mp4,Negative,Neutral,0.9,"If you spell even one word wrong, he will take away points for it!",False
-58733526.mp4,Negative,Neutral,0.9,"If John did that to me, I won't be friends with him anymore.",False
+58733526.mp4,Neutral,Neutral,0.9,"If John did that to me, I won't be friends with him anymore.",True
 17077.mp4,Negative,Neutral,0.9,The weather is lousy today.,False
 171111.mp4,Positive,Neutral,0.9,The weather is beautiful today.,False
 171820.mp4,Positive,Neutral,0.9,"My dad likes pineapple cream cheese, like me.",False
@@ -136,16 +136,16 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 8398627.mp4,Negative,Neutral,0.9,"No, no one has found the umbrella, it's still missing.",False
 8398331.mp4,Negative,Neutral,0.9,"What? No, right now we're in an economic crisis.",False
 8397936.mp4,Positive,Neutral,0.9,Pete loves computers; he has three set up one next to the other at home!,False
-8397838.mp4,Negative,Neutral,0.9,"American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida.",False
+8397838.mp4,Neutral,Neutral,0.9,"American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida.",True
 8397050.mp4,Positive,Neutral,0.9,Who fell in love with Bill?,False
-8396754.mp4,Negative,Neutral,0.9,Why is father upset?,False
+8396754.mp4,Neutral,Neutral,0.9,Why is father upset?,True
 8396064.mp4,Positive,Neutral,0.9,Your mom will love the gift you just bought for her.,False
 8395966.mp4,Negative,Neutral,0.9,"The man who broke into a house in Newton is probably the same person who broke into a house in Brookline,",False
 8395867.mp4,Positive,Neutral,0.9,"Wow, that coat you just bought looks warm!",False
 8395670.mp4,Negative,Neutral,0.9,That student who was on the quiz show didn't win.,False
 8395473.mp4,Negative,Neutral,0.9,Jim threatened to sue the man who punched him.,False
 338228.mp4,Negative,Neutral,0.9,If John stays home it probably means he's sick.,False
-3382011.mp4,Negative,Neutral,0.9,"If Mary gets home late, John will probably be upset.",False
+3382011.mp4,Neutral,Neutral,0.9,"If Mary gets home late, John will probably be upset.",True
 3381912.mp4,Negative,Neutral,0.9,"If the people I invited show up late, they will regret it.",False
 3381715.mp4,Positive,Neutral,0.9,"If you want to know, if John wins he will get a teddy bear.",False
 3380826.mp4,Negative,Neutral,0.9,"If my sister neglects her homework, she won't succeed in school.",False
@@ -160,15 +160,15 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 8841.mp4,Positive,Positive,0.9,That picture you gave me was beautiful.,True
 6814.mp4,Positive,Neutral,0.9,The sandwich I just ate was delicious!,False
 7119.mp4,Positive,Neutral,0.9,"If you like chocolate, you will love this cake.",False
-7321.mp4,Negative,Neutral,0.9,"If the president is elected again, my father will be upset.",False
+7321.mp4,Neutral,Neutral,0.9,"If the president is elected again, my father will be upset.",True
 7422.mp4,Negative,Neutral,0.9,"If I forget to go to the store, my mother will be upset.",False
 8436.mp4,Negative,Neutral,0.9,"When he struggled a lot in school, he became depressed.",False
 8638.mp4,Negative,Neutral,0.9,"If I'm working and my computer crashes, I will panic.",False
 9956.mp4,Positive,Neutral,0.9,Which vegetable do the kids love?,False
-362.mp4,Negative,Neutral,0.9,Why is the teacher upset?,False
+362.mp4,Neutral,Neutral,0.9,Why is the teacher upset?,True
 1372.mp4,Positive,Neutral,0.9,Boston is a great city.,False
 1575.mp4,Positive,Neutral,0.9,I love my new car.,False
-1677.mp4,Negative,Neutral,0.9,That dress is not my favorite.,False
+1677.mp4,Neutral,Neutral,0.9,That dress is not my favorite.,True
 2590.mp4,Positive,Neutral,0.9,My friend is thrilled because he won the lottery.,False
 3098.mp4,Positive,Neutral,0.9,My best friend visited Boston yesterday.,False
 32100.mp4,Positive,Neutral,0.9,Wow! That watch costs three thousand dollars!,False
@@ -190,7 +190,7 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 31655777.mp4,Positive,Neutral,0.9,Is it fine if my friend crashes the party?,False
 31655778.mp4,Positive,Neutral,0.9,Bob sent his wife a love letter because it is their wedding anniversary soon.,False
 31655481.mp4,Positive,Neutral,0.9,Bob loves reading books because he likes using his imagination.,False
-31655186.mp4,Negative,Neutral,0.9,I have to pay double the rent because I missed the last one.,False
+31655186.mp4,Neutral,Neutral,0.9,I have to pay double the rent because I missed the last one.,True
 31655087.mp4,Negative,Neutral,0.9,Bad weather is in Boston because the ocean is near.,False
 31655088.mp4,Positive,Neutral,0.9,My family vacations every year in Florida because they love the sun.,False
 36918922.mp4,Positive,Neutral,0.9,I bought a gift for my mom. She will love it!,False
