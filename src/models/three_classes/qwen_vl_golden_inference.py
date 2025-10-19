@@ -6,7 +6,7 @@
 # passando direttamente i video invece delle sequenze di landmark.
 #
 # COMANDO PER ESEGUIRE:
-# python src/models/qwen_vl_golden_inference.py --model_size 2B --save_results --batch_size 10
+# python src/models/three_classes/qwen_vl_golden_inference.py --model_size 2B --save_results --batch_size 10
 #
 # =================================================================================================
 
@@ -302,7 +302,7 @@ class QwenVLGoldenLabelEvaluator:
                         **inputs,
                         max_new_tokens=15,  # Ridotto per risposte concise
                         do_sample=True,  # Sempre sampling per più varietà
-                        temperature=1.0 + (attempt * 0.3),  # Temperature MOLTO più alta
+                        temperature=1.2 + (attempt * 0.3),  # Temperature MOLTO più alta
                         top_p=0.95,  # Aumentato anche top_p
                         pad_token_id=self.processor.tokenizer.eos_token_id,
                     )
@@ -351,6 +351,13 @@ class QwenVLGoldenLabelEvaluator:
                 f"Video: {os.path.basename(video_path)} -> RAW: '{output_text.strip()}' -> PARSED: {prediction} (conf: {confidence:.3f})"
             )
 
+            # Log extra per predizioni neutral (per debugging)
+            if prediction == "Neutral":
+                logger.warning(
+                    f"⚠️  NEUTRAL detected for: {os.path.basename(video_path)}"
+                )
+                logger.warning(f"    Full raw output: '{output_text}'")
+
             return prediction, confidence
 
         except Exception as e:
@@ -363,36 +370,33 @@ class QwenVLGoldenLabelEvaluator:
         """
         output_clean = output_text.strip().lower()
 
-        # Log per debugging
-        logger.debug(f"Parsing output: '{output_clean}'")
+        # Log SEMPRE per debugging completo
+        logger.info(f"🔍 PARSING: '{output_text}' -> cleaned: '{output_clean}'")
 
         # Cerca parole chiave esatte prima
         if output_clean == "positive":
-            prediction = "Positive"
-            confidence = 0.9
-            logger.debug("Exact match: positive")
+            logger.info("✅ EXACT MATCH: positive")
+            return "Positive", 0.9
         elif output_clean == "negative":
-            prediction = "Negative"
-            confidence = 0.9
-            logger.debug("Exact match: negative")
+            logger.info("✅ EXACT MATCH: negative")
+            return "Negative", 0.9
         elif output_clean == "neutral":
-            prediction = "Neutral"
-            confidence = 0.9
-            logger.debug("Exact match: neutral")
+            logger.warning("⚠️  EXACT MATCH: neutral")
+            return "Neutral", 0.9
         # Poi cerca contenute
         elif "positive" in output_clean:
-            prediction = "Positive"
-            confidence = 0.8
-            logger.debug("Found 'positive' keyword")
+            logger.info("✅ FOUND 'positive' in text")
+            return "Positive", 0.8
         elif "negative" in output_clean:
-            prediction = "Negative"
-            confidence = 0.8
-            logger.debug("Found 'negative' keyword")
+            logger.info("✅ FOUND 'negative' in text")
+            return "Negative", 0.8
         elif "neutral" in output_clean:
-            prediction = "Neutral"
-            confidence = 0.8
-            logger.debug("Found 'neutral' keyword")
+            logger.warning("⚠️  FOUND 'neutral' in text")
+            return "Neutral", 0.8
         else:
+            # Se arriviamo qui, il modello non ha usato le keyword standard
+            logger.warning(f"❌ NO STANDARD KEYWORD in: '{output_clean}'")
+
             # Fallback: analizza il contenuto per indizi
             positive_words = [
                 "happy",
@@ -429,46 +433,29 @@ class QwenVLGoldenLabelEvaluator:
                 "fear",
                 "disgust",
             ]
-            neutral_words = [
-                "neutral",
-                "calm",
-                "baseline",
-                "normal",
-                "standard",
-                "no emotion",
-                "plain",
-                "expressionless",
-            ]
 
             pos_count = sum(1 for word in positive_words if word in output_clean)
             neg_count = sum(1 for word in negative_words if word in output_clean)
-            neu_count = sum(1 for word in neutral_words if word in output_clean)
 
-            if pos_count > neg_count and pos_count > neu_count:
-                prediction = "Positive"
-                confidence = 0.6
-                logger.debug(
-                    f"Positive words ({pos_count}) > Negative ({neg_count}) & Neutral ({neu_count})"
+            logger.info(
+                f"📊 Word analysis - Positive: {pos_count}, Negative: {neg_count}"
+            )
+
+            if pos_count > neg_count and pos_count > 0:
+                logger.info(
+                    f"🔶 FALLBACK to Positive (pos={pos_count} > neg={neg_count})"
                 )
-            elif neg_count > pos_count and neg_count > neu_count:
-                prediction = "Negative"
-                confidence = 0.6
-                logger.debug(
-                    f"Negative words ({neg_count}) > Positive ({pos_count}) & Neutral ({neu_count})"
+                return "Positive", 0.6
+            elif neg_count > pos_count and neg_count > 0:
+                logger.info(
+                    f"🔶 FALLBACK to Negative (neg={neg_count} > pos={pos_count})"
                 )
-            elif neu_count > pos_count and neu_count > neg_count:
-                prediction = "Neutral"
-                confidence = 0.6
-                logger.debug(
-                    f"Neutral words ({neu_count}) > Positive ({pos_count}) & Negative ({neg_count})"
-                )
+                return "Negative", 0.6
             else:
-                # Se non c'è un chiaro vincitore, assegna Neutral come default
-                prediction = "Neutral"
-                confidence = 0.5
-                logger.warning(f"FALLBACK to Neutral for: '{output_clean}'")
-
-        return prediction, confidence
+                logger.error(
+                    f"⚠️  DEFAULTING TO NEUTRAL - No clear signal in: '{output_clean}'"
+                )
+                return "Neutral", 0.5
 
     def _test_model_response(self):
         """Test semplice per verificare che il modello risponda correttamente"""

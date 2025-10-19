@@ -56,6 +56,7 @@ from torch.utils.data import DataLoader, WeightedRandomSampler
 import numpy as np
 import mlflow
 import mlflow.pytorch
+from mlflow.models.signature import infer_signature
 from collections import Counter
 import logging
 import gc  # Aggiunto per la garbage collection
@@ -75,7 +76,7 @@ BASE_DIR = os.path.abspath(
 
 from src.models.three_classes.vivit.vivit_model import create_vivit_model
 from src.models.three_classes.vivit.video_dataset import VideoDataset
-from src.utils.training_utils import (
+from src.utils.three_classes.training_utils import (
     get_class_weights,
     get_sampler,
     get_video_datasets,
@@ -419,6 +420,49 @@ def main(args):
         logger.info("Starting training...")
         trainer.run(train_loader, max_epochs=args.num_epochs)
         logger.info("Training finished.")
+
+        # --- Registrazione Modello su MLflow ---
+        logger.info("Registering model on MLflow...")
+
+        # Log delle metriche finali migliori
+        mlflow.log_metric("final_best_val_loss", best_val_loss)
+        mlflow.log_metric("final_best_val_f1_macro", best_val_f1_macro)
+        mlflow.log_metric("final_best_val_weighted_f1", best_val_weighted_f1)
+
+        # Crea un campione di input per la signature
+        try:
+            sample_batch = next(iter(val_loader))
+            sample_pixel_values, _ = prepare_batch(
+                sample_batch, device, non_blocking=False
+            )
+
+            # Crea la signature per MLflow
+            with torch.no_grad():
+                sample_output = model(pixel_values=sample_pixel_values)
+
+            signature = infer_signature(
+                sample_pixel_values.cpu().numpy(),
+                sample_output.logits.cpu().detach().numpy(),
+            )
+
+            # Registra il modello su MLflow
+            mlflow.pytorch.log_model(
+                pytorch_model=model,
+                artifact_path="model",
+                signature=signature,
+                registered_model_name="ViViT_EmoSign_3classes",
+            )
+            mlflow.set_tag(
+                "experiment_purpose", "ViViT emotion recognition - 3 classes"
+            )
+            mlflow.set_tag("model_type", "vivit")
+            mlflow.set_tag("num_classes", str(num_classes))
+            mlflow.set_tag("base_model", args.model_name)
+
+            logger.info("✅ Model successfully registered on MLflow!")
+        except Exception as e:
+            logger.error(f"❌ Error registering model on MLflow: {e}")
+            logger.warning("Training completed but model was not registered on MLflow.")
 
 
 if __name__ == "__main__":

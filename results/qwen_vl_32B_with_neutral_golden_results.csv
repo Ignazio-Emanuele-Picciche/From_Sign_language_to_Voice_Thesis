@@ -58,7 +58,7 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 841314.mp4,Positive,Neutral,0.9,My friend is playing video games.,False
 841618.mp4,Positive,Neutral,0.9,Is your friend`s party good?,False
 841720.mp4,Positive,Neutral,0.9,"Is it fun going fishing with your friends? (starts out signing ""fishing"" but repairs to ""friend"")",False
-841821.mp4,Positive,Positive,0.9,Will Bob be surprised at his surprise party?,True
+841821.mp4,Positive,Neutral,0.9,Will Bob be surprised at his surprise party?,False
 842226.mp4,Positive,Neutral,0.9,Does your friend really love surfing the internet?,False
 842327.mp4,Positive,Neutral,0.9,Does your friend love surfing the Internet?,False
 843443.mp4,Positive,Neutral,0.9,Why does your friend love travelling?,False
@@ -79,7 +79,7 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 845878.mp4,Positive,Neutral,0.9,My friend loves the Internet because there are many different websites.,False
 557229.mp4,Positive,Neutral,0.9,My friend went out to a party.,False
 5572412.mp4,Positive,Neutral,0.9,The park is crowded because the kids love playing there.,False
-5572413.mp4,Positive,Neutral,0.9,"I like the beach better than the lake because the beach has waves, while the lake has none.",False
+5572413.mp4,Positive,Positive,0.9,"I like the beach better than the lake because the beach has waves, while the lake has none.",True
 5572615.mp4,Positive,Neutral,0.9,Mother has to clean the kitchen soon because a group of friends are coming over for the weekend.,False
 5572716.mp4,Positive,Neutral,0.9,My friend loves to go outside because he loves camping.,False
 5572717.mp4,Positive,Neutral,0.9,My friend is an expert at making bonfires because he was a Boy Scout growing up.,False
@@ -158,7 +158,7 @@ video_name,true_label,predicted_label,confidence,caption,correct_prediction
 3378363.mp4,Negative,Neutral,0.9,"I would read this book, but it's boring.",False
 3378264.mp4,Negative,Neutral,0.9,I would've read the book but the beginning was boring.,False
 8841.mp4,Positive,Positive,0.9,That picture you gave me was beautiful.,True
-6814.mp4,Positive,Positive,0.9,The sandwich I just ate was delicious!,True
+6814.mp4,Positive,Neutral,0.9,The sandwich I just ate was delicious!,False
 7119.mp4,Positive,Neutral,0.9,"If you like chocolate, you will love this cake.",False
 7321.mp4,Neutral,Neutral,0.9,"If the president is elected again, my father will be upset.",True
 7422.mp4,Negative,Neutral,0.9,"If I forget to go to the store, my mother will be upset.",False

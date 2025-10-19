@@ -1,10 +1,10 @@
 metric,value,percentage,description
-accuracy_standard,0.105,10.5,Accuracy standard: % di predizioni corrette sul totale
-accuracy_balanced,0.34983498349834985,34.98349834983499,Accuracy bilanciata: accuracy robusta al class imbalance
-accuracy_weighted,0.10500000000000001,10.500000000000002,Accuracy pesata: accuracy che considera la distribuzione delle classi
-f1_macro,0.08199946347134043,8.199946347134043,F1-Score macro: media non pesata dell'F1 per ogni classe
-f1_weighted,0.05977421085576322,5.977421085576322,F1-Score weighted: F1 pesato per il supporto di ogni classe
-precision_macro,0.3606837606837607,36.06837606837607,Precision macro: media non pesata della precision per ogni classe
-precision_weighted,0.5115641025641026,51.156410256410254,Precision weighted: precision pesata per il supporto di ogni classe
-recall_macro,0.34983498349834985,34.98349834983499,Recall macro: media non pesata del recall per ogni classe
-recall_weighted,0.105,10.5,Recall weighted: recall pesato per il supporto di ogni classe
+accuracy_standard,0.115,11.5,Accuracy standard: % di predizioni corrette sul totale
+accuracy_balanced,0.3564356435643565,35.64356435643565,Accuracy bilanciata: accuracy robusta al class imbalance
+accuracy_weighted,0.115,11.5,Accuracy pesata: accuracy che considera la distribuzione delle classi
+f1_macro,0.09424655915883985,9.424655915883985,F1-Score macro: media non pesata dell'F1 per ogni classe
+f1_weighted,0.07771176679071416,7.7711766790714165,F1-Score weighted: F1 pesato per il supporto di ogni classe
+precision_macro,0.36096718480138174,36.09671848013817,Precision macro: media non pesata della precision per ogni classe
+precision_weighted,0.5116321243523316,51.16321243523316,Precision weighted: precision pesata per il supporto di ogni classe
+recall_macro,0.3564356435643565,35.64356435643565,Recall macro: media non pesata del recall per ogni classe
+recall_weighted,0.115,11.5,Recall weighted: recall pesato per il supporto di ogni classe

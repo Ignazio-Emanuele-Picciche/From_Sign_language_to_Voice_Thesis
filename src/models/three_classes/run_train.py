@@ -112,6 +112,19 @@
 # --seed 42 \
 # --downsample_ratio 1.0 \
 
+# python src/models/three_classes/run_train.py \
+# --model_type lstm \
+# --batch_size 32 \
+# --hidden_size 160 \
+# --num_layers 1 \
+# --learning_rate 1.8004021460063428e-05 \
+# --dropout 0.5550213529560302 \
+# --weight_decay 0.08369042894376064 \
+# --num_epochs 100 \
+# --patience 20 \
+# --seed 42 \
+# --downsample_ratio 1.0 \
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -135,7 +148,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 # --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
@@ -148,7 +161,7 @@ from torch.backends import cudnn
 import random
 from ignite.contrib.handlers import ProgressBar
 
-from src.utils.training_utils import (
+from src.utils.three_classes.training_utils import (
     get_data_paths,
     get_datasets,
     get_class_weights,
@@ -432,14 +445,14 @@ def main(args):
 
     # ! --- LOSS FUNCTION SELECTION ---
     # CrossEntropyLoss (ora attiva per il problema a 3 classi)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
-    print("Using CrossEntropyLoss")
+    # criterion = nn.CrossEntropyLoss(weight=class_weights)
+    # print("Using CrossEntropyLoss")
 
     # * Focal Loss (commentata, i parametri sono ottimizzati per 2 classi)
-    # criterion = FocalLoss(
-    #     alpha=0.5975773894779193, gamma=2.8722138431333333, weight=class_weights
-    # )
-    # print(f"Using Focal Loss with alpha=0.5975773894779193, gamma=2.8722138431333333	")
+    criterion = FocalLoss(
+        alpha=1.9548647782429915, gamma=2.5811066020010545, weight=class_weights
+    )
+    print(f"Using Focal Loss with alpha=1.9548647782429915, gamma=2.5811066020010545")
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )

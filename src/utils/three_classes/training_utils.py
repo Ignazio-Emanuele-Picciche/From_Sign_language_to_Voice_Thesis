@@ -26,8 +26,8 @@ from ignite.metrics import Loss, Accuracy
 
 from src.data_pipeline.landmark_dataset import LandmarkDataset
 from src.models.three_classes.vivit.video_dataset import VideoDataset  # Aggiunto import
-from src.models.lstm_model import EmotionLSTM
-from src.models.stgcn_model import STGCN
+from src.models.three_classes.lstm_model import EmotionLSTM
+from src.models.three_classes.stgcn_model import STGCN
 
 
 def get_data_paths(base_dir):
