@@ -39,6 +39,7 @@
 # python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.310201887845294e-06 --seed 42 --weight_decay 0.0003549878832196505
 # python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 1.5930522616241016e-05 --seed 42 --weight_decay 0.013311216080736894
 # python src/models/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 2.9106359131330718e-05 --seed 42 --weight_decay 0.006251373574521752
+# python src/models/two_classes/vivit/run_train_vivit.py --num_epochs 50 --batch_size 1 --learning_rate 5.6115164153345e-05 --seed 42 --weight_decay 0.006251373574521752 --downsample_ratio 1.0
 #
 # Note tecniche veloci:
 # - Usa `AdamW` sull'head di classificazione; la loss è CrossEntropy con
@@ -65,19 +66,21 @@ import gc  # Aggiunto per la garbage collection
 sys.path.insert(
     0,
     os.path.abspath(
-        os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+        os.path.join(
+            os.path.dirname(__file__), os.pardir, os.pardir, os.pardir, os.pardir
+        )
     ),
 )
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir, os.pardir)
 )
 
-from src.models.vivit.vivit_model import create_vivit_model
-from src.models.vivit.video_dataset import VideoDataset
-from src.utils.training_utils import (
-    setup_ignite_evaluator,
+from src.models.two_classes.vivit.vivit_model import create_vivit_model
+from src.models.two_classes.vivit.video_dataset import VideoDataset
+from src.utils.two_classes.training_utils import (
     get_class_weights,
     get_sampler,
+    get_video_datasets,
 )  # Aggiornato
 
 # Ignite imports
@@ -93,18 +96,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Sezione 2: Definizione dei Percorsi Dati ---
-TRAIN_VIDEO_DIR = os.path.join(
-    BASE_DIR, "data", "raw", "train", "raw_videos_front_train"
-)
+# Directory video per training (include ASLLRP per coerenza con hyperparameter_tuning.py)
+TRAIN_VIDEO_DIRS = [
+    os.path.join(BASE_DIR, "data", "raw", "train", "raw_videos_front_train"),
+    os.path.join(BASE_DIR, "data", "raw", "ASLLRP", "batch_utterance_video_v3_1"),
+]
 VAL_VIDEO_DIR = os.path.join(BASE_DIR, "data", "raw", "val", "raw_videos_front_val")
-# Aggiorniamo i percorsi per puntare ai file CSV corretti.
-# Assumiamo che esista un file analogo per la validazione.
-# Se non esiste, andrebbe creato o il dataset di training andrebbe splittato.
-TRAIN_ANNOTATIONS_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.65.csv"
-)
+
+# File annotazioni per training (include ASLLRP per coerenza con hyperparameter_tuning.py)
+TRAIN_ANNOTATIONS_FILES = [
+    os.path.join(
+        BASE_DIR, "data", "processed", "train", "video_sentiment_data_0.34.csv"
+    ),
+    os.path.join(
+        BASE_DIR,
+        "data",
+        "processed",
+        "asllrp_video_sentiment_data_0.34_without_golden.csv",
+    ),
+]
 VAL_ANNOTATIONS_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.65.csv"
+    BASE_DIR, "data", "processed", "val", "video_sentiment_data_0.34.csv"
 )
 MODEL_SAVE_PATH = os.path.join(BASE_DIR, "models", "vivit_emotion.pth")
 
@@ -154,44 +166,39 @@ def main(args):
         logger.info(f"Using device: {device}")
 
         # --- Caricamento Dati ---
-        # Creiamo un'istanza preliminare del dataset solo per ottenere l'image_processor e num_classes
-        _, temp_image_processor = create_vivit_model(
+        # 1. Creiamo un modello temporaneo per ottenere l'image_processor e la configurazione dei frame
+        temp_model, image_processor = create_vivit_model(
             num_classes=2, model_name=args.model_name
-        )  # num_classes temporaneo
-        train_dataset = VideoDataset(
-            TRAIN_ANNOTATIONS_FILE, TRAIN_VIDEO_DIR, temp_image_processor
         )
-        val_dataset = VideoDataset(
-            VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, temp_image_processor
+        num_frames = temp_model.config.num_frames
+        del temp_model  # Liberiamo la memoria
+
+        # 2. Carichiamo i dataset usando la funzione di utilità che gestisce più file e il downsampling
+        logger.info("Loading and pre-processing datasets...")
+        train_dataset, val_dataset = get_video_datasets(
+            train_video_dirs=TRAIN_VIDEO_DIRS,
+            train_annotations_files=TRAIN_ANNOTATIONS_FILES,
+            val_video_dir=VAL_VIDEO_DIR,
+            val_annotations_file=VAL_ANNOTATIONS_FILE,
+            image_processor=image_processor,
+            num_frames=num_frames,
+            downsample_majority_class=args.downsample_ratio > 0,
+            downsample_ratio=args.downsample_ratio,
         )
 
-        # Ora otteniamo il numero corretto di classi dal dataset
+        # 3. Ora otteniamo il numero corretto di classi dal dataset caricato
         num_classes = len(train_dataset.labels)
         logger.info(f"Numero di classi rilevato: {num_classes}")
 
-        # Creiamo il modello con il numero corretto di classi
-        model, image_processor = create_vivit_model(
-            num_classes, model_name=args.model_name
-        )
+        # 4. Creiamo il modello finale con il numero corretto di classi
+        model, _ = create_vivit_model(num_classes, model_name=args.model_name)
         model.to(device)
+
         # Calcolo e log dei parametri del modello
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(f"Total parameters: {total_params:,}")
         logger.info(f"Trainable parameters: {trainable_params:,}")
-
-        # Usa il numero di frame del modello per campionare correttamente
-        num_frames = model.config.num_frames  # es. 32
-        # Ricrea i dataset con l'image_processor finale e il numero corretto di frame
-        train_dataset = VideoDataset(
-            TRAIN_ANNOTATIONS_FILE,
-            TRAIN_VIDEO_DIR,
-            image_processor,
-            num_frames=num_frames,
-        )
-        val_dataset = VideoDataset(
-            VAL_ANNOTATIONS_FILE, VAL_VIDEO_DIR, image_processor, num_frames=num_frames
-        )
 
         train_sampler = get_sampler(train_dataset)
         train_loader = DataLoader(
@@ -216,7 +223,7 @@ def main(args):
             weight_decay=args.weight_decay,
         )
         # Calcoliamo i pesi per la loss in base al dataset di training
-        class_weights_tensor = get_class_weights(train_dataset).to(device)
+        class_weights_tensor = get_class_weights(train_dataset, device)
         criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)
 
         # ! TODO DA AGGIUNGERE IN SEGUITO
@@ -286,8 +293,8 @@ def main(args):
         from sklearn.metrics import f1_score
 
         best_val_loss = float("inf")
-        best_val_f1 = 0.0
         best_val_f1_macro = 0.0
+        best_val_weighted_f1 = 0.0
 
         def eval_step(engine, batch):
             model.eval()
@@ -312,10 +319,11 @@ def main(args):
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
-            nonlocal best_val_loss, best_val_f1, best_val_f1_macro
+            nonlocal best_val_loss, best_val_f1_macro, best_val_weighted_f1
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
-            # Calcolo f1 per classe
+
+            # Calcolo f1 per classe e altre metriche
             y_true = []
             y_pred = []
             model.eval()
@@ -326,6 +334,13 @@ def main(args):
                     preds = torch.argmax(outputs.logits, dim=1)
                     y_true.extend(labels.cpu().numpy())
                     y_pred.extend(preds.cpu().numpy())
+
+            from sklearn.metrics import f1_score, accuracy_score
+
+            val_weighted_f1 = f1_score(
+                y_true, y_pred, average="weighted", zero_division=0
+            )
+            val_weighted_acc = accuracy_score(y_true, y_pred)
             f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
             val_f1_class_0 = float(f1_per_class[0]) if len(f1_per_class) > 0 else 0.0
             val_f1_class_1 = float(f1_per_class[1]) if len(f1_per_class) > 1 else 0.0
@@ -333,12 +348,11 @@ def main(args):
             # Migliori metriche
             if metrics["loss"] < best_val_loss:
                 best_val_loss = metrics["loss"]
-            if metrics["accuracy"] > best_val_f1:
-                best_val_f1 = metrics["accuracy"]
             if metrics["f1"] > best_val_f1_macro:
                 best_val_f1_macro = metrics["f1"]
+            if val_weighted_f1 > best_val_weighted_f1:
+                best_val_weighted_f1 = val_weighted_f1
 
-            # ! TODO DA AGGIUNGERE IN SEGUITO
             # Step dello scheduler
             scheduler.step(metrics["loss"])
 
@@ -350,29 +364,33 @@ def main(args):
                 f"Validation Results - Epoch: {engine.state.epoch} | "
                 f"Loss: {metrics['loss']:.4f} | "
                 f"Accuracy: {metrics['accuracy']:.4f} | "
-                f"F1: {metrics['f1']:.4f} | "
-                f"F1_class_0: {val_f1_class_0:.4f} | F1_class_1: {val_f1_class_1:.4f} | "
-                f"Precision: {metrics['precision']:.4f} | "
-                f"Recall: {metrics['recall']:.4f}"
+                f"F1 Macro: {metrics['f1']:.4f} | "
+                f"Weighted F1: {val_weighted_f1:.4f} | "
+                f"F1_class_0: {val_f1_class_0:.4f} | F1_class_1: {val_f1_class_1:.4f}"
             )
-            mlflow.log_metrics(
-                {
-                    "val_loss": metrics["loss"],
-                    "val_accuracy": metrics["accuracy"],
-                    "val_f1_macro": metrics["f1"],
-                    "val_f1_class_0": val_f1_class_0,
-                    "val_f1_class_1": val_f1_class_1,
-                    "val_precision_macro": metrics["precision"],
-                    "val_recall_macro": metrics["recall"],
-                    "best_val_loss": best_val_loss,
-                    "best_val_f1": best_val_f1,
-                    "best_val_f1_macro": best_val_f1_macro,
-                },
-                step=engine.state.epoch,
-            )
+
+            metrics_to_log = {
+                "val_loss": metrics["loss"],
+                "val_accuracy": metrics["accuracy"],
+                "val_f1_macro": metrics["f1"],
+                "val_weighted_f1": val_weighted_f1,
+                "val_weighted_acc": val_weighted_acc,
+                "val_f1_class_0": val_f1_class_0,
+                "val_f1_class_1": val_f1_class_1,
+                "val_precision_macro": metrics["precision"],
+                "val_recall_macro": metrics["recall"],
+                "best_val_loss": best_val_loss,
+                "best_val_f1_macro": best_val_f1_macro,
+                "best_val_weighted_f1": best_val_weighted_f1,
+            }
+
+            mlflow.log_metrics(metrics_to_log, step=engine.state.epoch)
+
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+            elif torch.backends.mps.is_available():
+                torch.mps.empty_cache()
 
         # Early stopping
         handler = EarlyStopping(
@@ -404,8 +422,8 @@ def main(args):
 
         # Log delle metriche finali migliori
         mlflow.log_metric("final_best_val_loss", best_val_loss)
-        mlflow.log_metric("final_best_val_f1", best_val_f1)
         mlflow.log_metric("final_best_val_f1_macro", best_val_f1_macro)
+        mlflow.log_metric("final_best_val_weighted_f1", best_val_weighted_f1)
 
         # Crea un campione di input per la signature
         try:
@@ -483,6 +501,12 @@ if __name__ == "__main__":
         type=int,
         default=2,
         help="Number of worker processes for data loading.",
+    )
+    parser.add_argument(
+        "--downsample_ratio",
+        type=float,
+        default=0.0,
+        help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
     )
     args = parser.parse_args()
     main(args)

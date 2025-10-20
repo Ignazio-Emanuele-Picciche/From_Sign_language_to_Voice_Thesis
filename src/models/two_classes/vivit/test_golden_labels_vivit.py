@@ -10,6 +10,12 @@
 #   --model_uri mlartifacts/EXPERIMENT_ID/models/MODEL_ID/artifacts \
 #   --batch_size 1 \
 #   --save_results
+
+# python src/models/two_classes/vivit/test_golden_labels_vivit.py \
+#   --model_uri mlartifacts/697363764579443849/models/m-de73e05128734690a016c37e5610eeb2/artifacts \
+#   --batch_size 1 \
+#   --save_results
+
 #
 # =================================================================================================
 
@@ -36,12 +42,12 @@ import logging
 
 # --- Setup del Percorso di Base e Import delle Utilità ---
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
-from src.models.vivit.video_dataset import VideoDataset
-from src.models.vivit.vivit_model import create_vivit_model
+from src.models.two_classes.vivit.video_dataset import VideoDataset
+from src.models.two_classes.vivit.vivit_model import create_vivit_model
 
 # Configura il logging
 logging.basicConfig(level=logging.INFO)

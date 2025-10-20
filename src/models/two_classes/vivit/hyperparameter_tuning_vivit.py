@@ -14,9 +14,9 @@
 #    ESEMPIO DI COMANDO:
 #    Esegue 40 tentativi di ottimizzazione, addestrando per 20 epoche ogni volta.
 #
-#    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
+#    python src/models/two_classes/vivit/hyperparameter_tuning_vivit.py --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
 #
-#    python src/models/vivit/hyperparameter_tuning_vivit.py --n_trials 20 --num_epochs 7 --downsample_ratio 1.0 --num_workers 2
+#    python src/models/two_classes/vivit/hyperparameter_tuning_vivit.py --n_trials 20 --num_epochs 7 --downsample_ratio 1.0 --num_workers 2
 #
 # =================================================================================================
 
@@ -37,6 +37,7 @@ from torch.backends import cudnn
 from optuna.samplers import TPESampler
 from collections import Counter
 import gc
+from sklearn.metrics import f1_score, accuracy_score
 
 # Ignite imports
 os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
@@ -52,16 +53,18 @@ from ignite.contrib.handlers import ProgressBar
 sys.path.insert(
     0,
     os.path.abspath(
-        os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+        os.path.join(
+            os.path.dirname(__file__), os.pardir, os.pardir, os.pardir, os.pardir
+        )
     ),
 )
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir, os.pardir)
 )
 
-from src.models.vivit.vivit_model import create_vivit_model
-from src.models.vivit.video_dataset import VideoDataset
-from src.utils.training_utils import (
+from src.models.two_classes.vivit.vivit_model import create_vivit_model
+from src.models.two_classes.vivit.video_dataset import VideoDataset
+from src.utils.two_classes.training_utils import (
     get_class_weights,
     get_sampler,
     get_datasets,
@@ -72,11 +75,12 @@ from src.utils.training_utils import (
 
 # --- Sezione 2: Setup di MLflow ---
 mlflow.set_tracking_uri("http://127.0.0.1:8080")
-experiment_name = "ViViT - Hyperparameter Tuning VADE 0.34"
-if mlflow.get_experiment_by_name(experiment_name) is None:
-    mlflow.create_experiment(experiment_name)
-else:
-    mlflow.set_experiment(experiment_name)
+# Il nome dell'esperimento verrà impostato dinamicamente in main()
+# experiment_name = "ViViT - Hyperparameter Tuning VADE 0.34"
+# if mlflow.get_experiment_by_name(experiment_name) is None:
+#     mlflow.create_experiment(experiment_name)
+# else:
+#     mlflow.set_experiment(experiment_name)
 
 # --- Sezione 3: Definizione dei Percorsi Dati ---
 (
@@ -155,7 +159,9 @@ def objective(trial, train_dataset, val_dataset):
     )
 
     # --- Sezione 7: Setup del Modello e dell'Addestramento ---
-    num_classes = len(train_dataset.labels)
+    num_classes = len(
+        set(train_dataset.labels)
+    )  # Corretto: usa set per contare le classi uniche
     model, _ = create_vivit_model(num_classes, model_name=MODEL_NAME)
     device = torch.device(
         "cuda"
@@ -215,11 +221,16 @@ def objective(trial, train_dataset, val_dataset):
         return y_pred.logits, y
 
     evaluator = Engine(eval_step)
+
+    # Aggiunta metrica F1 weighted e per classe
     val_metrics = {
         "accuracy": Accuracy(output_transform=output_transform, device=device),
         "loss": Loss(criterion, output_transform=output_transform, device=device),
         "f1_macro": Fbeta(
             1.0, average="macro", output_transform=output_transform, device=device
+        ),
+        "f1_weighted": Fbeta(
+            1.0, average="weighted", output_transform=output_transform, device=device
         ),
         "precision_macro": Precision(
             average="macro", output_transform=output_transform, device=device
@@ -227,7 +238,11 @@ def objective(trial, train_dataset, val_dataset):
         "recall_macro": Recall(
             average="macro", output_transform=output_transform, device=device
         ),
+        "f1_per_class": Fbeta(
+            1.0, average=None, output_transform=output_transform, device=device
+        ),
     }
+
     for name, metric in val_metrics.items():
         metric.attach(evaluator, name)
 
@@ -243,31 +258,39 @@ def objective(trial, train_dataset, val_dataset):
         )
 
         best_f1_macro = 0.0
+        best_weighted_f1 = 0.0
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def log_validation_results(engine):
-            nonlocal best_f1_macro
+            nonlocal best_f1_macro, best_weighted_f1
             evaluator.run(val_loader)
             metrics = evaluator.state.metrics
             val_f1_macro = metrics["f1_macro"]
             val_loss = metrics["loss"]
             val_accuracy = metrics["accuracy"]
-            val_precision = metrics["precision_macro"]
-            val_recall = metrics["recall_macro"]
+            val_weighted_f1 = metrics[
+                "f1_weighted"
+            ]  # Usa la metrica calcolata da ignite
 
             if val_f1_macro > best_f1_macro:
                 best_f1_macro = val_f1_macro
+            if val_weighted_f1 > best_weighted_f1:
+                best_weighted_f1 = val_weighted_f1
 
-            mlflow.log_metrics(
-                {
-                    "val_loss": val_loss,
-                    "val_f1_macro": val_f1_macro,
-                    "val_accuracy": val_accuracy,
-                    "val_precision_macro": val_precision,
-                    "val_recall_macro": val_recall,
-                },
-                step=engine.state.epoch,
-            )
+            metrics_to_log = {
+                "val_loss": val_loss,
+                "val_f1_macro": val_f1_macro,
+                "val_accuracy": val_accuracy,
+                "val_weighted_f1": val_weighted_f1,
+                "val_precision_macro": metrics["precision_macro"],
+                "val_recall_macro": metrics["recall_macro"],
+            }
+            # Log F1 per classe se disponibile
+            if "f1_per_class" in metrics:
+                for i, f1 in enumerate(metrics["f1_per_class"]):
+                    metrics_to_log[f"val_f1_class_{i}"] = float(f1)
+
+            mlflow.log_metrics(metrics_to_log, step=engine.state.epoch)
 
             trial.report(val_f1_macro, engine.state.epoch)
             if trial.should_prune():
@@ -296,13 +319,12 @@ def objective(trial, train_dataset, val_dataset):
         except RuntimeError as e:
             if "out of memory" in str(e):
                 mlflow.set_tag("status", "oom")
-                # Segnala a Optuna di potare il trial, ma non come un fallimento
-                # Restituiamo un valore molto basso per indicare una cattiva performance
                 return 0.0
             else:
                 raise e
 
         mlflow.log_metric("best_val_f1_macro", best_f1_macro)
+        mlflow.log_metric("best_val_weighted_f1", best_weighted_f1)
 
         # Pulizia finale più aggressiva
         del model, optimizer, class_weights_tensor, criterion

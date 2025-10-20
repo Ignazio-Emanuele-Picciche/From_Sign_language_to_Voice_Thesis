@@ -25,7 +25,7 @@ from ignite.engine import Events, create_supervised_evaluator
 from ignite.metrics import Loss, Accuracy
 
 from src.data_pipeline.landmark_dataset import LandmarkDataset
-from src.models.vivit.video_dataset import VideoDataset  # Aggiunto import
+from src.models.two_classes.vivit.video_dataset import VideoDataset  # Aggiunto import
 from src.models.two_classes.lstm_model import EmotionLSTM
 from src.models.two_classes.stgcn_model import STGCN
 
