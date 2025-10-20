@@ -6,7 +6,7 @@
 # passando direttamente i video invece delle sequenze di landmark.
 #
 # COMANDO PER ESEGUIRE:
-# python src/models/qwen_vl_golden_inference.py --model_size 2B --save_results --batch_size 10
+# python src/models/two_classes/qwen_vl_golden_inference.py --model_size 2B --save_results --batch_size 10
 #
 # =================================================================================================
 
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # --- Setup del Percorso di Base ---
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
@@ -297,7 +297,7 @@ class QwenVLGoldenLabelEvaluator:
                         do_sample=(
                             True if attempt > 0 else False
                         ),  # Deterministico al primo tentativo
-                        temperature=0.3
+                        temperature=1.0
                         + (attempt * 0.3),  # Aumenta temperatura nei retry
                         top_p=0.9,
                         pad_token_id=self.processor.tokenizer.eos_token_id,

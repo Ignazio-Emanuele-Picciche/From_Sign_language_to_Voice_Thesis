@@ -7,7 +7,7 @@
 # dove i dati di training e golden labels erano su scale completamente diverse.
 #
 # COMANDO PER ESEGUIRE IL TEST:
-# python src/models/test_golden_labels_fixed.py --model_uri mlartifacts/505616919019850588/models/m-c8c87c699cf14e4a91b1b9765feb9943/artifacts --batch_size 32 --save_results
+# python src/models/two_classes/test_golden_labels_fixed.py --model_uri mlartifacts/505616919019850588/models/m-c8c87c699cf14e4a91b1b9765feb9943/artifacts --batch_size 32 --save_results
 #
 # =================================================================================================
 
@@ -33,12 +33,24 @@ from torch.utils.data import DataLoader
 
 # --- Setup del Percorso di Base e Import delle Utilità ---
 BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
-from src.utils.training_utils import prepare_batch
-from src.models.fix_golden_labels_normalization import FixedGoldenLabelDataset
+from src.utils.two_classes.training_utils import prepare_batch
+from src.models.two_classes.fix_golden_labels_normalization import (
+    FixedGoldenLabelDataset,
+)
+
+# Import the LSTM model class so MLflow can unpickle it
+from src.models.two_classes import lstm_model
+
+# Create aliases for backward compatibility with old saved models
+sys.modules["src.models.two_classes.lstm_model"] = lstm_model
+sys.modules["src.models.lstm_model"] = (
+    lstm_model  # Per modelli salvati con il vecchio path
+)
+from src.models.two_classes.lstm_model import EmotionLSTM
 
 
 def load_model_from_mlflow(model_uri):

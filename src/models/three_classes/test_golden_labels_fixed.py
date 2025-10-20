@@ -9,8 +9,10 @@
 # COMANDO PER ESEGUIRE IL TEST:
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/505616919019850588/models/m-c8c87c699cf14e4a91b1b9765feb9943/artifacts --batch_size 32 --save_results
 
+#  NON PREDICE NEUTRAL
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/768135501161829821/models/m-780c208c5059486583a51a77a288cdb3/artifacts --batch_size 32 --save_results
 
+#  PREDITE TUTTE LE CLASSI
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/816580482732370733/models/m-0f27528663e84dfe91e0b2c7f4a15495/artifacts --batch_size 32 --save_results
 #
 # =================================================================================================
@@ -50,7 +52,7 @@ from src.models.three_classes.fix_golden_labels_normalization import (
 from src.models.three_classes import lstm_model
 
 # Create an alias for backward compatibility with old saved models
-sys.modules["src.models.lstm_model"] = lstm_model
+sys.modules["src.models.three_classes.lstm_model"] = lstm_model
 from src.models.three_classes.lstm_model import EmotionLSTM
 
 

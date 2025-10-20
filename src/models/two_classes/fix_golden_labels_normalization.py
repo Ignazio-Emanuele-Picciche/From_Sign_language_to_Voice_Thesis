@@ -25,7 +25,7 @@ BASE_DIR = os.path.abspath(
 )
 sys.path.insert(0, BASE_DIR)
 
-from src.models.test_golden_labels import GoldenLabelDataset
+from src.models.two_classes.test_golden_labels import GoldenLabelDataset
 
 
 class FixedGoldenLabelDataset(GoldenLabelDataset):
