@@ -1,0 +1,23 @@
+Configurazione utilizzata: Config 2 - Concentrata
+Data: 2025-10-21 08:48:39.561797
+Modalità: train
+
+Soglie:
+============================================================
+Extremely Negative       : -1.0000 < compound ≤ -0.7500
+Negative                 : -0.7500 < compound ≤ -0.4000
+Somewhat Negative        : -0.4000 < compound ≤ -0.1000
+Neutral                  : -0.1000 < compound ≤  0.1000
+Somewhat Positive        :  0.1000 < compound ≤  0.4000
+Positive                 :  0.4000 < compound ≤  0.7500
+Extremely Positive       :  0.7500 < compound ≤  1.0000
+
+Distribuzione:
+============================================================
+Extremely Negative       :    16 ( 0.75%)
+Negative                 :    68 ( 3.17%)
+Somewhat Negative        :   119 ( 5.54%)
+Neutral                  :  1042 (48.53%)
+Somewhat Positive        :   322 (15.00%)
+Positive                 :   459 (21.38%)
+Extremely Positive       :   121 ( 5.64%)

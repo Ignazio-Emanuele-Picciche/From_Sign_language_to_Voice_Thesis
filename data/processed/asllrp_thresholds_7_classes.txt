@@ -1,0 +1,25 @@
+Configurazione utilizzata: Concentrata sul Neutro
+Data: 2025-10-21 08:49:07.512862
+Dataset: ASLLRP
+
+Soglie:
+============================================================
+Extremely Negative       : -1.0000 < compound ≤ -0.7500
+Negative                 : -0.7500 < compound ≤ -0.4000
+Somewhat Negative        : -0.4000 < compound ≤ -0.1000
+Neutral                  : -0.1000 < compound ≤  0.1000
+Somewhat Positive        :  0.1000 < compound ≤  0.4000
+Positive                 :  0.4000 < compound ≤  0.7500
+Extremely Positive       :  0.7500 < compound ≤  1.0000
+
+Distribuzione:
+============================================================
+Extremely Negative       :     9 ( 0.42%)
+Negative                 :   183 ( 8.64%)
+Somewhat Negative        :   202 ( 9.54%)
+Neutral                  :  1007 (47.54%)
+Somewhat Positive        :   214 (10.10%)
+Positive                 :   435 (20.54%)
+Extremely Positive       :    68 ( 3.21%)
+
+Totale righe: 2118

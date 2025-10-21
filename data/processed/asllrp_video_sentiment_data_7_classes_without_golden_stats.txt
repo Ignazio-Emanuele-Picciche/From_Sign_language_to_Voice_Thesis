@@ -1,0 +1,23 @@
+STATISTICHE TRAINING/VALIDATION SET - 7 CLASSI
+============================================================
+
+Data generazione: 2025-10-21 08:49:39.323514
+Numero totale di righe: 1918
+
+Distribuzione delle emozioni:
+------------------------------------------------------------
+Extremely Negative       :     4 ( 0.21%)
+Extremely Positive       :    38 ( 1.98%)
+Negative                 :   105 ( 5.47%)
+Neutral                  :  1007 (52.50%)
+Positive                 :   364 (18.98%)
+Somewhat Negative        :   186 ( 9.70%)
+Somewhat Positive        :   214 (11.16%)
+
+Statistiche compound scores:
+------------------------------------------------------------
+Media: 0.0893
+Mediana: 0.0000
+Dev. Standard: 0.3008
+Min: -0.8687
+Max: 0.9804

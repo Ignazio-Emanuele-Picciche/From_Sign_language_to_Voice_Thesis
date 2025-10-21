@@ -1,0 +1,21 @@
+STATISTICHE GOLDEN LABELS (TEST SET) - 7 CLASSI
+============================================================
+
+Data generazione: 2025-10-21 08:49:39.306979
+Numero totale di golden labels: 200
+
+Distribuzione delle emozioni:
+------------------------------------------------------------
+Extremely Negative       :     5 ( 2.50%)
+Extremely Positive       :    30 (15.00%)
+Negative                 :    78 (39.00%)
+Positive                 :    71 (35.50%)
+Somewhat Negative        :    16 ( 8.00%)
+
+Statistiche compound scores:
+------------------------------------------------------------
+Media: 0.1057
+Mediana: 0.5994
+Dev. Standard: 0.6201
+Min: -0.9440
+Max: 0.8910

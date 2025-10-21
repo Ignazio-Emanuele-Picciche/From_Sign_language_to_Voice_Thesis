@@ -1,0 +1,23 @@
+Configurazione utilizzata: Config 2 - Concentrata
+Data: 2025-10-21 09:23:40.854490
+Modalità: val
+
+Soglie:
+============================================================
+Extremely Negative       : -1.0000 < compound ≤ -0.7500
+Negative                 : -0.7500 < compound ≤ -0.4000
+Somewhat Negative        : -0.4000 < compound ≤ -0.1000
+Neutral                  : -0.1000 < compound ≤  0.1000
+Somewhat Positive        :  0.1000 < compound ≤  0.4000
+Positive                 :  0.4000 < compound ≤  0.7500
+Extremely Positive       :  0.7500 < compound ≤  1.0000
+
+Distribuzione:
+============================================================
+Extremely Negative       :     4 ( 0.23%)
+Negative                 :    74 ( 4.26%)
+Somewhat Negative        :    98 ( 5.64%)
+Neutral                  :   840 (48.30%)
+Somewhat Positive        :   275 (15.81%)
+Positive                 :   363 (20.87%)
+Extremely Positive       :    85 ( 4.89%)

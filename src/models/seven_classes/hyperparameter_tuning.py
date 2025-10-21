@@ -1,0 +1,1020 @@
+# =================================================================================================
+# COMANDI UTILI PER L'ESECUZIONE
+# =================================================================================================
+#
+# 1. AVVIARE IL SERVER MLFLOW
+#    Per monitorare gli esperimenti, prima di eseguire lo script di tuning,
+#    aprire un terminale e lanciare il server MLflow:
+#
+#    mlflow server --host 127.0.0.1 --port 8080
+#
+# 2. ESEGUIRE L'OTTIMIZZAZIONE DEGLI IPERPARAMETRI
+#    Questo script utilizza Optuna per trovare i migliori iperparametri per un dato modello.
+#    È possibile specificare il tipo di modello (lstm o stgcn), il numero di "trial" (tentativi)
+#    e il numero di epoche per ogni trial.
+#
+#    ESEMPIO DI COMANDO PER LSTM:
+#    Esegue 40 tentativi di ottimizzazione per il modello LSTM, addestrando per 40 epoche ogni volta.
+#
+#    python3 src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40
+#
+#    ESEMPIO DI COMANDO PER ST-GCN:
+#    Esegue 20 tentativi di ottimizzazione per il modello ST-GCN, addestrando per 34 epoche ogni volta.
+#
+#    python3 src/models/hyperparameter_tuning.py --model_type stgcn --n_trials 20 --num_epochs 34
+#
+#    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 40 --num_workers 0
+#
+#    python src/models/hyperparameter_tuning.py --model_type lstm --n_trials 40 --num_epochs 20 --downsample_ratio 1.0
+
+#    ESEMPIO DI COMANDO PER LSTM CON FOCAL LOSS E OTTIMIZZAZIONE SU WEIGHTED F1:
+# python src/models/seven_classes/hyperparameter_tuning.py \
+# --model_type lstm \
+# --n_trials 50 \
+# --num_epochs 20 \
+# --downsample_ratio 0.4 \
+# --use_focal_loss \
+# --optimize_metric weighted_f1 \
+# --normalize_data \
+# --seed 42
+#
+# =================================================================================================
+# MODIFICHE PER 7 CLASSI - GESTIONE CLASS IMBALANCE
+# =================================================================================================
+#
+# PROBLEMA IDENTIFICATO:
+# ----------------------
+# Il sistema a 7 classi presenta uno sbilanciamento estremo nella distribuzione delle classi:
+#
+# Training Set (4,065 samples):
+#   - Neutral:              2,049 (50.4%) ← MAGGIORANZA ASSOLUTA
+#   - Positive:               823 (20.2%)
+#   - Somewhat Positive:      536 (13.2%)
+#   - Somewhat Negative:      305 (7.5%)
+#   - Negative:               173 (4.3%)
+#   - Extremely Positive:     159 (3.9%)
+#   - Extremely Negative:      20 (0.5%) ← CLASSE QUASI INESISTENTE
+#
+# Imbalance Ratio: Neutral:Extremely Negative = 102:1 !!
+#
+# CONSEGUENZE SENZA CORREZIONI:
+# ------------------------------
+# 1. Il modello predice Neutral nel 70-80% dei casi per minimizzare la loss
+# 2. Le classi estreme (Extremely Negative/Positive) vengono completamente ignorate
+# 3. Macro F1-Score molto basso (~0.15-0.25) perché alcune classi hanno F1=0
+# 4. Il modello non impara la granularità delle 7 classi, collassando su Neutral
+#
+# SOLUZIONI IMPLEMENTATE:
+# -----------------------
+#
+# 1. DOWNSAMPLING SELETTIVO SOLO PER NEUTRAL (--downsample_ratio 0.4):
+#    --------------------------------------------------------------------
+#    Rationale: Riduce SOLO Neutral da 2,049 a ~329 esempi (0.4 * 823 = 329)
+#              Tutte le altre classi rimangono INTATTE!
+#
+#    IMPORTANTE: Il downsampling viene applicato SOLO alla classe più frequente (Neutral),
+#                calcolando il target come: downsample_ratio * seconda_classe_più_frequente
+#
+#    Perché 0.4?
+#    - Porta Neutral (2,049) → 329 esempi (0.4 * Positive=823)
+#    - Le altre classi mantengono i loro dati originali:
+#      * Positive: 823 (invariato)
+#      * Somewhat Positive: 536 (invariato)
+#      * Somewhat Negative: 305 (invariato)
+#      * Negative: 173 (invariato)
+#      * Extremely Positive: 159 (invariato)
+#      * Extremely Negative: 20 (invariato - classe critica!)
+#    - Imbalance ratio scende da 102:1 a ~16:1 (329:20)
+#    - Non distrugge le classi minoritarie che hanno già pochi esempi
+#
+#    Distribuzione risultante:
+#      Neutral:              ~329 (15-18% invece di 50%) ← RIDOTTO
+#      Positive:              823 (38-42%) ← INVARIATO, diventa la classe dominante
+#      Somewhat Positive:     536 (25-28%) ← INVARIATO
+#      Somewhat Negative:     305 (14-16%) ← INVARIATO
+#      Negative:              173 (8-9%) ← INVARIATO
+#      Extremely Positive:    159 (7-8%) ← INVARIATO
+#      Extremely Negative:     20 (0.9-1%) ← INVARIATO (critico!)
+#
+#    Totale: ~2,345 esempi (da 4,065) - Perdita del 42% MA solo da Neutral
+#    Vantaggio: Le classi rare mantengono tutti i loro preziosi esempi!
+#
+# 2. CLASS WEIGHTS AGGRESSIVI (nel codice):
+#    ----------------------------------------
+#    Oltre ai class weights automatici, applichiamo moltiplicatori:
+#
+#    - Extremely Negative: weight × 2.0  (classe più rara, massima priorità)
+#    - Extremely Positive: weight × 2.0  (classe estrema, alta priorità)
+#    - Negative:           weight × 1.5  (classe rara, priorità media)
+#    - Positive:           weight × 1.5  (classe importante, priorità media)
+#    - Altre classi:       weight × 1.0  (peso standard)
+#
+#    Questo forza il modello a prestare maggiore attenzione alle classi rare.
+#
+# 3. FOCAL LOSS (--use_focal_loss):
+#    -------------------------------
+#    - Riduce il peso dei campioni "facili" (es. Neutral ben classificati)
+#    - Aumenta il peso dei campioni "difficili" (es. classi rare mal classificate)
+#    - Parametri: alpha (bilancia classi), gamma (riduce peso facili)
+#    - Hyperparameter tuning trova i valori ottimali di alpha e gamma
+#
+# 4. WEIGHTED F1-SCORE COME METRICA (--optimize_metric weighted_f1):
+#    -----------------------------------------------------------------
+#    - Weighted F1 considera la distribuzione delle classi
+#    - Bilancia l'importanza di tutte le classi, non solo la maggioranza
+#    - Previene l'overfitting sulla classe Neutral
+#
+# 5. NORMALIZZAZIONE DEI DATI (--normalize_data):
+#    ---------------------------------------------
+#    - Porta tutti i landmark features nella stessa scala [0,1]
+#    - Migliora la convergenza e la stabilità del training
+#    - Riduce il bias verso features con valori più grandi
+#
+# RISULTATI ATTESI:
+# -----------------
+# Senza correzioni:
+#   - Predizione: ~70% Neutral, ~20% altre, ~10% classi rare
+#   - Macro F1: 0.15-0.25
+#   - Weighted F1: 0.45-0.55 (artificialmente alto per Neutral)
+#
+# Con correzioni:
+#   - Predizione: ~40% Neutral, ~40% altre, ~20% classi rare
+#   - Macro F1: 0.30-0.40 (migliore distribuzione)
+#   - Weighted F1: 0.40-0.50 (più bilanciato)
+#   - F1 per classe estrema > 0.1 (invece di 0.0)
+#
+# COME USARE:
+# -----------
+# 1. Avvia MLflow:
+#    mlflow server --host 127.0.0.1 --port 8080
+#
+# 2. Esegui hyperparameter tuning con tutte le correzioni:
+#    python src/models/seven_classes/hyperparameter_tuning.py \
+#      --model_type lstm \
+#      --n_trials 50 \
+#      --num_epochs 20 \
+#      --downsample_ratio 0.4 \
+#      --use_focal_loss \
+#      --optimize_metric weighted_f1 \
+#      --normalize_data \
+#      --seed 42
+#
+# 3. Monitora in MLflow:
+#    - Controlla val_f1_class_0 (Extremely Negative) > 0
+#    - Controlla val_f1_class_6 (Extremely Positive) > 0
+#    - Verifica che avg_prob_Neutral non sia > 0.6
+#    - Confusion matrix deve mostrare predizioni distribuite
+#
+# NOTE IMPORTANTI:
+# ----------------
+# - Le golden labels contengono solo 5/7 classi (mancano Neutral e Somewhat Positive)
+# - Il test finale potrebbe comunque avere performance basse su classi rare
+# - Considera data augmentation per Extremely Negative (solo 20 esempi!)
+# - Il downsampling riduce il training set del 30% ma migliora la qualità
+#
+# =================================================================================================
+
+import os
+import sys
+import argparse
+import optuna
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import numpy as np
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    accuracy_score,
+)
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import mlflow
+import mlflow.pytorch
+from optuna.pruners import MedianPruner
+import random
+from torch.backends import cudnn
+from optuna.samplers import TPESampler
+
+import gc
+from torch.utils.data import WeightedRandomSampler
+import logging
+
+# Ignite imports
+# os.environ["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
+from ignite.engine import Engine, Events
+from ignite.handlers import EarlyStopping as IgniteEarlyStopping
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from optuna.integration import PyTorchIgnitePruningHandler
+from optuna.exceptions import TrialPruned
+from ignite.metrics import Loss, Accuracy, Fbeta, Precision, Recall
+from ignite.contrib.handlers import ProgressBar
+
+# --- Sezione 1: Setup del Percorso di Base e Import delle Utilità ---
+sys.path.insert(
+    0,
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+    ),
+)
+BASE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+)
+
+from src.utils.seven_classes.training_utils import (
+    get_data_paths,
+    get_datasets,
+    get_class_weights,
+    create_model,
+    prepare_batch,
+    setup_ignite_evaluator,
+    get_sampler,
+)
+
+# --- Sezione 2: Setup di MLflow ---
+# Spostato all'interno della funzione main() per renderlo dinamico
+
+# --- Sezione 3: Definizione dei Percorsi Dati ---
+(
+    TRAIN_LANDMARKS_DIR,
+    TRAIN_PROCESSED_FILE,
+    VAL_LANDMARKS_DIR,
+    VAL_PROCESSED_FILE,
+) = get_data_paths(BASE_DIR)
+
+# --- Sezione 4: Variabili Globali ---
+NUM_EPOCHS = 5
+MODEL_TYPE = "lstm"
+PATIENCE = 10  # Aumentata la pazienza per dare più tempo al modello
+NUM_WORKERS = 0
+USE_FOCAL_LOSS = False  # Controllato da argomenti CLI
+OPTIMIZE_METRIC = "f1_macro"  # Metrica di ottimizzazione
+NORMALIZE_DATA = False  # Controllato da argomenti CLI
+NORMALIZATION_TYPE = "minmax"  # Tipo di normalizzazione
+
+torch.set_default_dtype(torch.float32)
+
+
+# =================================================================================================
+# NORMALIZED DATASET WRAPPER
+# =================================================================================================
+class NormalizedDatasetWrapper:
+    """
+    Wrapper per applicare normalizzazione ai dataset esistenti
+    """
+
+    def __init__(
+        self, dataset, scaler=None, fit_scaler=True, normalization_type="minmax"
+    ):
+        self.dataset = dataset
+        self.scaler = scaler
+        self.fit_scaler = fit_scaler
+        self.normalization_type = normalization_type
+
+        # Crea lo scaler se non fornito
+        if self.scaler is None:
+            if normalization_type == "minmax":
+                self.scaler = MinMaxScaler(feature_range=(0, 1))
+            elif normalization_type == "standard":
+                self.scaler = StandardScaler()
+            else:
+                raise ValueError(
+                    f"Normalizzazione non supportata: {normalization_type}"
+                )
+
+        # Fitta lo scaler sui dati se richiesto (solo per hyperparameter tuning con campione piccolo)
+        if self.fit_scaler:
+            self._fit_scaler()
+
+    def _fit_scaler(self):
+        """Fitta lo scaler su un campione deterministico di dati del dataset"""
+        all_features = []
+        sample_size = min(
+            100, len(self.dataset)
+        )  # Stesso sample_size di run_train.py per consistenza
+
+        print(f"  Fitting scaler su {sample_size} campioni sequenziali...")
+        for i in range(sample_size):
+            features, _ = self.dataset[i]
+            features_flat = features.reshape(-1).numpy()
+            all_features.extend(features_flat)
+
+        all_features = np.array(all_features).reshape(-1, 1)
+        self.scaler.fit(all_features)
+        print(f"  Scaler fittato su {len(all_features)} features")
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        """Applica normalizzazione al campione"""
+        features, label = self.dataset[idx]
+
+        if self.scaler is not None:
+            original_shape = features.shape
+            features_flat = features.reshape(-1).numpy().reshape(-1, 1)
+            features_normalized = self.scaler.transform(features_flat)
+            features = torch.from_numpy(
+                features_normalized.reshape(original_shape)
+            ).float()
+
+        return features, label
+
+    # Proxy attributes per compatibilità
+    @property
+    def labels(self):
+        return self.dataset.labels
+
+    @property
+    def label_map(self):
+        return self.dataset.label_map
+
+    @property
+    def num_features(self):
+        return self.dataset.num_features
+
+    @property
+    def processed(self):
+        return self.dataset.processed
+
+
+# =================================================================================================
+# FOCAL LOSS IMPLEMENTATION
+# =================================================================================================
+class FocalLoss(nn.Module):
+    """
+    Focal Loss per gestire dataset sbilanciati.
+
+    Args:
+        alpha (float): Peso per bilanciare le classi (default: 1.0)
+        gamma (float): Parametro di focusing per ridurre il peso dei campioni facili (default: 2.0)
+        weight (Tensor): Pesi delle classi (come in CrossEntropyLoss)
+    """
+
+    def __init__(self, alpha=1.0, gamma=2.0, weight=None):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, inputs, targets):
+        # Calcola cross entropy loss
+        ce_loss = F.cross_entropy(inputs, targets, weight=self.weight, reduction="none")
+
+        # Calcola pt = e^(-ce_loss)
+        pt = torch.exp(-ce_loss)
+
+        # Calcola focal loss: α * (1-pt)^γ * ce_loss
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+
+        return focal_loss.mean()
+
+
+def objective(trial, train_dataset, val_dataset):
+    """
+    Funzione "obiettivo" di Optuna per un singolo trial di ottimizzazione.
+    """
+    # --- Sezione 5: Definizione dello Spazio di Ricerca degli Iperparametri ---
+
+    # Loss function selection
+    if USE_FOCAL_LOSS:
+        use_focal_loss = trial.suggest_categorical("use_focal_loss", [True, False])
+        focal_alpha = (
+            trial.suggest_float("focal_alpha", 0.5, 2.0) if use_focal_loss else 1.0
+        )
+        focal_gamma = (
+            trial.suggest_float("focal_gamma", 0.5, 3.0) if use_focal_loss else 2.0
+        )
+    else:
+        use_focal_loss = False
+        focal_alpha = 1.0
+        focal_gamma = 2.0
+
+    if MODEL_TYPE == "lstm":
+        hidden_size = trial.suggest_int(
+            "hidden_size", 128, 384, step=32
+        )  # Riduciamo la complessità del modello
+        num_layers = trial.suggest_int(
+            "num_layers", 1, 2
+        )  # Preferiamo modelli meno profondi
+        dropout = trial.suggest_float(
+            "dropout", 0.5, 0.8
+        )  # Aumentiamo il range del dropout in modo aggressivo
+        learning_rate = trial.suggest_float(
+            "learning_rate", 5e-6, 5e-5, log=True
+        )  # Esploriamo learning rate più bassi
+        # Adjust learning rate for Focal Loss
+        if use_focal_loss:
+            learning_rate = learning_rate * trial.suggest_float(
+                "lr_focal_multiplier", 1.0, 2.5
+            )
+        batch_size = trial.suggest_categorical(
+            "batch_size", [32, 64]
+        )  # Batch size più piccoli possono aiutare la generalizzazione
+        weight_decay = trial.suggest_float(
+            "weight_decay", 5e-3, 0.5, log=True
+        )  # Aumentiamo il range del weight decay
+        model_params = {
+            "hidden_size": hidden_size,
+            "num_layers": num_layers,
+            "dropout": dropout,
+        }
+    else:  # stgcn
+        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
+        dropout = trial.suggest_float("dropout", 0.1, 0.5)
+        weight_decay = trial.suggest_float("weight_decay", 1e-4, 1e-1, log=True)
+        model_params = {"dropout": dropout}
+
+    # --- Sezione 6: Applicazione Normalizzazione (se abilitata) ---
+    current_train_dataset = train_dataset
+    current_val_dataset = val_dataset
+
+    if NORMALIZE_DATA:
+        # Per hyperparameter tuning, usiamo lo stesso scaler per tutti i trial per consistenza
+        if not hasattr(train_dataset, "_global_scaler"):
+            # Prima volta: crea e fitta lo scaler
+            if NORMALIZATION_TYPE == "minmax":
+                global_scaler = MinMaxScaler(feature_range=(0, 1))
+            else:
+                global_scaler = StandardScaler()
+
+            # Fitta su un campione deterministico del training set
+            print(
+                f"Fitting scaler globale '{NORMALIZATION_TYPE}' per hyperparameter tuning..."
+            )
+            sample_features = []
+            sample_size = min(100, len(train_dataset))
+            print(f"  Usando {sample_size} campioni sequenziali per determinismo...")
+            for i in range(sample_size):
+                features, _ = train_dataset[i]
+                sample_features.extend(features.reshape(-1).numpy())
+
+            sample_features = np.array(sample_features).reshape(-1, 1)
+            global_scaler.fit(sample_features)
+            print(f"  Scaler globale fittato su {len(sample_features)} features")
+            train_dataset._global_scaler = global_scaler
+
+        # Wrappa i dataset con normalizzazione
+        current_train_dataset = NormalizedDatasetWrapper(
+            train_dataset,
+            scaler=train_dataset._global_scaler,
+            fit_scaler=False,
+            normalization_type=NORMALIZATION_TYPE,
+        )
+
+        current_val_dataset = NormalizedDatasetWrapper(
+            val_dataset,
+            scaler=train_dataset._global_scaler,
+            fit_scaler=False,
+            normalization_type=NORMALIZATION_TYPE,
+        )
+
+    # --- Sezione 6: Creazione dei Dataloader specifici per il trial ---
+    train_sampler = get_sampler(current_train_dataset)
+    train_loader = DataLoader(
+        current_train_dataset,
+        batch_sampler=torch.utils.data.BatchSampler(
+            train_sampler, batch_size, drop_last=False
+        ),
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+    )
+
+    val_loader = DataLoader(
+        current_val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=NUM_WORKERS,
+        pin_memory=True,
+    )
+
+    # --- Sezione 7: Setup del Modello e dell'Addestramento ---
+    device = torch.device("cpu")
+
+    class_weights_tensor = get_class_weights(current_train_dataset, device)
+    input_size = current_train_dataset.num_features  # Usa la dimensione fissa
+    num_classes = len(current_train_dataset.labels)
+
+    model = create_model(MODEL_TYPE, input_size, num_classes, device, model_params)
+
+    # --- LOSS FUNCTION SELECTION ---
+    # AGGRESSIVE CLASS WEIGHTS per contrastare l'imbalance estremo
+    # ============================================================
+    #
+    # Il sistema automatico di class_weights (sklearn.utils.class_weight) calcola:
+    #   weight[i] = n_samples / (n_classes * n_samples_class_i)
+    #
+    # Ma con il nostro imbalance estremo (Neutral=2049 vs Extremely Negative=20),
+    # anche i pesi automatici non sono sufficienti. Applichiamo moltiplicatori aggressivi:
+    #
+    # RATIONALE DEI MOLTIPLICATORI:
+    # - 2.0x per classi estreme (Extremely Negative/Positive):
+    #   * Queste classi hanno ~2-4% dei dati (vs 50% Neutral)
+    #   * Senza moltiplicatore, il modello le ignora completamente
+    #   * 2.0x porta il peso effettivo a ~25-50x quello di Neutral
+    #   * Risultato: il modello è "forzato" a prestare attenzione
+    #
+    # - 1.5x per classi intermedie (Negative/Positive):
+    #   * Queste classi hanno ~4-20% dei dati
+    #   * Moltiplicatore moderato per evitare oversampling estremo
+    #   * Bilancia l'importanza senza dominare il training
+    #
+    # - 1.0x per classi centrali (Somewhat Negative/Positive, Neutral dopo DS):
+    #   * Dopo il downsampling di Neutral, queste classi sono più bilanciate
+    #   * Peso standard già sufficiente
+    #
+    # COMBINATO CON:
+    # - Downsampling (Neutral ridotto del 60%): riduce fisicamente l'imbalance
+    # - Focal Loss (se abilitata): riduce ulteriormente il peso dei facili
+    # - Weighted F1 optimization: metrica che considera tutte le classi equamente
+    #
+    # EFFETTO ATTESO:
+    # Senza moltiplicatori: F1(Extremely Negative) ≈ 0.00, F1(Neutral) ≈ 0.70
+    # Con moltiplicatori:    F1(Extremely Negative) ≈ 0.10-0.20, F1(Neutral) ≈ 0.50-0.60
+
+    extreme_class_multiplier = 2.0  # Per Extremely Negative/Positive
+    intermediate_class_multiplier = 1.5  # Per Negative/Positive
+    adjusted_weights = class_weights_tensor.clone()
+
+    # Applica i moltiplicatori (ordine alfabetico delle classi):
+    # 0: Extremely Negative, 1: Negative, 2: Somewhat Negative, 3: Neutral,
+    # 4: Somewhat Positive, 5: Positive, 6: Extremely Positive
+    if len(adjusted_weights) == 7:
+        adjusted_weights[
+            0
+        ] *= extreme_class_multiplier  # Extremely Negative (20 samples)
+        adjusted_weights[
+            6
+        ] *= extreme_class_multiplier  # Extremely Positive (159 samples)
+        adjusted_weights[1] *= intermediate_class_multiplier  # Negative (173 samples)
+        adjusted_weights[5] *= intermediate_class_multiplier  # Positive (823 samples)
+        # Somewhat Negative (305), Neutral (2049→820), Somewhat Positive (536) rimangono 1.0x
+
+    if use_focal_loss:
+        criterion = FocalLoss(
+            alpha=focal_alpha, gamma=focal_gamma, weight=adjusted_weights
+        )
+        loss_type = "FocalLoss"
+    else:
+        criterion = nn.CrossEntropyLoss(weight=adjusted_weights)
+        loss_type = "CrossEntropyLoss"
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=learning_rate, weight_decay=weight_decay
+    )
+    print(
+        f"Trial {trial.number}: lr={learning_rate}, batch_size={batch_size}, weight_decay={weight_decay}, dropout={model_params.get('dropout', None)}"
+    )
+    print("Class weights:", class_weights_tensor.cpu().numpy())
+    scheduler = ReduceLROnPlateau(
+        optimizer, mode="max", factor=0.2, patience=3
+    )  # Scheduler più reattivo
+
+    # --- Ignite Trainer ed Evaluator ---
+    def train_step(engine, batch):
+        model.train()
+        optimizer.zero_grad()
+        x, y = prepare_batch(batch, device, MODEL_TYPE)
+        y_pred = model(x)
+        loss = criterion(y_pred, y)
+        loss.backward()
+        optimizer.step()
+        # Assicura che il tipo di dato sia float32 per la compatibilità con MPS
+        return torch.tensor(loss.item(), dtype=torch.float32)
+
+    trainer = Engine(train_step)
+    pbar = ProgressBar(persist=True)
+    pbar.attach(trainer, output_transform=lambda x: {"batch loss": x})
+
+    def eval_step(engine, batch):
+        model.eval()
+        with torch.no_grad():
+            x, y = prepare_batch(batch, device, MODEL_TYPE)
+            y_pred = model(x)
+            # Cast esplicito per garantire la compatibilità con le metriche su MPS
+            return y_pred.to(dtype=torch.float32, device=device), y.to(
+                dtype=torch.long, device=device
+            )
+
+    evaluator = Engine(eval_step)
+    val_metrics = {
+        "accuracy": Accuracy(),
+        "loss": Loss(criterion),
+        "f1_macro": Fbeta(1, average="macro"),
+        "precision_macro": Precision(average="macro"),
+        "recall_macro": Recall(average="macro"),
+    }
+    for name, metric in val_metrics.items():
+        metric.attach(evaluator, name)
+
+    # --- Sezione 8: Esecuzione del Trial e Logging ---
+    with mlflow.start_run(nested=True):
+        base_params = {
+            "learning_rate": learning_rate,
+            "batch_size": batch_size,
+            "weight_decay": weight_decay,
+            "model_type": MODEL_TYPE,
+            "loss_function": loss_type,
+            "normalize_data": NORMALIZE_DATA,
+            "normalization_type": NORMALIZATION_TYPE if NORMALIZE_DATA else None,
+        }
+        if use_focal_loss:
+            base_params.update(
+                {
+                    "focal_alpha": focal_alpha,
+                    "focal_gamma": focal_gamma,
+                }
+            )
+        mlflow.log_params({**base_params, **model_params})
+
+        best_f1_macro = 0.0
+        best_weighted_f1 = 0.0
+        best_class_gap = float("inf")
+
+        @trainer.on(Events.EPOCH_COMPLETED)
+        def log_validation_results(engine):
+            nonlocal best_f1_macro, best_weighted_f1, best_class_gap
+            evaluator.run(val_loader)
+            metrics = evaluator.state.metrics
+            val_f1_macro = metrics["f1_macro"]
+            val_loss = metrics["loss"]
+
+            # Calcola metriche weighted e analisi dettagliata
+            with torch.no_grad():
+                all_preds = []
+                all_labels = []
+                all_probs = []
+
+                for xb, yb in val_loader:
+                    x, y = prepare_batch((xb, yb), device, MODEL_TYPE)
+                    outputs = model(x)
+                    probs = torch.softmax(outputs, dim=1)
+                    preds = torch.argmax(outputs, dim=1)
+
+                    all_preds.extend(preds.cpu().numpy())
+                    all_labels.extend(y.cpu().numpy())
+                    all_probs.extend(
+                        probs.cpu().numpy()
+                    )  # Salva l'intero array di probabilità
+
+                # Calcola weighted metrics
+                val_weighted_f1 = f1_score(all_labels, all_preds, average="weighted")
+                val_weighted_acc = accuracy_score(all_labels, all_preds)
+
+                # Calcola class gap (differenza F1 tra classi)
+                class_f1_scores = f1_score(
+                    all_labels,
+                    all_preds,
+                    average=None,
+                    labels=list(range(num_classes)),
+                    zero_division=0,
+                )
+                if len(class_f1_scores) >= 2:
+                    class_gap = abs(class_f1_scores[1] - class_f1_scores[0])
+                else:
+                    class_gap = 0.0
+
+                # Analisi per classe
+                class_probs = {label: [] for label in current_val_dataset.labels}
+                for prob, label_idx in zip(all_probs, all_labels):
+                    label_name = current_val_dataset.labels[label_idx]
+                    class_probs[label_name].append(prob[label_idx])
+
+                avg_class_probs = {
+                    label: np.mean(probs) if probs else 0
+                    for label, probs in class_probs.items()
+                }
+
+            # Calcola F1 per classe
+            class_f1_scores = f1_score(
+                all_labels,
+                all_preds,
+                average=None,
+                labels=list(range(num_classes)),
+                zero_division=0,
+            )
+            for i in range(num_classes):
+                metrics[f"val_f1_class_{i}"] = (
+                    class_f1_scores[i] if i < len(class_f1_scores) else 0.0
+                )
+
+            # Calcolo del class_gap (specifico per 2 classi, ma generalizzato)
+            if len(class_f1_scores) >= 2:
+                class_gap = np.std(
+                    class_f1_scores
+                )  # Usiamo la deviazione standard come metrica di gap
+            else:
+                class_gap = 0.0
+
+            # Logga le metriche su MLflow
+            metrics_to_log = {
+                "val_loss": val_loss,
+                "val_accuracy": metrics["accuracy"],
+                "val_f1_macro": val_f1_macro,
+                "val_weighted_f1": val_weighted_f1,
+                "val_class_gap": class_gap,
+            }
+            for i in range(num_classes):
+                metrics_to_log[f"val_f1_class_{i}"] = metrics.get(
+                    f"val_f1_class_{i}", 0.0
+                )
+            for label, avg_prob in avg_class_probs.items():
+                metrics_to_log[f"avg_prob_{label}"] = avg_prob
+
+            mlflow.log_metrics(metrics_to_log, step=engine.state.epoch)
+
+            # Update best metrics
+            if val_f1_macro > best_f1_macro:
+                best_f1_macro = val_f1_macro
+            if val_weighted_f1 > best_weighted_f1:
+                best_weighted_f1 = val_weighted_f1
+            if class_gap < best_class_gap:
+                best_class_gap = class_gap
+
+            # Stampa progress base
+            print(
+                f"Trial {trial.number}, Epoch {engine.state.epoch}: "
+                f"F1 Macro: {val_f1_macro:.4f}, Weighted F1: {val_weighted_f1:.4f}, "
+                f"Weighted Acc: {val_weighted_acc:.4f}, Class Gap: {class_gap:.4f}"
+            )
+
+            # Stampa dettagliata ogni 5 epoche (per hyperparameter tuning)
+            if engine.state.epoch % 5 == 0:
+                print(
+                    f"\nDetailed Analysis - Trial {trial.number} (Epoch {engine.state.epoch}):"
+                )
+                for label, avg_prob in avg_class_probs.items():
+                    print(f"Avg prob for {label} samples: {avg_prob:.4f}")
+
+                # Itera in modo sicuro sul numero di classi
+                for i in range(num_classes):
+                    label_name = current_val_dataset.labels[i]
+                    score = class_f1_scores[i]
+                    print(f"Val F1 Class {label_name}: {score:.4f}")
+
+                print(f"Class Gap (std): {class_gap:.4f}")
+                print("Classification Report:")
+                print(
+                    classification_report(
+                        all_labels,
+                        all_preds,
+                        target_names=current_val_dataset.labels,
+                        zero_division=0,
+                    )
+                )
+                print("Confusion Matrix:")
+                print(confusion_matrix(all_labels, all_preds))
+                print("-" * 50)
+
+            # Scegli la metrica per il scheduler e il pruning
+            if OPTIMIZE_METRIC == "weighted_f1":
+                optimize_value = val_weighted_f1
+            elif OPTIMIZE_METRIC == "class_gap":
+                optimize_value = -class_gap  # Minimizziamo il gap
+            else:
+                optimize_value = val_f1_macro
+
+            scheduler.step(optimize_value)
+            trial.report(optimize_value, engine.state.epoch)
+            if trial.should_prune():
+                raise TrialPruned()
+
+            gc.collect()
+            # if torch.backends.mps.is_available():
+            #     torch.mps.empty_cache()
+
+        # --- Sezione 9: Pruning e Early Stopping ---
+        early_stopper = IgniteEarlyStopping(
+            patience=PATIENCE,
+            score_function=lambda eng: eng.state.metrics["f1_macro"],
+            trainer=trainer,
+        )
+        evaluator.add_event_handler(Events.COMPLETED, early_stopper)
+
+        try:
+            trainer.run(train_loader, max_epochs=NUM_EPOCHS)
+        except TrialPruned:
+            # Questo blocco viene eseguito quando Optuna interrompe un trial non promettente.
+            # È un comportamento atteso, non un errore.
+            mlflow.set_tag("status", "pruned")
+            # Rilanciamo l'eccezione per far sapere a Optuna di terminare il trial.
+            raise TrialPruned(
+                f"Trial pruned at epoch {trainer.state.epoch} because performance was not promising."
+            )
+        except Exception as e:
+            # Cattura qualsiasi altra eccezione imprevista durante il training
+            logging.error(
+                f"Trial {trial.number} failed due to an unexpected error: {e}",
+                exc_info=True,
+            )
+            mlflow.set_tag("status", "failed")
+            # Rilancia l'eccezione per far fallire il trial in Optuna
+            raise
+
+        mlflow.log_metric("best_val_f1_macro", best_f1_macro)
+        mlflow.log_metric("best_val_weighted_f1", best_weighted_f1)
+        mlflow.log_metric("best_val_class_gap", best_class_gap)
+
+        # --- Sezione 11: Pulizia della Memoria ---
+        # Rimuovi esplicitamente gli handler per prevenire memory leak
+        trainer.remove_event_handler(log_validation_results, Events.EPOCH_COMPLETED)
+        evaluator.remove_event_handler(early_stopper, Events.COMPLETED)
+        if pbar:
+            pbar.attach(trainer)
+
+        # Rilascia esplicitamente la memoria
+        del (
+            model,
+            optimizer,
+            criterion,
+            trainer,
+            evaluator,
+            train_loader,
+            val_loader,
+        )
+        gc.collect()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+
+        # Return the metric we're optimizing for
+        if OPTIMIZE_METRIC == "weighted_f1":
+            return best_weighted_f1
+        elif OPTIMIZE_METRIC == "class_gap":
+            return -best_class_gap  # Optuna maximizes, so negative gap
+        else:
+            return best_f1_macro
+
+
+def main():
+    """
+    Funzione principale che orchestra l'intero processo di ottimizzazione.
+    """
+    # --- Sezione 10: Parsing degli Argomenti e Setup dello Studio ---
+    parser = argparse.ArgumentParser(
+        description="Hyperparameter tuning with Optuna and MLflow"
+    )
+    parser.add_argument(
+        "--model_type", type=str, choices=["lstm", "stgcn"], default="lstm"
+    )
+    parser.add_argument(
+        "--n_trials", type=int, default=20, help="Number of Optuna trials"
+    )
+    parser.add_argument("--num_epochs", type=int, default=5, help="Epochs per trial")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=0,
+        help="Number of worker processes for data loading.",
+    )
+    parser.add_argument(
+        "--downsample_ratio",
+        type=float,
+        default=0.0,  # 0.0 means no downsampling
+        help="Ratio to downsample the majority class. 1.0 means balance with minority. 0.0 to disable.",
+    )
+    parser.add_argument(
+        "--use_focal_loss",
+        action="store_true",
+        help="Enable Focal Loss optimization in hyperparameter search.",
+    )
+    parser.add_argument(
+        "--optimize_metric",
+        type=str,
+        choices=["f1_macro", "weighted_f1"],  # Rimosso "class_gap"
+        default="f1_macro",
+        help="Metric to optimize during hyperparameter tuning.",
+    )
+    parser.add_argument(
+        "--normalize_data",
+        action="store_true",
+        help="Applica normalizzazione ai dati durante hyperparameter tuning",
+    )
+    parser.add_argument(
+        "--normalization_type",
+        type=str,
+        default="minmax",
+        choices=["minmax", "standard"],
+        help="Tipo di normalizzazione: 'minmax' per [0,1], 'standard' per z-score",
+    )
+
+    args = parser.parse_args()
+    seed = args.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    cudnn.deterministic = True
+    cudnn.benchmark = False
+    # torch.use_deterministic_algorithms(True) # Può causare problemi
+
+    global NUM_EPOCHS, MODEL_TYPE, NUM_WORKERS, USE_FOCAL_LOSS, OPTIMIZE_METRIC, NORMALIZE_DATA, NORMALIZATION_TYPE
+    NUM_EPOCHS = args.num_epochs
+    MODEL_TYPE = args.model_type
+    NUM_WORKERS = args.num_workers
+    USE_FOCAL_LOSS = args.use_focal_loss
+    OPTIMIZE_METRIC = args.optimize_metric
+    NORMALIZE_DATA = args.normalize_data
+    NORMALIZATION_TYPE = args.normalization_type
+
+    # --- Caricamento Dati (una sola volta) ---
+    print("Caricamento dei dataset...")
+    train_dataset, val_dataset = get_datasets(
+        TRAIN_LANDMARKS_DIR,
+        TRAIN_PROCESSED_FILE,
+        VAL_LANDMARKS_DIR,
+        VAL_PROCESSED_FILE,
+        downsample_majority_class=args.downsample_ratio > 0,
+        downsample_ratio=args.downsample_ratio,
+    )
+    print("Dataset caricati.")
+
+    # Stampa la distribuzione delle etichette con i nomi delle classi
+    train_labels = train_dataset.processed["emotion"].map(train_dataset.label_map)
+    val_labels = val_dataset.processed["emotion"].map(val_dataset.label_map)
+    train_dist = {
+        label: count
+        for label, count in zip(
+            train_dataset.labels,
+            np.bincount(train_labels, minlength=len(train_dataset.labels)),
+        )
+    }
+    val_dist = {
+        label: count
+        for label, count in zip(
+            val_dataset.labels,
+            np.bincount(val_labels, minlength=len(val_dataset.labels)),
+        )
+    }
+    print("Train label distribution:", train_dist)
+    print("Val label distribution:", val_dist)
+
+    # --- Setup di MLflow dinamico ---
+    mlflow.set_tracking_uri("http://127.0.0.1:8080")
+    base_experiment_name = "VADER 0.34 - HT Emotion Recognition"
+
+    # Build experiment name with configuration details
+    name_parts = []
+    if args.downsample_ratio > 0:
+        name_parts.append(f"DS:{args.downsample_ratio}")
+    if args.use_focal_loss:
+        name_parts.append("FocalLoss")
+    if args.normalize_data:
+        name_parts.append(f"Norm:{args.normalization_type}")
+    if args.optimize_metric != "f1_macro":
+        name_parts.append(f"Opt:{args.optimize_metric}")
+
+    if name_parts:
+        experiment_name = f"{base_experiment_name} ({', '.join(name_parts)})"
+    else:
+        experiment_name = f"{base_experiment_name} (Baseline)"
+
+    if mlflow.get_experiment_by_name(experiment_name) is None:
+        mlflow.create_experiment(experiment_name)
+    mlflow.set_experiment(experiment_name)
+    # ---
+
+    run_name = f"Optuna_{MODEL_TYPE}_tuning_optimized"
+    with mlflow.start_run(run_name=run_name) as run:
+        mlflow.log_param("seed", seed)
+        mlflow.log_param("downsample_ratio", args.downsample_ratio)
+        mlflow.log_param("use_focal_loss", args.use_focal_loss)
+        mlflow.log_param("optimize_metric", args.optimize_metric)
+        mlflow.log_param("normalize_data", args.normalize_data)
+        mlflow.log_param("normalization_type", args.normalization_type)
+        # Logga la distribuzione effettiva dopo il downsampling
+        mlflow.log_param("train_label_distribution", train_dist)
+        mlflow.log_param("val_label_distribution", val_dist)
+
+        study = optuna.create_study(
+            direction="maximize",
+            pruner=MedianPruner(n_startup_trials=PATIENCE, n_warmup_steps=1),
+            sampler=TPESampler(seed=seed),
+        )
+        study.optimize(
+            lambda trial: objective(trial, train_dataset, val_dataset),
+            n_trials=args.n_trials,
+        )
+
+        mlflow.log_param("n_trials", args.n_trials)
+        mlflow.log_params(study.best_trial.params)
+        mlflow.log_metric("best_val_f1_macro_study", study.best_value)
+        mlflow.set_tags(
+            {
+                "project": "EmoSign",
+                "optimizer_engine": "optuna",
+                "model_family": MODEL_TYPE,
+                "run_id": run.info.run_id,
+            }
+        )
+
+    print("Best trial:", study.best_trial.params)
+    print("Best value:", study.best_value)
+
+
+if __name__ == "__main__":
+    main()

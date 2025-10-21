@@ -1,0 +1,138 @@
+# video_dataset.py: definisce la classe VideoDataset per il caricamento, campionamento e pre-processing dei video
+# Legge un file CSV di annotazioni, campiona uniformemente fotogrammi e usa l'image_processor di Hugging Face
+# per preparare i tensori (pixel_values) e restituisce etichette numeriche per il training.
+
+import os
+import pandas as pd
+import torch
+from torch.utils.data import Dataset
+import av
+import numpy as np
+import logging
+
+# Configura il logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+class VideoDataset(Dataset):
+    """
+    Dataset per caricare, campionare e pre-processare file video per modelli come ViViT,
+    utilizzando un file CSV di annotazioni e una directory video "piatta".
+
+    Args:
+        annotations_file (str): Percorso al file CSV con le annotazioni (es. 'video_sentiment_data_0.65.csv').
+                                La colonna dei nomi video deve chiamarsi 'video_name' e quella delle etichette 'emotion'.
+        video_root_dir (str): La directory radice dove si trovano TUTTI i file video.
+        image_processor (object): L'image processor di Hugging Face per pre-processare i fotogrammi.
+        num_frames (int): Il numero di fotogrammi da campionare uniformemente da ogni video.
+    """
+
+    def __init__(
+        self, annotations_file, video_root_dir, image_processor, num_frames=16
+    ):
+        self.video_info = pd.read_csv(annotations_file)
+        # Supporta sia singola directory che lista di directory
+        if isinstance(video_root_dir, list):
+            self.video_root_dirs = video_root_dir
+        else:
+            self.video_root_dirs = [video_root_dir]
+        self.image_processor = image_processor
+        self.num_frames = num_frames
+
+        # Crea una mappa da etichetta stringa a intero
+        self.labels = sorted(self.video_info["emotion"].unique())
+        self.label2id = {label: i for i, label in enumerate(self.labels)}
+        logger.info(f"Trovate {len(self.labels)} classi: {self.label2id}")
+        logger.info(f"Directory video: {self.video_root_dirs}")
+
+    def __len__(self):
+        return len(self.video_info)
+
+    def _sample_frames(self, num_total_frames):
+        """Campiona indici di fotogrammi in modo uniforme."""
+        indices = np.linspace(0, num_total_frames - 1, self.num_frames, dtype=int)
+        return indices
+
+    def __getitem__(self, idx):
+        video_name = self.video_info.iloc[idx]["video_name"].strip()
+        # Aggiunge .mp4 solo se non è già presente (gestisce entrambi i formati CSV)
+        if video_name.endswith(".mp4"):
+            video_filename = video_name
+        else:
+            video_filename = f"{video_name}.mp4"
+
+        # Cerca il video in tutte le directory disponibili
+        video_path_full = None
+        for video_dir in self.video_root_dirs:
+            potential_path = os.path.join(video_dir, video_filename)
+            if os.path.exists(potential_path):
+                video_path_full = potential_path
+                break
+
+        if video_path_full is None:
+            raise FileNotFoundError(
+                f"Video {video_filename} non trovato in nessuna delle directory: {self.video_root_dirs}"
+            )
+
+        label_str = self.video_info.iloc[idx]["emotion"]
+        label_id = self.label2id[label_str]
+
+        frames = []
+        try:
+            with av.open(video_path_full) as container:
+                stream = container.streams.video[0]
+                num_total_frames = stream.frames
+
+                if num_total_frames == 0:
+                    raise ValueError("Il video è vuoto o non può essere letto.")
+
+                frame_indices = self._sample_frames(num_total_frames)
+
+                # Ottimizzazione per la ricerca dei fotogrammi
+                frames_to_decode = {f: None for f in frame_indices}
+                frame_idx_counter = 0
+
+                for frame in container.decode(video=0):
+                    if frame_idx_counter in frames_to_decode:
+                        frames_to_decode[frame_idx_counter] = frame.to_image()
+                    frame_idx_counter += 1
+                    # Interrompi se abbiamo trovato tutti i fotogrammi necessari
+                    if all(v is not None for v in frames_to_decode.values()):
+                        break
+
+                frames = [
+                    frames_to_decode[i]
+                    for i in frame_indices
+                    if frames_to_decode[i] is not None
+                ]
+
+                if len(frames) != self.num_frames:
+                    logger.warning(
+                        f"Expected {self.num_frames} frames, but got {len(frames)} for video {video_path_full}"
+                    )
+                    # Pad if necessary, though sampling should be correct
+                    if len(frames) > 0:
+                        while len(frames) < self.num_frames:
+                            frames.append(frames[-1])
+                    else:
+                        raise ValueError("Could not extract any frames.")
+
+            # Pre-processa i fotogrammi usando l'image processor di ViViT
+            pixel_values = self.image_processor(
+                frames, return_tensors="pt"
+            ).pixel_values  # shape: (1, num_frames, C, H, W)
+            # Rimuovi la dimensione batch extra restituita dall'image_processor
+            pixel_values = pixel_values.squeeze(0)  # shape: (num_frames, C, H, W)
+
+            return {
+                "pixel_values": pixel_values,
+                "labels": torch.tensor(label_id, dtype=torch.long),
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Errore nel caricare o processare il video {video_path_full}: {e}"
+            )
+            # Ritorna un tensore vuoto o gestisci l'errore come preferisci
+            raise IOError(f"Impossibile processare il video: {video_path_full}") from e
