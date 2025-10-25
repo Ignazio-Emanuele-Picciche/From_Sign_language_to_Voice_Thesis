@@ -4,6 +4,7 @@ raw/
 models/*
 mlruns/
 mlartifacts/
+results/tts_audio/
 
 # VS Code
 .vscode/

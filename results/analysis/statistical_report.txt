@@ -1,0 +1,58 @@
+======================================================================
+STATISTICAL ANALYSIS REPORT - TTS AUDIO COMPARISON
+======================================================================
+
+1. DESCRIPTIVE STATISTICS
+----------------------------------------------------------------------
+
+Positive (n=160):
+  Pitch (Hz):        219.70 ± 8.91
+  Rate (syll/sec):   0.00 ± 0.00
+  Energy (dB):       -29.20 ± 5.31
+
+Negative (n=40):
+  Pitch (Hz):        214.04 ± 8.74
+  Rate (syll/sec):   0.00 ± 0.00
+  Energy (dB):       -30.62 ± 6.35
+
+
+2. NORMALITY TESTS (Shapiro-Wilk)
+----------------------------------------------------------------------
+
+
+3. INDEPENDENT T-TESTS (Positive vs Negative)
+----------------------------------------------------------------------
+
+Pitch (Hz):
+  Positive: 219.70 ± 8.91
+  Negative: 214.04 ± 8.74
+  Difference: +2.6%
+  t(3.606), p=0.0004
+  Cohen's d: 0.637 (medium)
+  Significance: YES
+
+Speaking Rate (syll/sec):
+  Positive: 0.00 ± 0.00
+  Negative: 0.00 ± 0.00
+  Difference: +nan%
+  t(nan), p=nan
+  Cohen's d: nan (large)
+  Significance: NO
+
+Energy (dB):
+  Positive: -29.20 ± 5.31
+  Negative: -30.62 ± 6.35
+  Difference: +4.6%
+  t(1.449), p=0.1490
+  Cohen's d: 0.256 (small)
+  Significance: NO
+
+
+4. INTERPRETATION
+----------------------------------------------------------------------
+
+Significant differences found in: Pitch (Hz)
+
+This confirms that the TTS system successfully applies
+prosodic modulation that is measurably different between
+Positive and Negative emotions.

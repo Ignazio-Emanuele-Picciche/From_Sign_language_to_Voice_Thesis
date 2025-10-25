@@ -12,7 +12,7 @@ PROSODY_MAPPING = {
     },
     "Negative": {
         "rate": "-12%",
-        "pitch": "-30%",  # prime era 6%
+        "pitch": "-6%",  # prime era 6%
         "volume": "-3%",
         "description": "Voce lenta, triste, contenuta",
     },
