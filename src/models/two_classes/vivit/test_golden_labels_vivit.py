@@ -16,6 +16,12 @@
 #   --batch_size 1 \
 #   --save_results
 
+
+# python src/models/two_classes/vivit/test_golden_labels_vivit.py \
+#   --model_uri mlartifacts/697363764579443849/models/m-de73e05128734690a016c37e5610eeb2/artifacts \
+#   --batch_size 1 \
+#   --save_results \
+#   --generate_tts
 #
 # =================================================================================================
 
@@ -333,6 +339,162 @@ def main(args):
     # Stampa risultati
     print_detailed_results(y_true, y_pred, y_probs, test_dataset.labels, video_names)
 
+    # ======================
+    # TTS GENERATION + AUDIO EXPLAINABILITY
+    # ======================
+    if args.generate_tts:
+        logger.info("\n" + "=" * 70)
+        logger.info("GENERAZIONE TTS EMOTIVO + AUDIO EXPLAINABILITY")
+        logger.info("=" * 70)
+
+        from src.tts.tts_generator import (
+            generate_emotional_audio,
+            generate_baseline_audio,
+        )
+        from src.tts.emotion_mapper import map_emotion_to_prosody
+        from src.explainability.audio.prosody_validator import validate_prosody
+
+        # Directory output
+        tts_output_dir = os.path.join(BASE_DIR, "results", "tts_audio", "generated")
+        baseline_audio_path = os.path.join(
+            BASE_DIR, "results", "tts_audio", "baseline", "baseline_neutral.mp3"
+        )
+        os.makedirs(tts_output_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(baseline_audio_path), exist_ok=True)
+
+        # Genera baseline se non esiste
+        if not os.path.exists(baseline_audio_path):
+            logger.info("Generazione audio baseline neutrale...")
+            generate_baseline_audio(baseline_audio_path)
+            logger.info(f"✅ Baseline salvato: {baseline_audio_path}")
+
+        # Lista per raccogliere risultati
+        tts_results = []
+
+        # Loop sui campioni
+        for i in range(len(y_pred)):
+            video_name = video_names[i]
+            emotion = test_dataset.labels[y_pred[i]]
+            confidence = np.max(y_probs[i])
+
+            # Ottieni caption (testo originale del sign language) dal dataset
+            caption = (
+                test_dataset.video_info.iloc[i]["caption"]
+                if "caption" in test_dataset.video_info.columns
+                else None
+            )
+
+            logger.info(f"\n[{i+1}/{len(y_pred)}] Processing: {video_name}")
+            logger.info(f"  Emotion: {emotion} (confidence: {confidence:.1%})")
+            if caption:
+                logger.info(
+                    f'  Caption: "{caption[:60]}..."'
+                    if len(caption) > 60
+                    else f'  Caption: "{caption}"'
+                )
+
+            # 1. Genera TTS
+            try:
+                audio_path = generate_emotional_audio(
+                    emotion=emotion,
+                    confidence=confidence,
+                    video_name=video_name,
+                    output_dir=tts_output_dir,
+                    caption=caption,  # Passa il testo originale!
+                )
+                logger.info(f"  ✅ Audio generato: {os.path.basename(audio_path)}")
+            except Exception as e:
+                logger.error(f"  ❌ Errore generazione audio: {e}")
+                continue
+
+            # 2. Analizza audio
+            try:
+                target_prosody = map_emotion_to_prosody(emotion, confidence)
+                validation_report = validate_prosody(
+                    generated_audio_path=audio_path,
+                    baseline_audio_path=baseline_audio_path,
+                    target_prosody=target_prosody,
+                )
+                logger.info(
+                    f"  ✅ Prosody accuracy: {validation_report['overall_accuracy']:.1%}"
+                )
+            except Exception as e:
+                logger.error(f"  ❌ Errore validazione audio: {e}")
+                validation_report = {}
+
+            # 3. Salva risultati
+            tts_results.append(
+                {
+                    "video_name": video_name,
+                    "emotion": emotion,
+                    "confidence": confidence,
+                    "audio_path": audio_path,
+                    "target_pitch_delta": validation_report.get(
+                        "pitch_delta_target", 0
+                    ),
+                    "measured_pitch_delta": validation_report.get(
+                        "pitch_delta_measured", 0
+                    ),
+                    "pitch_accuracy": validation_report.get("pitch_accuracy", 0),
+                    "target_rate_delta": validation_report.get("rate_delta_target", 0),
+                    "measured_rate_delta": validation_report.get(
+                        "rate_delta_measured", 0
+                    ),
+                    "rate_accuracy": validation_report.get("rate_accuracy", 0),
+                    "target_volume_delta": validation_report.get(
+                        "volume_delta_target", 0
+                    ),
+                    "measured_volume_delta": validation_report.get(
+                        "volume_delta_measured_db", 0
+                    ),
+                    "volume_accuracy": validation_report.get("volume_accuracy", 0),
+                    "overall_accuracy": validation_report.get("overall_accuracy", 0),
+                    "prosody_applied": validation_report.get("overall_accuracy", 0)
+                    > 0.70,  # 70% threshold
+                }
+            )
+
+        # Salva risultati TTS in CSV
+        tts_df = pd.DataFrame(tts_results)
+        tts_csv_path = os.path.join(
+            BASE_DIR, "results", "vivit_tts_audio_analysis_2_classes.csv"
+        )
+        tts_df.to_csv(tts_csv_path, index=False)
+        logger.info(f"\n✅ Risultati TTS salvati in: {tts_csv_path}")
+
+        # Calcola metriche aggregate
+        avg_pitch_accuracy = tts_df["pitch_accuracy"].mean()
+        avg_rate_accuracy = tts_df["rate_accuracy"].mean()
+        avg_volume_accuracy = tts_df["volume_accuracy"].mean()
+        avg_overall_accuracy = tts_df["overall_accuracy"].mean()
+
+        # Stampa summary
+        print("\n" + "=" * 70)
+        print("TTS GENERATION SUMMARY")
+        print("=" * 70)
+        print(f"Total audio files generated: {len(tts_df)}")
+        print(f"\nPROSODY VALIDATION:")
+        print(f"  Pitch modulation accuracy:  {avg_pitch_accuracy*100:.1f}%")
+        print(f"  Rate modulation accuracy:   {avg_rate_accuracy*100:.1f}%")
+        print(f"  Volume modulation accuracy: {avg_volume_accuracy*100:.1f}%")
+        print(f"  Overall accuracy:           {avg_overall_accuracy*100:.1f}%")
+
+        # Breakdown per emozione
+        print(f"\nEMOTION BREAKDOWN:")
+        for emotion in test_dataset.labels:
+            emotion_df = tts_df[tts_df["emotion"] == emotion]
+            if len(emotion_df) > 0:
+                print(f"\n{emotion} ({len(emotion_df)} samples):")
+                print(
+                    f"  Avg pitch delta: {emotion_df['measured_pitch_delta'].mean():+.1f}% (target: {emotion_df['target_pitch_delta'].iloc[0]:+.1f}%)"
+                )
+                print(
+                    f"  Avg rate delta:  {emotion_df['measured_rate_delta'].mean():+.1f}% (target: {emotion_df['target_rate_delta'].iloc[0]:+.1f}%)"
+                )
+                print(
+                    f"  Avg accuracy:    {emotion_df['overall_accuracy'].mean()*100:.1f}%"
+                )
+
     # Salva risultati dettagliati in CSV
     if args.save_results:
         # Calcola tutte le metriche per il salvataggio
@@ -485,6 +647,11 @@ if __name__ == "__main__":
         "--save_results",
         action="store_true",
         help="Salva i risultati dettagliati in un file CSV",
+    )
+    parser.add_argument(
+        "--generate_tts",
+        action="store_true",
+        help="Genera TTS emotivo e esegui audio explainability",
     )
 
     args = parser.parse_args()
