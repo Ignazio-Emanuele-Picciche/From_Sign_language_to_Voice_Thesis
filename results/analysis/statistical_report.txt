@@ -6,14 +6,14 @@ STATISTICAL ANALYSIS REPORT - TTS AUDIO COMPARISON
 ----------------------------------------------------------------------
 
 Positive (n=160):
-  Pitch (Hz):        219.70 ± 8.91
+  Pitch (Hz):        225.24 ± 9.33
   Rate (syll/sec):   0.00 ± 0.00
-  Energy (dB):       -29.20 ± 5.31
+  Energy (dB):       -29.05 ± 5.30
 
 Negative (n=40):
-  Pitch (Hz):        214.04 ± 8.74
+  Pitch (Hz):        218.03 ± 9.06
   Rate (syll/sec):   0.00 ± 0.00
-  Energy (dB):       -30.62 ± 6.35
+  Energy (dB):       -30.50 ± 6.31
 
 
 2. NORMALITY TESTS (Shapiro-Wilk)
@@ -24,11 +24,11 @@ Negative (n=40):
 ----------------------------------------------------------------------
 
 Pitch (Hz):
-  Positive: 219.70 ± 8.91
-  Negative: 214.04 ± 8.74
-  Difference: +2.6%
-  t(3.606), p=0.0004
-  Cohen's d: 0.637 (medium)
+  Positive: 225.24 ± 9.33
+  Negative: 218.03 ± 9.06
+  Difference: +3.3%
+  t(4.398), p=0.0000
+  Cohen's d: 0.777 (medium)
   Significance: YES
 
 Speaking Rate (syll/sec):
@@ -40,11 +40,11 @@ Speaking Rate (syll/sec):
   Significance: NO
 
 Energy (dB):
-  Positive: -29.20 ± 5.31
-  Negative: -30.62 ± 6.35
-  Difference: +4.6%
-  t(1.449), p=0.1490
-  Cohen's d: 0.256 (small)
+  Positive: -29.05 ± 5.30
+  Negative: -30.50 ± 6.31
+  Difference: +4.7%
+  t(1.478), p=0.1409
+  Cohen's d: 0.261 (small)
   Significance: NO
 
 

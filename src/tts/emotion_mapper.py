@@ -5,15 +5,15 @@ Emotion Mapper - Mappa emozioni a parametri prosodici
 # Definizione parametri prosodici per ogni emozione
 PROSODY_MAPPING = {
     "Positive": {
-        "rate": "+15%",
-        "pitch": "+8%",
-        "volume": "+5%",
+        "rate": "+22%",  # Velocità di eloquio, prima era +15%
+        "pitch": "+12%",  # Altezza del tono, prima era +8%
+        "volume": "+8%",  # Volume della voce, prima era +5%
         "description": "Voce energica, allegra, veloce",
     },
     "Negative": {
-        "rate": "-12%",
-        "pitch": "-6%",  # prime era 6%
-        "volume": "-3%",
+        "rate": "-18%",  # Prima era -12%
+        "pitch": "-9%",  # Prima era -6%
+        "volume": "-5%",  # Prima era -3%
         "description": "Voce lenta, triste, contenuta",
     },
     "Neutral": {

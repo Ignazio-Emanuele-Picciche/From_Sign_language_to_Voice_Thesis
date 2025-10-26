@@ -211,6 +211,11 @@ File: 256351_positive.mp3
    - Ipotesi nulla: μ₁ = μ₂
    - Significatività: α = 0.05
 
+   Il livello di significatività rappresenta:
+
+   - La soglia per rifiutare l'Ipotesi Nulla (H_0).
+   - La massima probabilità accettabile di commettere un Errore di Tipo I (o falso positivo), ovvero l'errore di rifiutare l'ipotesi nulla quando in realtà è vera (cioè, concludere che c'è una differenza significativa quando la differenza è dovuta solo al caso)
+
 3. **Cohen's d (Effect Size)**
    - Misura magnitudine della differenza
    - Interpretazione:
@@ -218,6 +223,7 @@ File: 256351_positive.mp3
      - 0.2 ≤ d < 0.5: small
      - 0.5 ≤ d < 0.8: medium
      - d ≥ 0.8: large
+   - Se una differenza è statisticamente significativa (p basso) ma ha un Cohen's d molto piccolo (ad esempio d=0.1), significa che la differenza è reale, ma talmente minima da non avere rilevanza pratica
 
 **Visualizzazioni:**
 

@@ -5,6 +5,7 @@ models/*
 mlruns/
 mlartifacts/
 results/tts_audio/
+results/grid_search/
 
 # VS Code
 .vscode/

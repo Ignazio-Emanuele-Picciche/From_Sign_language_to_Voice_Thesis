@@ -1,5 +1,7 @@
 """
 Audio Analysis Runner - Script principale per analisi audio
+
+python src/analysis/run_analysis.py --audio_dir results/tts_audio/generated
 """
 
 import sys
