@@ -1,0 +1,279 @@
+"""
+Emotion Mapper per Bark TTS - Mappa emozioni a speaker prompts
+
+Bark supporta vari tag emotivi:
+- Risate: [laughs], [chuckles], [giggles]
+- Tristezza: [sighs], [gasps], [sad]
+- Suoni: [clears throat], [coughs], [breath]
+- Altri: [music], [whispers], ...
+"""
+
+# Mapping da emozione a speaker prompts di Bark
+# Bark usa "history prompts" predefiniti che determinano lo stile vocale
+# Formato: "v2/{language}_speaker_{number}" dove ogni speaker ha caratteristiche emotive diverse
+EMOTION_BARK_MAPPING = {
+    "Positive": {
+        "history_prompt": "v2/en_speaker_6",  # Speaker energico e positivo
+        "description": "Voce allegra, energica e positiva (upbeat female voice)",
+        "text_prefix": "[laughs]",  # Tag di default
+        "temperature": 0.7,  # Controllo della variabilità (0.1-1.0)
+    },
+    "Negative": {
+        "history_prompt": "v2/en_speaker_3",  # Speaker più calmo e riflessivo
+        "description": "Voce calma, riflessiva e contenuta (calm male voice)",
+        "text_prefix": "[sighs]",  # Tag di default
+        "temperature": 0.6,
+    },
+    "Neutral": {
+        "history_prompt": "v2/en_speaker_9",  # Speaker neutro
+        "description": "Voce neutra e professionale (neutral narrator)",
+        "text_prefix": "",  # Nessun tag di default
+        "temperature": 0.5,
+    },
+}
+
+# 🆕 Tag emotivi alternativi per varietà e sfumature diverse
+# Usati per variare l'espressività o basarsi sulla confidenza
+EMOTIONAL_TAGS = {
+    "Positive": {
+        "primary": "[laughs]",  # Risata genuina (default)
+        "alternatives": [
+            "[chuckles]",  # Risata contenuta, più professionale
+            "[giggles]",  # Risata leggera, giocosa
+            "[laughter]",  # Risata (variante)
+        ],
+        "high_confidence": "[laughs]",  # >90% confidence
+        "medium_confidence": "[chuckles]",  # 70-90% confidence
+        "low_confidence": "",  # <70% confidence (nessun tag)
+    },
+    "Negative": {
+        "primary": "[sighs]",  # Sospiro (default)
+        "alternatives": [
+            "[gasps]",  # Rantolo/shock negativo
+            "[sad]",  # Voce triste
+            "[clears throat]",  # Disagio/esitazione
+        ],
+        "high_confidence": "[sighs]",  # >90% confidence
+        "medium_confidence": "[sighs]",  # 70-90% confidence
+        "low_confidence": "[clears throat]",  # <70% (più neutro)
+    },
+    "Neutral": {
+        "primary": "",  # Nessun tag (default)
+        "alternatives": [
+            "[clears throat]",  # Solo se necessario
+            "[breath]",  # Respiro neutro
+        ],
+        "high_confidence": "",  # Sempre neutro
+        "medium_confidence": "",
+        "low_confidence": "[clears throat]",  # Solo se molto lungo
+    },
+}
+
+# Alternative speaker prompts per maggiore varietà
+# Bark ha 10 speaker per lingua (0-9), ognuno con caratteristiche uniche
+ALTERNATIVE_SPEAKERS = {
+    "Positive": [
+        "v2/en_speaker_6",  # Energico
+        "v2/en_speaker_5",  # Allegro
+        "v2/en_speaker_7",  # Vivace
+    ],
+    "Negative": [
+        "v2/en_speaker_3",  # Calmo
+        "v2/en_speaker_1",  # Riflessivo
+        "v2/en_speaker_4",  # Serio
+    ],
+    "Neutral": [
+        "v2/en_speaker_9",  # Neutro professionale
+        "v2/en_speaker_0",  # Narratore
+        "v2/en_speaker_2",  # Standard
+    ],
+}
+
+
+def map_emotion_to_bark_prompt(emotion: str, use_emotional_tags: bool = True) -> dict:
+    """
+    Mappa un'emozione a un Bark speaker prompt
+
+    Args:
+        emotion (str): Emozione predetta ('Positive', 'Negative', 'Neutral')
+        use_emotional_tags (bool): Se True, aggiunge tag emotivi ([laughs], [sighs], etc.)
+
+    Returns:
+        dict: Dizionario con configurazione Bark
+              {'history_prompt': str, 'text_prefix': str, 'description': str, 'temperature': float}
+
+    Example:
+        >>> map_emotion_to_bark_prompt('Positive')
+        {'history_prompt': 'v2/en_speaker_6', 'text_prefix': '[laughs]', ...}
+    """
+    if emotion not in EMOTION_BARK_MAPPING:
+        raise ValueError(
+            f"Emozione '{emotion}' non riconosciuta. Usa: {list(EMOTION_BARK_MAPPING.keys())}"
+        )
+
+    config = EMOTION_BARK_MAPPING[emotion].copy()
+
+    # Se non vogliamo tag emotivi, rimuovi il prefisso
+    if not use_emotional_tags:
+        config["text_prefix"] = ""
+
+    return config
+
+
+def get_emotional_tag(
+    emotion: str, confidence: float = None, alternative: int = 0
+) -> str:
+    """
+    🆕 Ottiene il tag emotivo ottimale basato su emozione, confidenza e variante
+
+    Args:
+        emotion (str): Emozione predetta ('Positive', 'Negative', 'Neutral')
+        confidence (float, optional): Confidenza della predizione (0.0-1.0 o 0-100)
+                                       Se None, usa tag primary
+        alternative (int): Indice tag alternativo (0 = primary, 1+ = alternatives)
+
+    Returns:
+        str: Tag emotivo da usare (es: '[laughs]', '[chuckles]', '')
+
+    Example:
+        >>> get_emotional_tag('Positive')  # Default
+        '[laughs]'
+        >>> get_emotional_tag('Positive', confidence=0.95)  # Alta confidenza
+        '[laughs]'
+        >>> get_emotional_tag('Positive', confidence=0.65)  # Bassa confidenza
+        ''
+        >>> get_emotional_tag('Positive', alternative=1)  # Tag alternativo
+        '[chuckles]'
+    """
+    if emotion not in EMOTIONAL_TAGS:
+        return ""
+
+    tags_config = EMOTIONAL_TAGS[emotion]
+
+    # Se specificato alternative index, usa quello
+    if alternative > 0:
+        alternatives = tags_config.get("alternatives", [])
+        # alternative=1 → index 0, alternative=2 → index 1, etc.
+        idx = alternative - 1
+        if 0 <= idx < len(alternatives):
+            return alternatives[idx]
+        # Fallback a primary se index fuori range
+        return tags_config.get("primary", "")
+
+    # Se specificata confidence, usa tag basato su livello di confidenza
+    if confidence is not None:
+        # Normalizza confidence a 0-1 range
+        conf = confidence if confidence <= 1.0 else confidence / 100.0
+
+        if conf >= 0.9:
+            return tags_config.get("high_confidence", tags_config.get("primary", ""))
+        elif conf >= 0.7:
+            return tags_config.get("medium_confidence", tags_config.get("primary", ""))
+        else:
+            return tags_config.get("low_confidence", "")
+
+    # Default: usa primary tag
+    return tags_config.get("primary", "")
+
+
+def get_alternative_emotional_tags(emotion: str) -> list:
+    """
+    🆕 Ottiene tutti i tag emotivi disponibili per un'emozione
+
+    Args:
+        emotion (str): Emozione predetta
+
+    Returns:
+        list: Lista di tutti i tag disponibili (primary + alternatives)
+
+    Example:
+        >>> get_alternative_emotional_tags('Positive')
+        ['[laughs]', '[chuckles]', '[giggles]', '[laughter]']
+    """
+    if emotion not in EMOTIONAL_TAGS:
+        return []
+
+    tags_config = EMOTIONAL_TAGS[emotion]
+    primary = tags_config.get("primary", "")
+    alternatives = tags_config.get("alternatives", [])
+
+    # Combina primary + alternatives, rimuovi duplicati e stringhe vuote
+    all_tags = [primary] + alternatives
+    return [tag for tag in all_tags if tag]
+
+
+def get_bark_speaker(emotion: str, alternative: int = 0) -> str:
+    """
+    Ottiene il nome del speaker Bark per un'emozione
+
+    Args:
+        emotion (str): Emozione predetta
+        alternative (int): Indice speaker alternativo (0 = default, 1-2 = alternative)
+
+    Returns:
+        str: Nome del speaker Bark (es: 'v2/en_speaker_6')
+
+    Example:
+        >>> get_bark_speaker('Positive')
+        'v2/en_speaker_6'
+        >>> get_bark_speaker('Positive', alternative=1)
+        'v2/en_speaker_5'
+    """
+    if emotion not in EMOTION_BARK_MAPPING:
+        raise ValueError(
+            f"Emozione '{emotion}' non riconosciuta. Usa: {list(EMOTION_BARK_MAPPING.keys())}"
+        )
+
+    if alternative == 0:
+        return EMOTION_BARK_MAPPING[emotion]["history_prompt"]
+    else:
+        alternatives = ALTERNATIVE_SPEAKERS.get(emotion, [])
+        if 0 <= alternative < len(alternatives):
+            return alternatives[alternative]
+        else:
+            # Fallback al default se alternative index è fuori range
+            return EMOTION_BARK_MAPPING[emotion]["history_prompt"]
+
+
+if __name__ == "__main__":
+    # Test del modulo
+    print("=" * 70)
+    print("TEST EMOTION MAPPER - BARK TTS")
+    print("=" * 70)
+
+    emotions = ["Positive", "Negative", "Neutral"]
+
+    print("\n1. Mapping emozioni a Bark prompts:")
+    for emotion in emotions:
+        print(f"\nEmozione: {emotion}")
+        config = map_emotion_to_bark_prompt(emotion)
+        print(f"  Speaker: {config['history_prompt']}")
+        print(f"  Descrizione: {config['description']}")
+        print(f"  Tag emotivo: {config['text_prefix']}")
+        print(f"  Temperature: {config['temperature']}")
+
+    print("\n2. Speaker alternativi:")
+    for emotion in emotions:
+        print(f"\n{emotion}:")
+        for i in range(3):
+            speaker = get_bark_speaker(emotion, alternative=i)
+            print(f"  Alternative {i}: {speaker}")
+
+    print("\n🆕 3. Tag emotivi per confidenza:")
+    for emotion in emotions:
+        print(f"\n{emotion}:")
+        for conf in [0.95, 0.80, 0.60]:
+            tag = get_emotional_tag(emotion, confidence=conf)
+            print(f"  Confidence {conf:.0%}: {tag if tag else '(nessun tag)'}")
+
+    print("\n🆕 4. Tag emotivi alternativi:")
+    for emotion in emotions:
+        tags = get_alternative_emotional_tags(emotion)
+        print(f"\n{emotion}: {tags}")
+
+    print("\n🆕 5. Test varianti tag (Positive):")
+    for i in range(4):
+        tag = get_emotional_tag("Positive", alternative=i)
+        print(f"  Variante {i}: {tag if tag else '(default)'}")
+
+    print("\n✅ Test completato!")
