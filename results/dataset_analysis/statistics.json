@@ -1,0 +1,11 @@
+{
+  "total_samples": 200,
+  "total_words": 2205,
+  "unique_words": 632,
+  "vocab_size": 632,
+  "avg_words_per_caption": 11.025,
+  "median_words_per_caption": 10.0,
+  "min_words": 3,
+  "max_words": 35,
+  "std_words": 5.579428745456665
+}

@@ -1,0 +1,1578 @@
+==================================
+🔧 Sign-to-Text Hyperparameter Tuning
+==================================
+
+Running tuning with:
+  - 30 trials
+  - 5 epochs per trial
+  - Optimize: BLEU
+  - Full training set
+
+[I 2025-11-02 18:42:15,560] A new study created in memory with name: sign_to_text_tuning
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/sign_to_text/tune.py:367: ExperimentalWarning: MLflowCallback is experimental (supported from v1.4.0). The interface can change in the future.
+  mlflc = MLflowCallback(
+
+================================================================================
+🔧 HYPERPARAMETER TUNING WITH OPTUNA
+================================================================================
+  Trials: 30
+  Epochs per trial: 5
+  Optimize: bleu
+  Subset fraction: 1.0
+  Study name: sign_to_text_tuning
+================================================================================
+
+  0%|          | 0/30 [00:00<?, ?it/s]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                        0%|          | 0/30 [03:44<?, ?it/s]huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+Best trial: 0. Best value: 0:   0%|          | 0/30 [03:46<?, ?it/s]Best trial: 0. Best value: 0:   3%|▎         | 1/30 [03:46<1:49:20, 226.22s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:   3%|▎         | 1/30 [05:53<1:49:20, 226.22s/it]Best trial: 0. Best value: 0:   3%|▎         | 1/30 [05:53<1:49:20, 226.22s/it]Best trial: 0. Best value: 0:   7%|▋         | 2/30 [05:53<1:18:22, 167.95s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:   7%|▋         | 2/30 [09:11<1:18:22, 167.95s/it]Best trial: 0. Best value: 0:   7%|▋         | 2/30 [09:11<1:18:22, 167.95s/it]Best trial: 0. Best value: 0:  10%|█         | 3/30 [09:11<1:21:52, 181.95s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  10%|█         | 3/30 [11:03<1:21:52, 181.95s/it]Best trial: 0. Best value: 0:  10%|█         | 3/30 [11:04<1:21:52, 181.95s/it]Best trial: 0. Best value: 0:  13%|█▎        | 4/30 [11:04<1:06:52, 154.35s/it]
+================================================================================
+Trial 0
+================================================================================
+  lr=6.62e-05, batch_size=8, d_model=256
+  encoder_layers=6, decoder_layers=4
+  nhead=8, dim_ff=512, dropout=0.137
+  weight_decay=3.17e-05, label_smoothing=0.095
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:46:00,419] Trial 0 finished with value: 0.0 and parameters: {'lr': 6.62062491369467e-05, 'batch_size': 8, 'd_model': 256, 'num_encoder_layers': 6, 'num_decoder_layers': 4, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.13707949955557672, 'weight_decay': 3.172846852185078e-05, 'label_smoothing': 0.09451522872297867}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 1
+================================================================================
+  lr=3.69e-04, batch_size=32, d_model=128
+  encoder_layers=6, decoder_layers=4
+  nhead=4, dim_ff=512, dropout=0.249
+  weight_decay=1.37e-05, label_smoothing=0.002
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:48:08,898] Trial 1 finished with value: 0.0 and parameters: {'lr': 0.0003689733100840203, 'batch_size': 32, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.24879257705730476, 'weight_decay': 1.3676275622994948e-05, 'label_smoothing': 0.0020241210187440964}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 2
+================================================================================
+  lr=6.56e-05, batch_size=32, d_model=256
+  encoder_layers=4, decoder_layers=3
+  nhead=8, dim_ff=1024, dropout=0.202
+  weight_decay=1.50e-04, label_smoothing=0.094
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:51:27,493] Trial 2 finished with value: 0.0 and parameters: {'lr': 6.556891712662214e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 4, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.20158234462653485, 'weight_decay': 0.00014984899800441073, 'label_smoothing': 0.09443810881035278}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 3
+================================================================================
+  lr=1.19e-05, batch_size=32, d_model=256
+  encoder_layers=4, decoder_layers=2
+  nhead=4, dim_ff=512, dropout=0.294
+  weight_decay=1.03e-05, label_smoothing=0.168
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:53:19,524] Trial 3 finished with value: 0.0 and parameters: {'lr': 1.1858235673509136e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 4, 'num_decoder_layers': 2, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.2939480573213835, 'weight_decay': 1.0342968959622074e-05, 'label_smoothing': 0.16818555912372507}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 4
+================================================================================
+  lr=1.74e-04, batch_size=8, d_model=512
+  encoder_layers=4, decoder_layers=2
+  nhead=8, dim_ff=1024, dropout=0.342
+  weight_decay=7.12e-05, label_smoothing=0.092
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  13%|█▎        | 4/30 [15:21<1:06:52, 154.35s/it]Best trial: 0. Best value: 0:  13%|█▎        | 4/30 [15:21<1:06:52, 154.35s/it]Best trial: 0. Best value: 0:  17%|█▋        | 5/30 [15:21<1:19:52, 191.69s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  17%|█▋        | 5/30 [16:36<1:19:52, 191.69s/it]Best trial: 0. Best value: 0:  17%|█▋        | 5/30 [16:36<1:19:52, 191.69s/it]Best trial: 0. Best value: 0:  20%|██        | 6/30 [16:36<1:00:43, 151.81s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  20%|██        | 6/30 [21:27<1:00:43, 151.81s/it]Best trial: 0. Best value: 0:  20%|██        | 6/30 [21:27<1:00:43, 151.81s/it]Best trial: 0. Best value: 0:  23%|██▎       | 7/30 [21:27<1:15:40, 197.42s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  23%|██▎       | 7/30 [24:07<1:15:40, 197.42s/it]Best trial: 0. Best value: 0:  23%|██▎       | 7/30 [24:07<1:15:40, 197.42s/it]Best trial: 0. Best value: 0:  27%|██▋       | 8/30 [24:07<1:07:58, 185.37s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                               Best trial: 0. Best value: 0:  27%|██▋       | 8/30 [26:12<1:07:58, 185.37s/it]Best trial: 0. Best value: 0:  27%|██▋       | 8/30 [26:12<1:07:58, 185.37s/it]Best trial: 0. Best value: 0:  30%|███       | 9/30 [26:12<58:18, 166.58s/it]     ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:57:37,424] Trial 4 finished with value: 0.0 and parameters: {'lr': 0.0001736671765040189, 'batch_size': 8, 'd_model': 512, 'num_encoder_layers': 4, 'num_decoder_layers': 2, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.34223135461213766, 'weight_decay': 7.118312863743214e-05, 'label_smoothing': 0.09242716238480936}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 5
+================================================================================
+  lr=2.33e-05, batch_size=32, d_model=256
+  encoder_layers=2, decoder_layers=3
+  nhead=4, dim_ff=512, dropout=0.351
+  weight_decay=6.24e-06, label_smoothing=0.026
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:58:51,817] Trial 5 finished with value: 0.0 and parameters: {'lr': 2.3273712038852087e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 2, 'num_decoder_layers': 3, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.3506329804830789, 'weight_decay': 6.236340803990437e-06, 'label_smoothing': 0.025540840713246894}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 6
+================================================================================
+  lr=1.84e-05, batch_size=16, d_model=128
+  encoder_layers=6, decoder_layers=6
+  nhead=8, dim_ff=2048, dropout=0.292
+  weight_decay=3.16e-04, label_smoothing=0.135
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 93 batches
+   Val:   318 samples, 20 batches
+   Test:  319 samples, 20 batches
+   Batch size: 16
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:03:43,130] Trial 6 finished with value: 0.0 and parameters: {'lr': 1.8359879260320136e-05, 'batch_size': 16, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 6, 'nhead': 8, 'dim_feedforward': 2048, 'dropout': 0.2921305320800608, 'weight_decay': 0.00031586737521849614, 'label_smoothing': 0.13519419467633476}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 7
+================================================================================
+  lr=3.09e-04, batch_size=16, d_model=256
+  encoder_layers=4, decoder_layers=4
+  nhead=8, dim_ff=512, dropout=0.146
+  weight_decay=8.96e-03, label_smoothing=0.144
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 93 batches
+   Val:   318 samples, 20 batches
+   Test:  319 samples, 20 batches
+   Batch size: 16
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:06:22,707] Trial 7 finished with value: 0.0 and parameters: {'lr': 0.0003089667631334491, 'batch_size': 16, 'd_model': 256, 'num_encoder_layers': 4, 'num_decoder_layers': 4, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.1461708424547963, 'weight_decay': 0.008961168058659801, 'label_smoothing': 0.14432046625203748}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 8
+================================================================================
+  lr=9.84e-05, batch_size=8, d_model=256
+  encoder_layers=2, decoder_layers=6
+  nhead=4, dim_ff=1024, dropout=0.171
+  weight_decay=4.16e-04, label_smoothing=0.152
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:08:27,961] Trial 8 finished with value: 0.0 and parameters: {'lr': 9.841069214125901e-05, 'batch_size': 8, 'd_model': 256, 'num_encoder_layers': 2, 'num_decoder_layers': 6, 'nhead': 4, 'dim_feedforward': 1024, 'dropout': 0.17115441904376755, 'weight_decay': 0.0004162357188853631, 'label_smoothing': 0.15203776532813265}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 9
+================================================================================
+  lr=6.61e-05, batch_size=16, d_model=256
+  encoder_layers=5, decoder_layers=5
+  nhead=4, dim_ff=512, dropout=0.187
+  weight_decay=2.22e-03, label_smoothing=0.076
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                             Best trial: 0. Best value: 0:  30%|███       | 9/30 [28:50<58:18, 166.58s/it]Best trial: 0. Best value: 0:  30%|███       | 9/30 [28:50<58:18, 166.58s/it]Best trial: 0. Best value: 0:  33%|███▎      | 10/30 [28:50<54:36, 163.82s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  33%|███▎      | 10/30 [37:07<54:36, 163.82s/it]Best trial: 0. Best value: 0:  33%|███▎      | 10/30 [37:07<54:36, 163.82s/it]Best trial: 0. Best value: 0:  37%|███▋      | 11/30 [37:07<1:24:11, 265.87s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  37%|███▋      | 11/30 [39:12<1:24:11, 265.87s/it]Best trial: 0. Best value: 0:  37%|███▋      | 11/30 [39:12<1:24:11, 265.87s/it]Best trial: 0. Best value: 0:  40%|████      | 12/30 [39:12<1:06:56, 223.15s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  40%|████      | 12/30 [41:15<1:06:56, 223.15s/it]Best trial: 0. Best value: 0:  40%|████      | 12/30 [41:15<1:06:56, 223.15s/it]Best trial: 0. Best value: 0:  43%|████▎     | 13/30 [41:15<54:38, 192.85s/it]  /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              ================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 93 batches
+   Val:   318 samples, 20 batches
+   Test:  319 samples, 20 batches
+   Batch size: 16
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:11:05,603] Trial 9 finished with value: 0.0 and parameters: {'lr': 6.613477888583133e-05, 'batch_size': 16, 'd_model': 256, 'num_encoder_layers': 5, 'num_decoder_layers': 5, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.18669243184296824, 'weight_decay': 0.002215966087495548, 'label_smoothing': 0.07608381075614606}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 10
+================================================================================
+  lr=4.35e-05, batch_size=8, d_model=512
+  encoder_layers=5, decoder_layers=5
+  nhead=8, dim_ff=2048, dropout=0.101
+  weight_decay=1.50e-06, label_smoothing=0.194
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:19:22,876] Trial 10 finished with value: 0.0 and parameters: {'lr': 4.35486963055518e-05, 'batch_size': 8, 'd_model': 512, 'num_encoder_layers': 5, 'num_decoder_layers': 5, 'nhead': 8, 'dim_feedforward': 2048, 'dropout': 0.10076624450885854, 'weight_decay': 1.5014597846617483e-06, 'label_smoothing': 0.1942651907562311}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 11
+================================================================================
+  lr=4.39e-04, batch_size=8, d_model=128
+  encoder_layers=6, decoder_layers=4
+  nhead=4, dim_ff=512, dropout=0.267
+  weight_decay=2.26e-05, label_smoothing=0.012
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:21:28,292] Trial 11 finished with value: 0.0 and parameters: {'lr': 0.00043901410650902723, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.26660065947044775, 'weight_decay': 2.256683390194785e-05, 'label_smoothing': 0.012049160691355226}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 12
+================================================================================
+  lr=1.60e-04, batch_size=32, d_model=128
+  encoder_layers=6, decoder_layers=3
+  nhead=4, dim_ff=512, dropout=0.227
+  weight_decay=3.35e-05, label_smoothing=0.052
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:23:31,434] Trial 12 finished with value: 0.0 and parameters: {'lr': 0.0001603921197318382, 'batch_size': 32, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 3, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.22692224990864174, 'weight_decay': 3.351524887063641e-05, 'label_smoothing': 0.051645427390402836}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 13
+================================================================================
+  lr=1.82e-04, batch_size=32, d_model=128
+  encoder_layers=5, decoder_layers=5
+  nhead=8, dim_ff=512, dropout=0.396
+  weight_decay=2.00e-06, label_smoothing=0.048
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+Best trial: 0. Best value: 0:  43%|████▎     | 13/30 [43:51<54:38, 192.85s/it]Best trial: 0. Best value: 0:  43%|████▎     | 13/30 [43:51<54:38, 192.85s/it]Best trial: 0. Best value: 0:  47%|████▋     | 14/30 [43:51<48:24, 181.55s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  47%|████▋     | 14/30 [45:51<48:24, 181.55s/it]Best trial: 0. Best value: 0:  47%|████▋     | 14/30 [45:51<48:24, 181.55s/it]Best trial: 0. Best value: 0:  50%|█████     | 15/30 [45:51<40:45, 163.05s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  50%|█████     | 15/30 [51:40<40:45, 163.05s/it]Best trial: 0. Best value: 0:  50%|█████     | 15/30 [51:40<40:45, 163.05s/it]Best trial: 0. Best value: 0:  53%|█████▎    | 16/30 [51:40<51:05, 218.94s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  53%|█████▎    | 16/30 [54:09<51:05, 218.94s/it]Best trial: 0. Best value: 0:  53%|█████▎    | 16/30 [54:09<51:05, 218.94s/it]Best trial: 0. Best value: 0:  57%|█████▋    | 17/30 [54:09<42:55, 198.12s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  57%|█████▋    | 17/30 [56:11<42:55, 198.12s/it]Best trial: 0. Best value: 0:  57%|█████▋    | 17/30 [56:11<42:55, 198.12s/it]Best trial: 0. Best value: 0:  60%|██████    | 18/30 [56:11<35:01, 175.09s/it][I 2025-11-02 19:26:06,884] Trial 13 finished with value: 0.0 and parameters: {'lr': 0.00018221817983848609, 'batch_size': 32, 'd_model': 128, 'num_encoder_layers': 5, 'num_decoder_layers': 5, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.3963019714417588, 'weight_decay': 2.0039126492235147e-06, 'label_smoothing': 0.0480890946154069}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 14
+================================================================================
+  lr=3.07e-05, batch_size=8, d_model=128
+  encoder_layers=6, decoder_layers=4
+  nhead=4, dim_ff=512, dropout=0.108
+  weight_decay=5.80e-06, label_smoothing=0.112
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:28:07,057] Trial 14 finished with value: 0.0 and parameters: {'lr': 3.066920512493356e-05, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.1078387489573953, 'weight_decay': 5.797519548282693e-06, 'label_smoothing': 0.1122437314773228}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 15
+================================================================================
+  lr=9.63e-05, batch_size=32, d_model=512
+  encoder_layers=3, decoder_layers=3
+  nhead=8, dim_ff=2048, dropout=0.158
+  weight_decay=3.77e-05, label_smoothing=0.044
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:33:55,789] Trial 15 finished with value: 0.0 and parameters: {'lr': 9.626180582134489e-05, 'batch_size': 32, 'd_model': 512, 'num_encoder_layers': 3, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 2048, 'dropout': 0.15798109376590364, 'weight_decay': 3.767377570399037e-05, 'label_smoothing': 0.044321576079683636}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 16
+================================================================================
+  lr=4.85e-04, batch_size=8, d_model=128
+  encoder_layers=5, decoder_layers=5
+  nhead=8, dim_ff=512, dropout=0.241
+  weight_decay=1.21e-05, label_smoothing=0.001
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:36:25,458] Trial 16 finished with value: 0.0 and parameters: {'lr': 0.0004845690796077498, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 5, 'num_decoder_layers': 5, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.24074251127455493, 'weight_decay': 1.2122361381351319e-05, 'label_smoothing': 0.0008201980951506871}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 17
+================================================================================
+  lr=4.48e-05, batch_size=8, d_model=128
+  encoder_layers=6, decoder_layers=4
+  nhead=4, dim_ff=512, dropout=0.129
+  weight_decay=1.01e-04, label_smoothing=0.072
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:38:26,976] Trial 17 finished with value: 0.0 and parameters: {'lr': 4.4777069232011984e-05, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 6, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.12919077017155578, 'weight_decay': 0.0001006828910146456, 'label_smoothing': 0.07183096630929854}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 18
+================================================================================
+  lr=1.11e-04, batch_size=32, d_model=256
+  encoder_layers=5, decoder_layers=4
+  nhead=4, dim_ff=1024, dropout=0.209
+  weight_decay=1.03e-03, label_smoothing=0.124
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  60%|██████    | 18/30 [59:33<35:01, 175.09s/it]Best trial: 0. Best value: 0:  60%|██████    | 18/30 [59:33<35:01, 175.09s/it]Best trial: 0. Best value: 0:  63%|██████▎   | 19/30 [59:33<33:36, 183.32s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                              Best trial: 0. Best value: 0:  63%|██████▎   | 19/30 [1:08:56<33:36, 183.32s/it]Best trial: 0. Best value: 0:  63%|██████▎   | 19/30 [1:08:56<33:36, 183.32s/it]Best trial: 0. Best value: 0:  67%|██████▋   | 20/30 [1:08:56<49:31, 297.13s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  67%|██████▋   | 20/30 [1:10:46<49:31, 297.13s/it]Best trial: 0. Best value: 0:  67%|██████▋   | 20/30 [1:10:46<49:31, 297.13s/it]Best trial: 0. Best value: 0:  70%|███████   | 21/30 [1:10:46<36:09, 241.05s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  70%|███████   | 21/30 [1:13:09<36:09, 241.05s/it]Best trial: 0. Best value: 0:  70%|███████   | 21/30 [1:13:10<36:09, 241.05s/it]Best trial: 0. Best value: 0:  73%|███████▎  | 22/30 [1:13:10<28:13, 211.74s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  73%|███████▎  | 22/30 [1:16:02<28:13, 211.74s/it]Best trial: 0. Best value: 0:  73%|███████▎  | 22/30 [1:16:02<28:13, 211.74s/it]Best trial: 0. Best value: 0:  77%|███████▋  | 23/30 [1:16:02<23:19, 199.90s/it]
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:41:49,476] Trial 18 finished with value: 0.0 and parameters: {'lr': 0.000110775815230043, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 5, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 1024, 'dropout': 0.2087504980765153, 'weight_decay': 0.00103154652399536, 'label_smoothing': 0.12380188047144026}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 19
+================================================================================
+  lr=2.60e-04, batch_size=16, d_model=512
+  encoder_layers=6, decoder_layers=3
+  nhead=8, dim_ff=2048, dropout=0.272
+  weight_decay=3.40e-06, label_smoothing=0.199
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 93 batches
+   Val:   318 samples, 20 batches
+   Test:  319 samples, 20 batches
+   Batch size: 16
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:51:11,840] Trial 19 finished with value: 0.0 and parameters: {'lr': 0.0002597867913038447, 'batch_size': 16, 'd_model': 512, 'num_encoder_layers': 6, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 2048, 'dropout': 0.271626254521842, 'weight_decay': 3.3956962725151887e-06, 'label_smoothing': 0.19882006567805297}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 20
+================================================================================
+  lr=4.06e-05, batch_size=32, d_model=256
+  encoder_layers=3, decoder_layers=5
+  nhead=4, dim_ff=512, dropout=0.329
+  weight_decay=2.39e-05, label_smoothing=0.026
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:53:02,140] Trial 20 finished with value: 0.0 and parameters: {'lr': 4.05768968788923e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 3, 'num_decoder_layers': 5, 'nhead': 4, 'dim_feedforward': 512, 'dropout': 0.3287541574978556, 'weight_decay': 2.3938998874149244e-05, 'label_smoothing': 0.026230057998035308}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 21
+================================================================================
+  lr=6.09e-05, batch_size=32, d_model=256
+  encoder_layers=3, decoder_layers=3
+  nhead=8, dim_ff=1024, dropout=0.205
+  weight_decay=1.67e-04, label_smoothing=0.091
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:55:25,540] Trial 21 finished with value: 0.0 and parameters: {'lr': 6.091564211666306e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 3, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.20481083498434355, 'weight_decay': 0.00016738696448360775, 'label_smoothing': 0.09067311876035121}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 22
+================================================================================
+  lr=7.19e-05, batch_size=32, d_model=256
+  encoder_layers=4, decoder_layers=2
+  nhead=8, dim_ff=1024, dropout=0.188
+  weight_decay=8.80e-05, label_smoothing=0.107
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 19:58:17,818] Trial 22 finished with value: 0.0 and parameters: {'lr': 7.189263073406796e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 4, 'num_decoder_layers': 2, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.1875207132387361, 'weight_decay': 8.800839203497777e-05, 'label_smoothing': 0.10685853940449182}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 23
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  77%|███████▋  | 23/30 [1:20:37<23:19, 199.90s/it]Best trial: 0. Best value: 0:  77%|███████▋  | 23/30 [1:20:37<23:19, 199.90s/it]Best trial: 0. Best value: 0:  80%|████████  | 24/30 [1:20:37<22:14, 222.47s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  80%|████████  | 24/30 [1:23:58<22:14, 222.47s/it]Best trial: 0. Best value: 0:  80%|████████  | 24/30 [1:23:59<22:14, 222.47s/it]Best trial: 0. Best value: 0:  83%|████████▎ | 25/30 [1:23:59<18:01, 216.20s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  83%|████████▎ | 25/30 [1:25:51<18:01, 216.20s/it]Best trial: 0. Best value: 0:  83%|████████▎ | 25/30 [1:25:51<18:01, 216.20s/it]Best trial: 0. Best value: 0:  87%|████████▋ | 26/30 [1:25:51<12:20, 185.09s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  87%|████████▋ | 26/30 [1:29:34<12:20, 185.09s/it]Best trial: 0. Best value: 0:  87%|████████▋ | 26/30 [1:29:34<12:20, 185.09s/it]Best trial: 0. Best value: 0:  90%|█████████ | 27/30 [1:29:34<09:49, 196.47s/it]================================================================================
+  lr=1.45e-04, batch_size=32, d_model=256
+  encoder_layers=5, decoder_layers=4
+  nhead=8, dim_ff=1024, dropout=0.135
+  weight_decay=2.82e-04, label_smoothing=0.072
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:02:52,930] Trial 23 finished with value: 0.0 and parameters: {'lr': 0.0001446581451363229, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 5, 'num_decoder_layers': 4, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.13470727127640741, 'weight_decay': 0.0002822451906661507, 'label_smoothing': 0.07177134853071573}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 24
+================================================================================
+  lr=2.61e-04, batch_size=32, d_model=256
+  encoder_layers=4, decoder_layers=3
+  nhead=8, dim_ff=1024, dropout=0.234
+  weight_decay=5.83e-05, label_smoothing=0.169
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:06:14,514] Trial 24 finished with value: 0.0 and parameters: {'lr': 0.0002612311496041015, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 4, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.2336914913218155, 'weight_decay': 5.8295005970285854e-05, 'label_smoothing': 0.16894163822071323}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 25
+================================================================================
+  lr=8.34e-05, batch_size=8, d_model=128
+  encoder_layers=3, decoder_layers=3
+  nhead=8, dim_ff=1024, dropout=0.205
+  weight_decay=8.20e-04, label_smoothing=0.058
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:08:07,001] Trial 25 finished with value: 0.0 and parameters: {'lr': 8.343229373384658e-05, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 3, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 1024, 'dropout': 0.20497505640867403, 'weight_decay': 0.0008195724930765106, 'label_smoothing': 0.057662664814111926}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 26
+================================================================================
+  lr=5.33e-05, batch_size=32, d_model=256
+  encoder_layers=5, decoder_layers=4
+  nhead=8, dim_ff=512, dropout=0.172
+  weight_decay=1.77e-05, label_smoothing=0.119
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:11:50,055] Trial 26 finished with value: 0.0 and parameters: {'lr': 5.327586556308098e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 5, 'num_decoder_layers': 4, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.17202608238630773, 'weight_decay': 1.765459124891971e-05, 'label_smoothing': 0.11935264418197034}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 27
+================================================================================
+  lr=3.02e-05, batch_size=32, d_model=256
+  encoder_layers=6, decoder_layers=2
+  nhead=8, dim_ff=512, dropout=0.263
+  weight_decay=1.51e-04, label_smoothing=0.038
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 47 batches
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  90%|█████████ | 27/30 [1:33:20<09:49, 196.47s/it]Best trial: 0. Best value: 0:  90%|█████████ | 27/30 [1:33:20<09:49, 196.47s/it]Best trial: 0. Best value: 0:  93%|█████████▎| 28/30 [1:33:20<06:50, 205.24s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  93%|█████████▎| 28/30 [1:38:45<06:50, 205.24s/it]Best trial: 0. Best value: 0:  93%|█████████▎| 28/30 [1:38:45<06:50, 205.24s/it]Best trial: 0. Best value: 0:  97%|█████████▋| 29/30 [1:38:45<04:01, 241.27s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+                                                                                Best trial: 0. Best value: 0:  97%|█████████▋| 29/30 [1:41:01<04:01, 241.27s/it]Best trial: 0. Best value: 0:  97%|█████████▋| 29/30 [1:41:01<04:01, 241.27s/it]Best trial: 0. Best value: 0: 100%|██████████| 30/30 [1:41:01<00:00, 209.59s/it]Best trial: 0. Best value: 0: 100%|██████████| 30/30 [1:41:01<00:00, 202.04s/it]
+   Val:   318 samples, 10 batches
+   Test:  319 samples, 10 batches
+   Batch size: 32
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:15:35,748] Trial 27 finished with value: 0.0 and parameters: {'lr': 3.023272582421276e-05, 'batch_size': 32, 'd_model': 256, 'num_encoder_layers': 6, 'num_decoder_layers': 2, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.2629729736094732, 'weight_decay': 0.00015121145605121814, 'label_smoothing': 0.03836314490536971}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 28
+================================================================================
+  lr=1.29e-04, batch_size=16, d_model=512
+  encoder_layers=4, decoder_layers=3
+  nhead=4, dim_ff=2048, dropout=0.220
+  weight_decay=6.94e-06, label_smoothing=0.090
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 93 batches
+   Val:   318 samples, 20 batches
+   Test:  319 samples, 20 batches
+   Batch size: 16
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:21:01,080] Trial 28 finished with value: 0.0 and parameters: {'lr': 0.00012916133234641287, 'batch_size': 16, 'd_model': 512, 'num_encoder_layers': 4, 'num_decoder_layers': 3, 'nhead': 4, 'dim_feedforward': 2048, 'dropout': 0.2202029089318985, 'weight_decay': 6.94348765817396e-06, 'label_smoothing': 0.09007766479920601}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 29
+================================================================================
+  lr=1.11e-05, batch_size=8, d_model=128
+  encoder_layers=5, decoder_layers=4
+  nhead=4, dim_ff=1024, dropout=0.301
+  weight_decay=1.08e-05, label_smoothing=0.161
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 20:23:16,755] Trial 29 finished with value: 0.0 and parameters: {'lr': 1.1126027019281955e-05, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 5, 'num_decoder_layers': 4, 'nhead': 4, 'dim_feedforward': 1024, 'dropout': 0.3008817096721247, 'weight_decay': 1.0765625568693481e-05, 'label_smoothing': 0.16099579942477382}. Best is trial 0 with value: 0.0.
+
+================================================================================
+🏆 BEST TRIAL
+================================================================================
+  Trial number: 0
+  Best value (bleu): 0.0000
+
+  Best hyperparameters:
+    lr: 6.62062491369467e-05
+    batch_size: 8
+    d_model: 256
+    num_encoder_layers: 6
+    num_decoder_layers: 4
+    nhead: 8
+    dim_feedforward: 512
+    dropout: 0.13707949955557672
+    weight_decay: 3.172846852185078e-05
+    label_smoothing: 0.09451522872297867
+
+  Additional metrics:
+    best_val_loss: inf
+    best_val_bleu: 0.0000
+
+  💾 Best parameters saved to: results/best_hyperparameters.json
+================================================================================
+
+
+✅ Tuning completato!
+📊 Controlla i risultati in:
+   - results/best_hyperparameters.json
+   - results/param_importances.html
+   - MLflow UI: mlflow ui (http://localhost:5000)
+

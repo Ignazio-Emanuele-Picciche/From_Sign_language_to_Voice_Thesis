@@ -341,6 +341,124 @@ Grafici disponibili:
 
 ---
 
-**Ultima revisione:** 25 Ottobre 2025  
-**Autore:** Ignazio Emanuele Picciche  
+---
+
+## 🆕 NUOVA PIPELINE: VIDEO-TO-TEXT (Sign Language)
+
+### Quick Start
+
+**File:** [`QUICKSTART_SIGN_TO_TEXT.md`](QUICKSTART_SIGN_TO_TEXT.md)  
+**Lunghezza:** ~300 righe  
+**Contenuto:**
+
+- Risposta alla domanda: "Ha senso usare sign-language-translator?"
+- Strategia raccomandata (feature extraction + nostro modello)
+- Primi passi immediati (installazione + test)
+- Architettura proposta (Seq2Seq Transformer)
+- Timeline semplificata (3.5 mesi)
+
+**Quando usarlo:**
+
+- Per capire se usare la libreria (YES, ma solo per landmarks)
+- Per iniziare subito con i test
+- Per overview architettura sistema
+
+### Roadmap Completa
+
+**File:** [`VIDEO_TO_TEXT_PIPELINE_ROADMAP.md`](VIDEO_TO_TEXT_PIPELINE_ROADMAP.md)  
+**Lunghezza:** ~1200 righe (35 pagine)  
+**Contenuto:**
+
+- **FASE 1:** Setup e Analisi (2 settimane)
+- **FASE 2:** Feature Extraction Pipeline (2 settimane)
+- **FASE 3:** Modello Sign-to-Text (4 settimane)
+- **FASE 4:** Training e Validazione (3 settimane)
+- **FASE 5:** Pipeline End-to-End (2 settimane)
+- **FASE 6:** Ottimizzazione e Deployment (2 settimane)
+- Alternative (Plan B, Transfer Learning, Rule-based)
+- Metriche di successo (BLEU, WER)
+- Stack tecnologico completo
+- Rischi e mitigazioni
+- Collegamento con tesi (capitoli, contributi scientifici)
+
+**Quando usarlo:**
+
+- Per pianificazione dettagliata progetto
+- Per timeline e milestone
+- Per scrivere proposal/introduzione tesi
+- Per discussioni con supervisore
+
+### Script di Test
+
+**File:** [`../test_sign_language_extraction.py`](../test_sign_language_extraction.py)  
+**Contenuto:**
+
+- Test feature extraction su singolo video
+- Batch processing su dataset sample
+- Salvataggio landmarks in formato .npz
+- Visualizzazione 3D landmarks
+- Statistiche e validazione output
+
+**Comandi:**
+
+```bash
+# Test singolo video
+python test_sign_language_extraction.py \
+    --mode single \
+    --video_path data/raw/ASLLRP/videos/83664512.mp4
+
+# Test batch (5 samples)
+python test_sign_language_extraction.py \
+    --mode batch \
+    --n_samples 5
+```
+
+### Analisi Libreria sign-language-translator
+
+**Punti chiave:**
+
+✅ **POSSIAMO USARE:**
+
+- MediaPipeLandmarksModel (estrazione landmarks 3D/2D)
+- Video processing utilities
+- Framework di riferimento per architettura
+
+❌ **NON POSSIAMO USARE:**
+
+- Sign-to-Text diretto (NON IMPLEMENTATO)
+- Modelli pre-trained ASL→Text (NON DISPONIBILI)
+
+**Conclusione:** Usare SLT come **tool di feature extraction**, non come soluzione completa. Il modello Sign-to-Text lo implementiamo noi (Seq2Seq Transformer).
+
+### Dataset Disponibile
+
+**Ground Truth:** `data/processed/golden_label_sentiment.csv`
+
+- 202 video ASL annotati
+- Colonne: video_name, caption, emotion
+- Perfetto per training/validation Seq2Seq
+
+### Integrazione con Progetto Esistente
+
+```
+Pipeline Completa:
+Video ASL → Landmarks → Testo → Emozione → Audio TTS
+            (SLT)      (NUOVO)  (ViViT)   (Edge-TTS)
+```
+
+**Contributi scientifici:**
+
+1. Modello Seq2Seq per ASL-to-Text
+2. Pipeline multi-modale completa
+3. Analisi consistenza emozioni cross-modal
+4. Benchmark su dataset annotato custom
+
+---
+
+**Ultima revisione:** 1 Novembre 2025  
+**Autore:** Ignazio Emanuele Picciche + GitHub Copilot  
 **Progetto:** Improved EmoSign Thesis
+
+```
+
+```

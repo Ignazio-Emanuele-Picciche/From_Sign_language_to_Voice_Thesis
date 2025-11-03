@@ -1,0 +1,21 @@
+{
+  "trial_number": 0,
+  "best_value": 0.0,
+  "optimize_metric": "bleu",
+  "params": {
+    "lr": 3.2377690514027276e-05,
+    "batch_size": 16,
+    "d_model": 512,
+    "num_encoder_layers": 2,
+    "num_decoder_layers": 2,
+    "nhead": 4,
+    "dim_feedforward": 1024,
+    "dropout": 0.367339901455468,
+    "weight_decay": 0.0007090613357578155,
+    "label_smoothing": 0.02120159820859964
+  },
+  "user_attrs": {
+    "best_val_loss": Infinity,
+    "best_val_bleu": 0.0
+  }
+}

@@ -6,6 +6,7 @@ mlruns/
 mlartifacts/
 results/tts_audio/
 results/grid_search/
+data/processed/sign_language_landmarks
 
 # VS Code
 .vscode/

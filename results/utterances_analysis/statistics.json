@@ -1,0 +1,16 @@
+{
+  "total_utterances": 2127,
+  "available_utterances": 2123,
+  "missing_videos": 0,
+  "total_words": 22868,
+  "unique_words": 2404,
+  "vocab_size": 2404,
+  "avg_words_per_caption": 10.771549693829487,
+  "median_words_per_caption": 9.0,
+  "min_words": 2,
+  "max_words": 64,
+  "std_words": 7.010366687557687,
+  "train_size": 1486,
+  "val_size": 318,
+  "test_size": 319
+}

@@ -1,0 +1,166 @@
+🧪 Testing Optuna tuning (2 trials, 2 epochs, 20% subset)
+
+[I 2025-11-02 18:34:30,835] A new study created in memory with name: test_tuning
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/sign_to_text/tune.py:367: ExperimentalWarning: MLflowCallback is experimental (supported from v1.4.0). The interface can change in the future.
+  mlflc = MLflowCallback(
+
+================================================================================
+🔧 HYPERPARAMETER TUNING WITH OPTUNA
+================================================================================
+  Trials: 2
+  Epochs per trial: 2
+  Optimize: bleu
+  Subset fraction: 0.2
+  Study name: test_tuning
+================================================================================
+
+  0%|          | 0/2 [00:00<?, ?it/s]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+                                       0%|          | 0/2 [00:10<?, ?it/s]huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+huggingface/tokenizers: The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+To disable this warning, you can either:
+	- Avoid using `tokenizers` before the fork if possible
+	- Explicitly set the environment variable TOKENIZERS_PARALLELISM=(true | false)
+Best trial: 0. Best value: 0:   0%|          | 0/2 [00:10<?, ?it/s]Best trial: 0. Best value: 0:  50%|█████     | 1/2 [00:10<00:10, 10.65s/it]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:6044: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/utils/data/dataloader.py:692: UserWarning: 'pin_memory' argument is set as true but not supported on MPS now, device pinned memory won't be used.
+  warnings.warn(warn_msg)
+                                                                           Best trial: 0. Best value: 0:  50%|█████     | 1/2 [00:45<00:10, 10.65s/it]Best trial: 0. Best value: 0:  50%|█████     | 1/2 [00:45<00:10, 10.65s/it]Best trial: 0. Best value: 0: 100%|██████████| 2/2 [00:45<00:00, 24.92s/it]Best trial: 0. Best value: 0: 100%|██████████| 2/2 [00:45<00:00, 22.78s/it]
+
+================================================================================
+Trial 0
+================================================================================
+  lr=3.89e-05, batch_size=8, d_model=128
+  encoder_layers=3, decoder_layers=5
+  nhead=4, dim_ff=1024, dropout=0.329
+  weight_decay=3.22e-06, label_smoothing=0.182
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:34:41,081] Trial 0 finished with value: 0.0 and parameters: {'lr': 3.8909689835152003e-05, 'batch_size': 8, 'd_model': 128, 'num_encoder_layers': 3, 'num_decoder_layers': 5, 'nhead': 4, 'dim_feedforward': 1024, 'dropout': 0.3294397270410857, 'weight_decay': 3.221489157936901e-06, 'label_smoothing': 0.1822532622031295}. Best is trial 0 with value: 0.0.
+
+================================================================================
+Trial 1
+================================================================================
+  lr=2.74e-04, batch_size=8, d_model=512
+  encoder_layers=6, decoder_layers=3
+  nhead=8, dim_ff=512, dropout=0.139
+  weight_decay=9.63e-06, label_smoothing=0.065
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+================================================================================
+📊 CREATING DATALOADERS
+================================================================================
+
+🔧 Loading tokenizer from models/sign_to_text/tokenizer.json
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+
+📂 Loading dataset split: results/utterances_analysis/train_split.csv
+   ✓ Samples: 1486
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/val_split.csv
+   ✓ Samples: 318
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+📂 Loading dataset split: results/utterances_analysis/test_split.csv
+   ✓ Samples: 319
+   ✓ Max frames: 200
+   ✓ Max caption len: 30
+
+✅ Dataloaders created:
+   Train: 1486 samples, 186 batches
+   Val:   318 samples, 40 batches
+   Test:  319 samples, 40 batches
+   Batch size: 8
+
+  ✅ Best Val Loss: inf
+  ✅ Best Val BLEU: 0.0000
+
+[I 2025-11-02 18:35:16,352] Trial 1 finished with value: 0.0 and parameters: {'lr': 0.0002744600357370741, 'batch_size': 8, 'd_model': 512, 'num_encoder_layers': 6, 'num_decoder_layers': 3, 'nhead': 8, 'dim_feedforward': 512, 'dropout': 0.13915798126598544, 'weight_decay': 9.632307167501579e-06, 'label_smoothing': 0.06530015458638734}. Best is trial 0 with value: 0.0.
+
+================================================================================
+🏆 BEST TRIAL
+================================================================================
+  Trial number: 0
+  Best value (bleu): 0.0000
+
+  Best hyperparameters:
+    lr: 3.8909689835152003e-05
+    batch_size: 8
+    d_model: 128
+    num_encoder_layers: 3
+    num_decoder_layers: 5
+    nhead: 4
+    dim_feedforward: 1024
+    dropout: 0.3294397270410857
+    weight_decay: 3.221489157936901e-06
+    label_smoothing: 0.1822532622031295
+
+  Additional metrics:
+    best_val_loss: inf
+    best_val_bleu: 0.0000
+
+  💾 Best parameters saved to: results/best_hyperparameters.json
+================================================================================
+
+
+✅ Test completato! Se funziona, lancia il tuning completo:
+   ./run_tuning.sh
