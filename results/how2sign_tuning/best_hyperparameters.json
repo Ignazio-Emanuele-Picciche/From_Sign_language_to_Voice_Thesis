@@ -1,0 +1,12 @@
+{
+  "lr": 0.000371542148744291,
+  "batch_size": 32,
+  "d_model": 256,
+  "num_encoder_layers": 3,
+  "num_decoder_layers": 3,
+  "nhead": 4,
+  "dim_feedforward": 2048,
+  "dropout": 0.28564637161027456,
+  "weight_decay": 0.00020046179107204468,
+  "label_smoothing": 0.000590378977588837
+}

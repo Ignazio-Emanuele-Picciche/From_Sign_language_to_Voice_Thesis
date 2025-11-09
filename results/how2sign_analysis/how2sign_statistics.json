@@ -1,0 +1,13 @@
+{
+  "train_size": 31165,
+  "val_size": 1741,
+  "total_words": 542819,
+  "unique_words": 15548,
+  "avg_words_per_caption_train": 17.460965827049574,
+  "median_words_per_caption_train": 15.0,
+  "min_words_train": 1,
+  "max_words_train": 195,
+  "avg_words_per_caption_val": 17.3543940264216,
+  "landmarks_available_sample": 100,
+  "landmarks_missing_sample": 0
+}

@@ -1,0 +1,88 @@
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/optim/lr_scheduler.py:62: UserWarning: The verbose parameter is deprecated. Please use get_last_lr() to access the learning rate.
+  warnings.warn(
+================================================================================
+🚀 TRAINING SIGN-TO-TEXT ON HOW2SIGN
+================================================================================
+
+📊 Dataset: How2Sign (31k train, 1.7k val)
+🔧 Landmark features: 411 (OpenPose)
+💻 Device: mps
+📁 Output: models/sign_to_text/how2sign_v2
+
+1️⃣  Loading tokenizer...
+
+📂 Tokenizer caricato da: models/sign_to_text/tokenizer.json
+   Vocab size: 2916
+   ✓ Vocab size: 4000
+
+2️⃣  Creating datasets...
+
+📂 Loading How2Sign split: results/how2sign_splits/train_split.csv
+   🔍 Verificando landmarks OpenPose...
+      Verificati 3000/29719...
+      Verificati 4000/29719...
+      Verificati 5000/29719...
+      Verificati 6000/29719...
+      Verificati 7000/29719...
+      Verificati 8000/29719...
+      Verificati 9000/29719...
+      Verificati 10000/29719...
+      Verificati 11000/29719...
+      Verificati 12000/29719...
+      Verificati 13000/29719...
+      Verificati 14000/29719...
+      Verificati 15000/29719...
+      Verificati 16000/29719...
+      Verificati 17000/29719...
+      Verificati 18000/29719...
+      Verificati 19000/29719...
+      Verificati 20000/29719...
+      Verificati 21000/29719...
+      Verificati 22000/29719...
+      Verificati 23000/29719...
+      Verificati 24000/29719...
+      Verificati 25000/29719...
+      Verificati 26000/29719...
+      Verificati 27000/29719...
+      Verificati 28000/29719...
+      Verificati 29000/29719...
+      Verificati 30000/29719...
+      Verificati 31000/29719...
+   ✓ Samples validi: 29602
+   ✓ Landmark features: 411 (OpenPose)
+   ✓ Max frames: 200
+   ✓ Max caption len: 50
+
+📂 Loading How2Sign split: results/how2sign_splits/val_split.csv
+   🔍 Verificando landmarks OpenPose...
+      Verificati 1000/1741...
+   ✓ Samples validi: 1739
+   ✓ Landmark features: 411 (OpenPose)
+   ✓ Max frames: 200
+   ✓ Max caption len: 50
+   ✓ Train: 29602 samples
+   ✓ Val:   1739 samples
+
+3️⃣  Creating dataloaders...
+   ✓ Train batches: 926
+   ✓ Val batches:   55
+
+4️⃣  Creating model...
+   ✓ Model parameters: 26,382,240
+   ✓ Input dim: 411 features
+   ✓ Model dim: 512
+
+5️⃣  Setup training...
+   ✓ Criterion: CrossEntropyLoss (label_smoothing=0.1)
+   ✓ Optimizer: AdamW (lr=0.0001, wd=0.0001)
+   ✓ Scheduler: ReduceLROnPlateau
+
+================================================================================
+🎯 TRAINING START
+================================================================================
+
+📅 Epoch 1/40
+================================================================================
+Training:   0%|          | 0/926 [00:00<?, ?it/s]/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/.venv/lib/python3.10/site-packages/torch/nn/functional.py:5849: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  warnings.warn(
+Training:   0%|          | 0/926 [00:03<?, ?it/s, loss=8.3748, avg_loss=8.3748]Training:   0%|          | 1/926 [00:03<57:20,  3.72s/it, loss=8.3748, avg_loss=8.3748]Training:   0%|          | 1/926 [00:05<57:20,  3.72s/it, loss=8.1895, avg_loss=8.2884]Training:   0%|          | 2/926 [00:05<36:06,  2.34s/it, loss=8.1895, avg_loss=8.2884]Training:   0%|          | 2/926 [00:09<36:06,  2.34s/it, loss=8.1315, avg_loss=8.2341]Training:   0%|          | 3/926 [00:09<50:22,  3.27s/it, loss=8.1315, avg_loss=8.2341]Training:   0%|          | 3/926 [00:11<50:22,  3.27s/it, loss=8.0240, avg_loss=8.1776]Training:   0%|          | 4/926 [00:11<41:18,  2.69s/it, loss=8.0240, avg_loss=8.1776]Training:   0%|          | 4/926 [00:12<41:18,  2.69s/it, loss=7.8554, avg_loss=8.1142]Training:   1%|          | 5/926 [00:12<35:45,  2.33s/it, loss=7.8554, avg_loss=8.1142]Training:   1%|          | 5/926 [00:15<35:45,  2.33s/it, loss=7.8304, avg_loss=8.0624]Training:   1%|          | 6/926 [00:15<36:24,  2.37s/it, loss=7.8304, avg_loss=8.0624]Training:   1%|          | 6/926 [00:16<36:24,  2.37s/it, loss=7.8068, avg_loss=8.0235]Training:   1%|          | 7/926 [00:16<30:38,  2.00s/it, loss=7.8068, avg_loss=8.0235]Training:   1%|          | 7/926 [00:17<30:38,  2.00s/it, loss=7.7787, avg_loss=7.9881]Training:   1%|          | 8/926 [00:17<26:50,  1.75s/it, loss=7.7787, avg_loss=7.9881]Training:   1%|          | 8/926 [00:19<26:50,  1.75s/it, loss=7.6343, avg_loss=7.9490]Training:   1%|          | 9/926 [00:19<23:50,  1.56s/it, loss=7.6343, avg_loss=7.9490]Training:   1%|          | 9/926 [00:20<23:50,  1.56s/it, loss=7.6946, avg_loss=7.9211]Training:   1%|          | 10/926 [00:20<22:28,  1.47s/it, loss=7.6946, avg_loss=7.9211]Training:   1%|          | 10/926 [00:21<22:28,  1.47s/it, loss=7.5760, avg_loss=7.8924]Training:   1%|          | 11/926 [00:21<21:28,  1.41s/it, loss=7.5760, avg_loss=7.8924]Training:   1%|          | 11/926 [00:22<21:28,  1.41s/it, loss=7.5919, avg_loss=7.8642]Training:   1%|▏         | 12/926 [00:22<20:35,  1.35s/it, loss=7.5919, avg_loss=7.8642]Training:   1%|▏         | 12/926 [00:23<20:35,  1.35s/it, loss=7.4331, avg_loss=7.8337]Training:   1%|▏         | 13/926 [00:23<19:27,  1.28s/it, loss=7.4331, avg_loss=7.8337]Training:   1%|▏         | 13/926 [00:25<19:27,  1.28s/it, loss=7.4679, avg_loss=7.8038]Training:   2%|▏         | 14/926 [00:25<19:38,  1.29s/it, loss=7.4679, avg_loss=7.8038]Training:   2%|▏         | 14/926 [00:26<19:38,  1.29s/it, loss=7.4249, avg_loss=7.7786]Training:   2%|▏         | 15/926 [00:26<19:14,  1.27s/it, loss=7.4249, avg_loss=7.7786]Training:   2%|▏         | 15/926 [00:27<19:14,  1.27s/it, loss=7.3009, avg_loss=7.7499]Training:   2%|▏         | 16/926 [00:27<18:32,  1.22s/it, loss=7.3009, avg_loss=7.7499]Training:   2%|▏         | 16/926 [00:28<18:32,  1.22s/it, loss=7.2354, avg_loss=7.7207]Training:   2%|▏         | 17/926 [00:28<18:28,  1.22s/it, loss=7.2354, avg_loss=7.7207]Training:   2%|▏         | 17/926 [00:30<18:28,  1.22s/it, loss=7.2721, avg_loss=7.6926]Training:   2%|▏         | 18/926 [00:30<18:55,  1.25s/it, loss=7.2721, avg_loss=7.6926]Training:   2%|▏         | 18/926 [00:31<18:55,  1.25s/it, loss=7.1925, avg_loss=7.6637]Training:   2%|▏         | 19/926 [00:31<19:46,  1.31s/it, loss=7.1925, avg_loss=7.6637]Training:   2%|▏         | 19/926 [00:32<19:46,  1.31s/it, loss=7.1572, avg_loss=7.6401]Training:   2%|▏         | 20/926 [00:32<19:19,  1.28s/it, loss=7.1572, avg_loss=7.6401]Training:   2%|▏         | 20/926 [00:33<19:19,  1.28s/it, loss=7.1769, avg_loss=7.6155]Training:   2%|▏         | 21/926 [00:33<18:59,  1.26s/it, loss=7.1769, avg_loss=7.6155]Training:   2%|▏         | 21/926 [00:34<18:59,  1.26s/it, loss=7.1179, avg_loss=7.5941]Training:   2%|▏         | 22/926 [00:34<18:02,  1.20s/it, loss=7.1179, avg_loss=7.5941]Training:   2%|▏         | 22/926 [00:35<18:02,  1.20s/it, loss=7.0119, avg_loss=7.5718]Training:   2%|▏         | 23/926 [00:35<16:58,  1.13s/it, loss=7.0119, avg_loss=7.5718]Training:   2%|▏         | 23/926 [00:37<16:58,  1.13s/it, loss=7.0720, avg_loss=7.5532]Training:   3%|▎         | 24/926 [00:37<17:45,  1.18s/it, loss=7.0720, avg_loss=7.5532]Training:   3%|▎         | 24/926 [00:38<17:45,  1.18s/it, loss=6.9451, avg_loss=7.5268]Training:   3%|▎         | 25/926 [00:38<20:09,  1.34s/it, loss=6.9451, avg_loss=7.5268]Training:   3%|▎         | 25/926 [00:40<20:09,  1.34s/it, loss=7.0138, avg_loss=7.5077]Training:   3%|▎         | 26/926 [00:40<20:02,  1.34s/it, loss=7.0138, avg_loss=7.5077]Training:   3%|▎         | 26/926 [00:41<20:02,  1.34s/it, loss=6.9140, avg_loss=7.4863]Training:   3%|▎         | 27/926 [00:41<18:54,  1.26s/it, loss=6.9140, avg_loss=7.4863]Training:   3%|▎         | 27/926 [00:43<18:54,  1.26s/it, loss=6.8448, avg_loss=7.4609]Training:   3%|▎         | 28/926 [00:43<21:02,  1.41s/it, loss=6.8448, avg_loss=7.4609]
