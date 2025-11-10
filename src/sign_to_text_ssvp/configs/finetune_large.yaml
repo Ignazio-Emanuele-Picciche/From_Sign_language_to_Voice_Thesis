@@ -1,0 +1,118 @@
+# SSVP-SLT Fine-tuning Configuration - Large Model
+# For maximum performance (requires 40GB+ VRAM)
+
+# Model
+model:
+  name: "ssvp_large"
+  checkpoint: "models/checkpoints/ssvp_large.pt"
+  architecture: "vit_large_patch16"
+  d_model: 1024
+  nhead: 16
+  num_encoder_layers: 24
+  num_decoder_layers: 8
+  dim_feedforward: 4096
+  dropout: 0.1
+
+# Dataset
+data:
+  root: "data/how2sign_ssvp"
+  manifest_dir: "manifest"
+  clips_dir: "clips"
+  train_split: "train"
+  val_split: "val"
+  test_split: "test"
+
+# Video preprocessing
+video:
+  fps: 25
+  resize: [224, 224]
+  num_frames: 16  # Temporal sampling
+  augmentation:
+    random_crop: true
+    horizontal_flip: true
+    color_jitter: true
+    rotation: 5  # degrees
+    random_erase: true  # Additional augmentation for large model
+
+# Tokenizer
+tokenizer:
+  type: "sentencepiece"
+  vocab_size: 5000
+  model_file: "models/tokenizer_ssvp.model"
+
+# Training
+training:
+  epochs: 30
+  batch_size: 8  # Smaller batch for large model
+  num_workers: 8
+  
+  # Optimization
+  optimizer: "adamw"
+  learning_rate: 5.0e-5  # Lower LR for large model
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  eps: 1.0e-8
+  
+  # Learning rate schedule
+  lr_scheduler: "cosine"
+  warmup_steps: 1000  # Longer warmup for large model
+  min_lr: 1.0e-6
+  
+  # Regularization
+  label_smoothing: 0.1
+  dropout: 0.1
+  
+  # Gradient
+  grad_clip: 1.0
+  accumulation_steps: 2  # Accumulate to simulate batch_size=16
+  
+  # Mixed precision
+  mixed_precision: true
+  fp16: true
+
+# Evaluation
+evaluation:
+  batch_size: 16
+  beam_size: 5
+  max_length: 128
+  length_penalty: 1.0
+  metrics: ["bleu", "rouge", "meteor", "wer", "cer"]
+
+# Checkpointing
+checkpoint:
+  save_dir: "results/ssvp_finetune_large"
+  save_freq: 5  # Save every 5 epochs
+  keep_last_k: 3  # Keep fewer checkpoints (large files)
+  save_best: true
+  monitor_metric: "bleu_4"
+  monitor_mode: "max"
+
+# Early stopping
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.001
+
+# Logging
+logging:
+  log_dir: "logs/ssvp_finetune_large"
+  tensorboard: true
+  log_freq: 50  # Log every 50 steps
+  val_freq: 1   # Validate every epoch
+
+# Device
+device: "cuda"  # Requires powerful GPU (A100 40GB+)
+
+# Distributed training (recommended for large model)
+distributed:
+  enabled: false  # Set to true if using multiple GPUs
+  backend: "nccl"
+  world_size: 1
+
+# Random seed
+seed: 42
+
+# Memory optimization
+memory:
+  gradient_checkpointing: true  # Save memory at cost of speed
+  empty_cache_freq: 100  # Clear CUDA cache every N steps

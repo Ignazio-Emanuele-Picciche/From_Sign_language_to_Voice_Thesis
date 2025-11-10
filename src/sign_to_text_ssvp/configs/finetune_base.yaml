@@ -1,0 +1,112 @@
+# SSVP-SLT Fine-tuning Configuration - Base Model
+# For full fine-tuning on How2Sign dataset
+
+# Model
+model:
+  name: "ssvp_base"
+  checkpoint: "models/checkpoints/ssvp_base.pt"
+  architecture: "vit_base_patch16"
+  d_model: 768
+  nhead: 12
+  num_encoder_layers: 12
+  num_decoder_layers: 6
+  dim_feedforward: 3072
+  dropout: 0.1
+
+# Dataset
+data:
+  root: "data/how2sign_ssvp"
+  manifest_dir: "manifest"
+  clips_dir: "clips"
+  train_split: "train"
+  val_split: "val"
+  test_split: "test"
+
+# Video preprocessing
+video:
+  fps: 25
+  resize: [224, 224]
+  num_frames: 16  # Temporal sampling
+  augmentation:
+    random_crop: true
+    horizontal_flip: true
+    color_jitter: true
+    rotation: 5  # degrees
+
+# Tokenizer
+tokenizer:
+  type: "sentencepiece"
+  vocab_size: 5000
+  model_file: "models/tokenizer_ssvp.model"
+
+# Training
+training:
+  epochs: 30
+  batch_size: 16
+  num_workers: 8
+  
+  # Optimization
+  optimizer: "adamw"
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  eps: 1.0e-8
+  
+  # Learning rate schedule
+  lr_scheduler: "cosine"
+  warmup_steps: 500
+  min_lr: 1.0e-6
+  
+  # Regularization
+  label_smoothing: 0.1
+  dropout: 0.1
+  
+  # Gradient
+  grad_clip: 1.0
+  accumulation_steps: 1
+  
+  # Mixed precision
+  mixed_precision: true
+  fp16: true
+
+# Evaluation
+evaluation:
+  batch_size: 32
+  beam_size: 5
+  max_length: 128
+  length_penalty: 1.0
+  metrics: ["bleu", "rouge", "meteor", "wer", "cer"]
+
+# Checkpointing
+checkpoint:
+  save_dir: "results/ssvp_finetune_base"
+  save_freq: 5  # Save every 5 epochs
+  keep_last_k: 5
+  save_best: true
+  monitor_metric: "bleu_4"
+  monitor_mode: "max"
+
+# Early stopping
+early_stopping:
+  enabled: true
+  patience: 10
+  min_delta: 0.001
+
+# Logging
+logging:
+  log_dir: "logs/ssvp_finetune_base"
+  tensorboard: true
+  log_freq: 50  # Log every 50 steps
+  val_freq: 1   # Validate every epoch
+
+# Device
+device: "cuda"  # or "mps" for M1/M2, "cpu"
+
+# Distributed training (if available)
+distributed:
+  enabled: false
+  backend: "nccl"
+  world_size: 1
+
+# Random seed
+seed: 42

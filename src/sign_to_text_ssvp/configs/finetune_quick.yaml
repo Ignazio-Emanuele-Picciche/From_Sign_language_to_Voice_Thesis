@@ -1,0 +1,97 @@
+# SSVP-SLT Fine-tuning Configuration - Quick Test
+# For rapid testing (3 epochs, subset of data)
+
+# Model
+model:
+  name: "ssvp_base"
+  checkpoint: "models/checkpoints/ssvp_base.pt"
+  architecture: "vit_base_patch16"
+  d_model: 768
+  nhead: 12
+  num_encoder_layers: 12
+  num_decoder_layers: 6
+  dim_feedforward: 3072
+  dropout: 0.1
+
+# Dataset
+data:
+  root: "data/how2sign_ssvp"
+  manifest_dir: "manifest"
+  clips_dir: "clips"
+  train_split: "train"
+  val_split: "val"
+  test_split: "test"
+  
+  # Subset for quick testing
+  max_train_samples: 1000
+  max_val_samples: 200
+
+# Video preprocessing
+video:
+  fps: 25
+  resize: [224, 224]
+  num_frames: 16  # Temporal sampling
+  augmentation:
+    random_crop: false
+    horizontal_flip: false
+    color_jitter: false
+
+# Tokenizer
+tokenizer:
+  type: "sentencepiece"
+  vocab_size: 5000
+  model_file: "models/tokenizer_ssvp.model"
+
+# Training
+training:
+  epochs: 3  # Quick test
+  batch_size: 8
+  num_workers: 4
+  
+  # Optimization
+  optimizer: "adamw"
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  eps: 1.0e-8
+  
+  # Learning rate schedule
+  lr_scheduler: "cosine"
+  warmup_steps: 100
+  
+  # Regularization
+  label_smoothing: 0.1
+  dropout: 0.1
+  
+  # Gradient
+  grad_clip: 1.0
+  accumulation_steps: 1
+
+# Evaluation
+evaluation:
+  batch_size: 16
+  beam_size: 5
+  max_length: 128
+  metrics: ["bleu", "rouge", "meteor", "wer", "cer"]
+
+# Checkpointing
+checkpoint:
+  save_dir: "results/ssvp_finetune_quick"
+  save_freq: 1  # Save every epoch
+  keep_last_k: 3
+  save_best: true
+  monitor_metric: "bleu_4"
+  monitor_mode: "max"
+
+# Logging
+logging:
+  log_dir: "logs/ssvp_finetune_quick"
+  tensorboard: true
+  log_freq: 10  # Log every 10 steps
+  val_freq: 1   # Validate every epoch
+
+# Device
+device: "cuda"  # or "mps" for M1/M2, "cpu"
+
+# Random seed
+seed: 42

@@ -1,0 +1,31 @@
+# SSVP-SLT Requirements
+# Dipendenze specifiche per il modulo SSVP-SLT
+
+# Core dependencies (verranno installate da SSVP-SLT repo)
+# torch>=2.0.0
+# torchvision>=0.15.0
+# fairseq  # Installato da fairseq-sl nel repo
+# transformers>=4.30.0
+
+# Video processing
+ffmpeg-python>=0.2.0
+opencv-python>=4.8.0
+
+# Data processing
+sentencepiece>=0.1.99
+sacrebleu>=2.3.1
+pandas>=2.0.0
+
+# Training utilities
+tensorboard>=2.13.0
+pyyaml>=6.0
+tqdm>=4.65.0
+
+# Evaluation metrics
+jiwer>=3.0.0  # For WER calculation
+rouge-score>=0.1.2  # For ROUGE calculation
+nltk>=3.8.0  # For METEOR
+
+# Utilities
+requests>=2.31.0
+urllib3>=2.0.0
