@@ -13,7 +13,7 @@ echo "🚀 HOW2SIGN TRAINING LAUNCHER"
 echo "========================================================================"
 
 # Config
-EPOCHS=30
+EPOCHS=50
 BATCH_SIZE=16
 LR=1e-4
 D_MODEL=512

@@ -1,0 +1,124 @@
+================================================================================
+QUALITATIVE EXAMPLES
+================================================================================
+
+Example 1:
+  Video:     -d5dN54tH2E_0-1-rgb_front
+  Frames:    189
+  Reference: We're going to work on a arm drill that will help you have graceful hand movements in front of you.
+  Predicted: the next thing you can do is a little bit of the ball, and you can use a little bit of the ball, and the ball.
+
+Example 2:
+  Video:     -d5dN54tH2E_1-1-rgb_front
+  Frames:    32
+  Reference: I call it painting the wall.
+  Predicted: .
+
+Example 3:
+  Video:     -d5dN54tH2E_10-1-rgb_front
+  Frames:    172
+  Reference: So we're going to go up and down
+  Predicted: the next thing you can do is a little bit of the ball, and you can use a little bit of the ball, and the ball.
+
+Example 4:
+  Video:     -d5dN54tH2E_11-1-rgb_front
+  Frames:    42
+  Reference: And just let those fingers relax.
+  Predicted: the same thing to do is a little bit.
+
+Example 5:
+  Video:     -d5dN54tH2E_12-1-rgb_front
+  Frames:    82
+  Reference: Now together you're going to go opposite.
+  Predicted: the next thing you can do is a little bit more of the ball.
+
+Example 6:
+  Video:     -d5dN54tH2E_13-1-rgb_front
+  Frames:    140
+  Reference: Do it very mechanically at first and then slowly soften it out as you feel comfortable.
+  Predicted: the next thing you can do is a little bit more of the ball, and you can be a little bit.
+
+Example 7:
+  Video:     -d5dN54tH2E_14-1-rgb_front
+  Frames:    111
+  Reference: It's real easy to actually get your fingers to lead, so try not to let them do that.
+  Predicted: the next thing you can do is a little bit more of the ball, and you can be a little bit.
+
+Example 8:
+  Video:     -d5dN54tH2E_15-1-rgb_front
+  Frames:    43
+  Reference: Let the wrist do all the leading.
+  Predicted: the same thing to do is a little bit.
+
+Example 9:
+  Video:     -d5dN54tH2E_2-1-rgb_front
+  Frames:    199
+  Reference: So this one what you're going to start with, let's take one hand first
+  Predicted: the next thing you can do is a little bit of the ball, and you can use a little bit of the ball, and the ball.
+
+Example 10:
+  Video:     -d5dN54tH2E_3-1-rgb_front
+  Frames:    174
+  Reference: So basically your wrist is going to be leading the movement, and let the fingers follow nice and relaxed where the wrist is going.
+  Predicted: the next thing you can do is a little bit of the ball, and you can use a little bit of the ball, and the ball.
+
+Example 11:
+  Video:     -d5dN54tH2E_4-1-rgb_front
+  Frames:    89
+  Reference: Don't let the fingers take over, let the wrist do all the guiding.
+  Predicted: the next thing you can do is a little bit more of the ball.
+
+Example 12:
+  Video:     -d5dN54tH2E_5-1-rgb_front
+  Frames:    68
+  Reference: Let's make sure that are feet are parallel and are knees are soft.
+  Predicted: the next step is a little bit more.
+
+Example 13:
+  Video:     -d5dN54tH2E_6-1-rgb_front
+  Frames:    165
+  Reference: Our belly buttons pulled in pressing in towards our spine and our chest is lifted, and our arms are relaxed
+  Predicted: the next thing you can do is a little bit of the ball, and you can use a little bit of the ball.
+
+Example 14:
+  Video:     -d5dN54tH2E_7-1-rgb_front
+  Frames:    63
+  Reference: So let's start with the one hand going up and down.
+  Predicted: the next step is a little bit more.
+
+Example 15:
+  Video:     -d5dN54tH2E_8-1-rgb_front
+  Frames:    100
+  Reference: We're going to keep this right in front of us
+  Predicted: the next thing you can do is a little bit more of the ball, and you can be a little bit.
+
+Example 16:
+  Video:     -d5dN54tH2E_9-1-rgb_front
+  Frames:    90
+  Reference: You want it right in front of your solar plexus.
+  Predicted: the next thing you can do is a little bit more of the ball, and the ball.
+
+Example 17:
+  Video:     -f1_kdl050s_0-1-rgb_front
+  Frames:    120
+  Reference: In this clip we are going to talk about dangers for these birds in the household and otherwise.
+  Predicted: the next thing you can do is a little bit more of the ball, and you can be a little bit.
+
+Example 18:
+  Video:     -f1_kdl050s_1-1-rgb_front
+  Frames:    74
+  Reference: The number one loss for these birds, is flight.
+  Predicted: the next step is a little bit more.
+
+Example 19:
+  Video:     -f1_kdl050s_10-1-rgb_front
+  Frames:    104
+  Reference: You need to be very careful when cleaning their cages if these birds are flighted.
+  Predicted: the next thing you can do is a little bit more of the ball, and you can be a little bit.
+
+Example 20:
+  Video:     -f1_kdl050s_11-1-rgb_front
+  Frames:    66
+  Reference: It seems to be the number one way to loose them.
+  Predicted: the next step is a little bit more.
+
