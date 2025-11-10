@@ -653,50 +653,150 @@ PPL = exp(loss)
 ================================================================================
 
 Checkpoint: models/sign_to_text/how2sign/best_checkpoint.pt
-Dataset: Validation (1672 samples)
-Device: cuda
+Dataset: Validation (1739 samples)
+Device: mps
 
-Generating predictions: 100%|████████████| 105/105 [03:24<00:00]
+Generating predictions: 100%|████████████| 109/109 [05:12<00:00]
 
 ================================================================================
 📈 METRICS
 ================================================================================
 
-BLEU Scores:
-   BLEU-1: 54.3
-   BLEU-2: 42.1
-   BLEU-3: 34.8
-   BLEU-4: 28.7  ← Main metric
+🎯 Primary Metrics:
+   Loss:         4.1361
+   Perplexity:   62.56
 
-Error Rates:
-   WER: 35.2%
-   CER: 18.4%
+📝 BLEU Scores:
+   BLEU-1:      13.03%   (unigram overlap)
+   BLEU-2:       4.70%   (bigram overlap)
+   BLEU-3:       2.03%   (trigram overlap)
+   BLEU-4:       1.04%   (4-gram overlap) ← Main metric
 
-Perplexity:
-   PPL: 3.44
+🔤 Error Rates:
+   WER:         121.69%  (Word Error Rate)
+   CER:          83.31%  (Character Error Rate)
 
-Vocabulary:
-   Vocab size: 3842 tokens
-   Coverage: 98.7% (Reference tokens in vocab)
-   OOV rate: 1.3%
+📏 Caption Statistics:
+   Avg Pred Len: 20.5 ± 13.7 words
+   Avg Ref Len:  17.0 ± 11.4 words
+   Length Ratio: 1.21 (predictions 21% longer)
+   Exact Match:  0.0%
 
-Caption Length:
-   Reference avg: 12.3 words
-   Predicted avg: 11.8 words
-   Length ratio: 0.96
+📚 Vocabulary:
+   Unique Words: 28 words
+   Vocab Cover:  0.7% (of total vocabulary)
 
 ================================================================================
 💾 SAVED OUTPUTS
 ================================================================================
 
-   Predictions CSV: results/evaluation/predictions.csv
-   Metrics JSON: results/evaluation/metrics.json
-   Examples TXT: results/evaluation/examples.txt (20 samples)
+   Predictions CSV: results/how2sign_evaluation/predictions_val.csv
+   Metrics JSON: results/how2sign_evaluation/metrics_val.json
+   Examples TXT: results/how2sign_evaluation/examples_val.txt (20 samples)
 
 ================================================================================
 ✅ EVALUATION COMPLETE!
 ================================================================================
 ```
+
+### Interpretazione Metriche
+
+#### 📊 **Loss e Perplexity**
+
+**Loss: 4.1361** | **Perplexity (PPL): 62.56**
+
+- **Loss**: Misura quanto il modello è "lontano" dalle predizioni corrette. Valori più bassi = migliori.
+- **Perplexity**: `PPL = exp(loss)`. Indica la "sorpresa" del modello di fronte ai dati.
+  - PPL = 62.56 significa che in media il modello è incerto tra ~63 possibili token
+  - **Interpretazione**: 🟡 **Alto** - Il modello è ancora in fase di apprendimento
+  - Target ottimale: PPL < 10
+
+#### 📝 **BLEU Scores** (Bilingual Evaluation Understudy)
+
+Misura la sovrapposizione di n-gram tra testo predetto e riferimento:
+
+- **BLEU-1 (13.03%)**: Sovrapposizione di parole singole
+- **BLEU-2 (4.70%)**: Sovrapposizione di coppie consecutive di parole
+- **BLEU-3 (2.03%)**: Sovrapposizione di triple di parole
+- **BLEU-4 (1.04%)**: Sovrapposizione di 4-gram (metrica principale)
+
+**Interpretazione attuale**:
+
+- 🔴 **Molto basso** - Il modello produce testo con poca somiglianza semantica al riferimento
+- Il calo rapido da BLEU-1 a BLEU-4 indica che il modello cattura alcune parole singole corrette ma fatica con frasi coerenti
+- Target ottimale: BLEU-4 > 20% (accettabile), > 30% (buono)
+
+**Possibili cause**:
+
+- Modello undertrained (necessita più epoche)
+- Vocabulary coverage bassa (0.7%)
+- Dataset challenging o rumoroso
+
+#### 🔤 **Error Rates**
+
+**WER: 121.69%** | **CER: 83.31%**
+
+- **WER (Word Error Rate)**: `(Inserzioni + Cancellazioni + Sostituzioni) / Parole totali`
+  - WER > 100% significa che ci sono più errori che parole nel riferimento
+  - 🔴 **Critico** - Il modello produce molte parole sbagliate o extra
+- **CER (Character Error Rate)**: Come WER ma a livello di caratteri
+  - CER = 83.31% significa ~83% dei caratteri sono errati
+  - 🔴 **Molto alto** - Anche a livello di caratteri le predizioni sono molto diverse
+
+**Interpretazione**: Il modello sta ancora imparando la struttura del linguaggio e ha bisogno di:
+
+- Più training epochs
+- Migliore qualità dei landmarks OpenPose
+- Eventuale data augmentation
+
+#### 📏 **Caption Length Statistics**
+
+**Avg Predicted: 20.5 ± 13.7** | **Avg Reference: 17.0 ± 11.4** | **Ratio: 1.21**
+
+- Il modello tende a generare caption **21% più lunghe** del necessario
+- Alta deviazione standard (±13.7) indica predizioni inconsistenti
+- **Exact Match: 0.0%** - Nessuna predizione perfetta (normale in fase iniziale)
+
+**Interpretazione**: Il modello ha imparato una lunghezza approssimativa ma tende a "parlare troppo" (over-generation)
+
+#### 📚 **Vocabulary Coverage**
+
+**Unique Words: 28** | **Vocab Coverage: 0.7%**
+
+- Il modello usa solo **28 parole diverse** nelle predizioni
+- Copre solo lo **0.7%** del vocabolario totale (4000 tokens)
+- 🔴 **Critico** - Vocabolario estremamente limitato
+
+**Possibili cause**:
+
+- **Mode collapse**: Il modello ha imparato a ripetere poche parole frequenti
+- **Undertrained decoder**: Il decoder non ha esplorato abbastanza il vocabolario
+- **EOS token prematuro**: Il modello termina le frasi troppo presto
+
+**Soluzioni**:
+
+- Continuare il training per più epoche
+- Aumentare temperature durante generation (più esplorazione)
+- Usare nucleus/top-k sampling invece di greedy decoding
+
+---
+
+### 🎯 **Summary: Stato Attuale del Modello**
+
+| Aspetto            | Valutazione    | Commento                             |
+| ------------------ | -------------- | ------------------------------------ |
+| **Convergenza**    | 🔴 Bassa       | Loss alto (4.13), PPL elevato (62.5) |
+| **Qualità Output** | 🔴 Molto bassa | BLEU-4 1.04%, WER 121%               |
+| **Diversità**      | 🔴 Critica     | Solo 28 parole uniche (0.7% vocab)   |
+| **Lunghezza**      | 🟡 Accettabile | Ratio 1.21 (leggermente verbose)     |
+
+**Raccomandazioni**:
+
+1. ✅ **Continuare training** per almeno 30-50 epoche
+2. ✅ **Monitorare training loss** - dovrebbe scendere sotto 2.0
+3. ✅ **Verificare landmarks** - qualità OpenPose potrebbe essere problematica
+4. ✅ **Data augmentation** - aumentare varietà dei dati
+5. ✅ **Hyperparameter tuning** - ottimizzare learning rate, dropout, etc.
 
 ### Predictions CSV Format
 
@@ -836,46 +936,93 @@ print(f"Predicted caption: {caption}")
 
 ## 📈 Performance
 
-### Benchmark su How2Sign
+### Benchmark su How2Sign - Validation Set
 
-Test su validation set (1672 samples):
+Test su validation set (1739 samples) - **Modello dopo 1 epoch**:
 
-| Metric         | Score | Interpretazione |
-| -------------- | ----- | --------------- |
-| **BLEU-4**     | 28.7  | 🟢 Buono        |
-| **BLEU-1**     | 54.3  | 🟢 Ottimo       |
-| **WER**        | 35.2% | 🟡 Accettabile  |
-| **CER**        | 18.4% | 🟢 Buono        |
-| **Perplexity** | 3.44  | 🟢 Eccellente   |
+| Metric          | Score           | Stato          | Target | Note                                                |
+| --------------- | --------------- | -------------- | ------ | --------------------------------------------------- |
+| **Loss**        | 4.14            | 🔴 Alto        | < 2.0  | Modello in fase iniziale di training                |
+| **Perplexity**  | 62.56           | � Alto         | < 10   | Modello incerto (~63 possibili token)               |
+| **BLEU-4**      | 1.04%           | 🔴 Molto basso | > 20%  | Poca coerenza sintattica                            |
+| **BLEU-1**      | 13.03%          | 🔴 Basso       | > 40%  | Alcune parole singole corrette                      |
+| **WER**         | 121.69%         | 🔴 Critico     | < 40%  | Più errori che parole (over-generation)             |
+| **CER**         | 83.31%          | 🔴 Alto        | < 30%  | ~83% caratteri errati                               |
+| **Vocab Usage** | 28 words (0.7%) | � Critico      | > 500  | Mode collapse - vocabolario limitatissimo           |
+| **Exact Match** | 0.0%            | 🔴             | > 1%   | Nessuna predizione perfetta (normale fase iniziale) |
 
-### Confronto Architetture
+### 📊 Analisi Dettagliata
 
-| Architecture                   | BLEU-4 | WER   | Params | Training Time     |
-| ------------------------------ | ------ | ----- | ------ | ----------------- |
-| **Seq2Seq Transformer** (ours) | 28.7   | 35.2% | 42M    | ~6.5h (30 epochs) |
-| LSTM Encoder-Decoder           | 22.1   | 42.8% | 25M    | ~4h               |
-| GRU Seq2Seq                    | 24.3   | 39.5% | 28M    | ~4.5h             |
-| Transformer XL                 | 30.2   | 33.1% | 65M    | ~9h               |
+#### 🎯 Stato Attuale (Epoch 1/50)
 
-**Hardware**: NVIDIA RTX 3090 (24GB VRAM)
+**Problemi Identificati**:
 
-### Training Curve
+1. **Undertrained Model**: Solo 1 epoca completata, il modello non ha converguto
+2. **Mode Collapse**: Usa solo 28 parole uniche su 4000 disponibili (0.7%)
+3. **Over-generation**: Predizioni 21% più lunghe del necessario
+4. **Poor Vocabulary Diversity**: Ripete parole frequenti invece di esplorare vocabolario
+
+**Aspettative Realistiche**:
+
+- **Epoch 10-15**: Loss ~2.5, BLEU-4 ~8-12%, vocabolario 200-300 parole
+- **Epoch 20-30**: Loss ~1.8, BLEU-4 ~15-20%, vocabolario 500-800 parole
+- **Epoch 40-50**: Loss ~1.3, BLEU-4 ~22-28%, vocabolario 1000+ parole
+
+#### 🔄 Progressione Training Attesa
 
 ```
-Val Loss over Epochs:
+Loss / BLEU-4 over Epochs:
 
-4.0 ┤
-3.5 ┤●
-3.0 ┤  ●
-2.5 ┤     ●
-2.0 ┤        ●●
-1.5 ┤            ●●●
-1.0 ┤                  ●●●●●●
-0.5 ┤
-    └────────────────────────────────────
-    0    5    10   15   20   25   30
-              Epoch
+Loss  BLEU
+5.0   0%  ┤●                               Current (Epoch 1)
+4.5   2%  ┤ ●
+4.0   4%  ┤  ●
+3.5   6%  ┤   ●
+3.0   8%  ┤    ●●
+2.5  12%  ┤       ●●●
+2.0  16%  ┤           ●●●
+1.5  20%  ┤               ●●●●            Target (Epoch 30)
+1.0  25%  ┤                    ●●●●●
+      └────────────────────────────────────
+      0    5   10   15   20   25   30   40   50
+                    Epoch
 ```
+
+### 🎓 Baseline e Target Performance
+
+| Benchmark                 | BLEU-4 | WER     | PPL   | Note                 |
+| ------------------------- | ------ | ------- | ----- | -------------------- |
+| **Random Model**          | < 1%   | > 200%  | > 100 | Output casuale       |
+| **Current (Epoch 1)**     | 1.04%  | 121.69% | 62.56 | Fase iniziale        |
+| **Acceptable (Epoch 30)** | 20-25% | 40-50%  | 8-12  | Uso pratico limitato |
+| **Good (Epoch 50+)**      | 28-35% | 30-40%  | 5-8   | Qualità buona        |
+| **State-of-Art**          | 40-50% | 20-30%  | 3-5   | Ricerca avanzata     |
+
+### 🖥️ Hardware Performance
+
+**Setup Attuale**:
+
+- **Device**: Apple M1/M2 (MPS)
+- **RAM**: 16GB
+- **Training Speed**: ~2.8 it/s (~11 minuti/epoch)
+- **Model Size**: 33.7M parametri
+
+**Tempo Stimato Training Completo**:
+
+- 50 epochs: ~9-10 ore
+- 100 epochs: ~18-20 ore
+
+### 🔍 Confronto con Altri Approcci
+
+| Approach                          | Implementation | Status                       | Expected BLEU-4        |
+| --------------------------------- | -------------- | ---------------------------- | ---------------------- |
+| **Seq2Seq Transformer** (current) | Ours           | 🟡 In training (1/50 epochs) | 25-30% (at completion) |
+| LSTM Encoder-Decoder              | Baseline       | ❌ Not implemented           | ~18-22%                |
+| GRU Seq2Seq                       | Baseline       | ❌ Not implemented           | ~20-24%                |
+| Pre-trained BERT + Decoder        | Advanced       | ❌ Future work               | ~35-40%                |
+| Multimodal Transformer            | Advanced       | ❌ Future work               | ~40-45%                |
+
+**Note**: Performance comparisons basate su letteratura How2Sign e dataset simili
 
 ---
 
