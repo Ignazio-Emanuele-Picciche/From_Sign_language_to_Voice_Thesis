@@ -7,6 +7,8 @@ mlartifacts/
 results/tts_audio/
 results/grid_search/
 data/processed/sign_language_landmarks
+data/processed/how2sign_ssvp
+data/processed/landmarks_how2sign
 
 # VS Code
 .vscode/

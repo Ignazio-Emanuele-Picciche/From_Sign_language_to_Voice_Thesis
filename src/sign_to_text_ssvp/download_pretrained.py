@@ -2,16 +2,23 @@
 Download Pretrained SSVP-SLT Models
 ====================================
 
-Download pretrained checkpoints from Facebook Research SSVP-SLT.
+⚠️ IMPORTANT: How2Sign pretrained models are NOT publicly available as of Nov 2024.
+Only SONAR ASL models (trained on DailyMoth 70h) are available.
+
+See docs/PRETRAINED_MODELS_STATUS.md for detailed information.
+
+Available models:
+- sonar_signhiera: SignHiera feature extractor (DailyMoth 70h, ~350MB)
+- sonar_encoder: SONAR ASL encoder (DailyMoth 70h, ~500MB)
 
 Usage:
-    # Download Base model
-    python download_pretrained.py --model base
+    # Download SONAR SignHiera
+    python download_pretrained.py --model sonar_signhiera
 
-    # Download Large model
-    python download_pretrained.py --model large
+    # Download SONAR Encoder
+    python download_pretrained.py --model sonar_encoder
 
-    # Download all models
+    # Download all available models
     python download_pretrained.py --model all
 """
 
@@ -26,24 +33,22 @@ from tqdm import tqdm
 
 
 # Model URLs and checksums
+# Source: https://github.com/facebookresearch/ssvp_slt/blob/main/examples/sonar/demo.sh
+# Released: December 29, 2024 (PR #13)
 PRETRAINED_MODELS = {
-    "base": {
-        "url": "https://dl.fbaipublicfiles.com/ssvp_slt/how2sign/ssvp_base.pt",
-        "md5": "placeholder_md5_hash_base",  # TODO: Update with actual hash
-        "size_mb": 340,
-        "description": "SSVP-SLT Base model (86M params) - MAE pretrained",
+    "sonar_signhiera": {
+        "url": "https://dl.fbaipublicfiles.com/SONAR/asl/dm_70h_ub_signhiera.pth",
+        "md5": None,  # Not provided by Facebook Research
+        "size_mb": 350,
+        "description": "SignHiera feature extractor trained on DailyMoth 70h (news domain)",
+        "filename": "dm_70h_ub_signhiera.pth",
     },
-    "large": {
-        "url": "https://dl.fbaipublicfiles.com/ssvp_slt/how2sign/ssvp_large.pt",
-        "md5": "placeholder_md5_hash_large",
-        "size_mb": 1200,
-        "description": "SSVP-SLT Large model (307M params) - MAE pretrained",
-    },
-    "base_clip": {
-        "url": "https://dl.fbaipublicfiles.com/ssvp_slt/how2sign/ssvp_base_clip.pt",
-        "md5": "placeholder_md5_hash_base_clip",
-        "size_mb": 360,
-        "description": "SSVP-SLT Base model - MAE+CLIP pretrained",
+    "sonar_encoder": {
+        "url": "https://dl.fbaipublicfiles.com/SONAR/asl/dm_70h_ub_sonar_encoder.pth",
+        "md5": None,
+        "size_mb": 500,
+        "description": "SONAR ASL encoder trained on DailyMoth 70h (teacher-student approach)",
+        "filename": "dm_70h_ub_sonar_encoder.pth",
     },
 }
 
@@ -138,14 +143,17 @@ def download_model(model_name: str, output_dir: Path, force: bool = False) -> bo
         return False
 
     model_info = PRETRAINED_MODELS[model_name]
-    output_path = output_dir / f"ssvp_{model_name}.pt"
+    output_path = output_dir / model_info["filename"]
 
     print("\n" + "=" * 80)
-    print(f"📦 Model: SSVP-{model_name.upper()}")
+    print(f"📦 Model: {model_name}")
     print("=" * 80)
     print(f"📝 Description: {model_info['description']}")
     print(f"💾 Size: ~{model_info['size_mb']} MB")
     print(f"📍 Output: {output_path}")
+    print(f"🔗 URL: {model_info['url']}")
+    print("\n⚠️  Note: This model was trained on DailyMoth 70h (news domain),")
+    print("          not How2Sign (instructional domain). Performance may vary.")
 
     # Check if already exists
     if output_path.exists() and not force:
@@ -179,18 +187,22 @@ def main():
         description="Download pretrained SSVP-SLT models",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+⚠️  IMPORTANT: How2Sign pretrained models are NOT publicly available.
+    Only SONAR ASL models (DailyMoth 70h) are available.
+    See docs/PRETRAINED_MODELS_STATUS.md for details.
+
 Examples:
-  # Download Base model
-  python download_pretrained.py --model base
+  # Download SONAR SignHiera feature extractor
+  python download_pretrained.py --model sonar_signhiera
   
-  # Download Large model
-  python download_pretrained.py --model large
+  # Download SONAR Encoder
+  python download_pretrained.py --model sonar_encoder
   
-  # Download all models
+  # Download all available models
   python download_pretrained.py --model all
   
   # Force re-download
-  python download_pretrained.py --model base --force
+  python download_pretrained.py --model sonar_signhiera --force
         """,
     )
 
@@ -199,7 +211,7 @@ Examples:
         type=str,
         required=True,
         choices=list(PRETRAINED_MODELS.keys()) + ["all"],
-        help="Model to download: base, large, base_clip, or all",
+        help="Model to download: sonar_signhiera, sonar_encoder, or all",
     )
 
     parser.add_argument(
@@ -219,8 +231,11 @@ Examples:
     output_dir = Path(args.output)
 
     print("=" * 80)
-    print("🚀 SSVP-SLT Pretrained Model Downloader")
+    print("🚀 SSVP-SLT / SONAR ASL Model Downloader")
     print("=" * 80)
+    print("\n⚠️  Note: How2Sign pretrained models are NOT publicly available.")
+    print("         Only SONAR ASL (DailyMoth 70h) models can be downloaded.")
+    print("         See docs/PRETRAINED_MODELS_STATUS.md for full details.")
     print(f"\n📂 Output directory: {output_dir.absolute()}")
 
     # Download model(s)
@@ -253,12 +268,19 @@ Examples:
     else:
         print("\n🎉 All downloads completed successfully!")
         print(f"\n📍 Models saved to: {output_dir.absolute()}")
+        print("\n⚠️  IMPORTANT:")
+        print("   These SONAR models were trained on DailyMoth (news domain),")
+        print("   NOT How2Sign (instructional domain). Expected performance:")
+        print("   - BLEU-4: 15-25% (vs 38-40% for How2Sign-trained models)")
+        print("   - Domain mismatch will impact results")
         print("\n🚀 Next steps:")
-        print("   1. Prepare How2Sign dataset:")
-        print("      python prepare_how2sign_for_ssvp.py")
-        print("")
-        print("   2. Fine-tune model:")
-        print("      python finetune_how2sign.py --config configs/finetune_base.yaml")
+        print("   1. Read: docs/PRETRAINED_MODELS_STATUS.md")
+        print("   2. Prepare dataset: python prepare_how2sign_for_ssvp.py")
+        print("   3. Fine-tune (if desired): python finetune_how2sign.py")
+        print("\n💡 For thesis: Consider Option 3 from PRETRAINED_MODELS_STATUS.md")
+        print(
+            "   (Compare your Seq2Seq Transformer against published SSVP-SLT results)"
+        )
         sys.exit(0)
 
 

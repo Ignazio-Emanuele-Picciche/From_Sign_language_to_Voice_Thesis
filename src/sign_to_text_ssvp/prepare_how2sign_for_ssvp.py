@@ -149,6 +149,11 @@ def prepare_split(
         video_name = row["video_name"]
         caption = row["caption"]
 
+        # Skip rows with missing video_name or caption
+        if pd.isna(video_name) or pd.isna(caption):
+            failed_count += 1
+            continue
+
         # Find source video
         source_video = find_video_file(video_name, video_dir)
 
