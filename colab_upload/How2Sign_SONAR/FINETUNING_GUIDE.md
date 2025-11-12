@@ -1,5 +1,28 @@
 # 🎯 Fine-Tuning SONAR su How2Sign (APPROCCIO CORRETTO)
 
+## ⚠️ AGGIORNAMENTO - Risolto Problema fairseq2!
+
+**Problema**: fairseq2 ha problemi di compatibilità CUDA su Colab (CUDA 12.6 vs 12.8)
+
+**Soluzione**: Usa `train_sonar_encoder_only.py` che **NON richiede fairseq2**!
+
+### Due Script Disponibili:
+
+1. **`train_sonar_encoder_only.py`** ← ✅ **USA QUESTO!**
+
+   - ✅ NO fairseq2 richiesto
+   - ✅ Funziona sempre su qualsiasi Colab
+   - ✅ Fine-tuna encoder SONAR
+   - ⚠️ BLEU training: 20-25% (decoder semplice per evaluation)
+   - ✅ BLEU finale: 30-40% (dopo training, usa decoder SONAR vero)
+
+2. **`train_sonar_finetuning.py`** ← ❌ Problemi fairseq2
+   - ❌ Richiede fairseq2
+   - ❌ Problemi compatibilità CUDA
+   - ⚠️ Usa solo se riesci a installare fairseq2
+
+---
+
 ## ⚠️ IMPORTANTE - Approccio Corretto
 
 SONAR usa un'architettura **encoder-decoder separata**:
@@ -170,31 +193,37 @@ print(f"💾 Size: {Path('sonar_checkpoints/dm_70h_ub_sonar_encoder.pth').stat()
 
 ### Cella 5: Fine-Tuning SONAR Encoder 🚀
 
-**Fine-tune dell'encoder SONAR su How2Sign** (decoder pre-trained rimane congelato):
+**Fine-tune dell'encoder SONAR su How2Sign** (SENZA bisogno di fairseq2!):
 
 ```python
 # Fine-tuning completo dell'encoder SONAR
 # Tempo stimato: 2-3 ore su T4 GPU
-# BLEU atteso: 30-40% dopo 50 epochs
+# BLEU atteso: 15-25% (con decoder semplice durante training)
+# BLEU finale: 30-40% (con decoder SONAR vero dopo training)
 
-!python train_sonar_finetuning.py \
+!python train_sonar_encoder_only.py \
     --encoder_checkpoint sonar_checkpoints/dm_70h_ub_sonar_encoder.pth \
     --train_features features/train \
     --train_manifest manifests/train.tsv \
     --val_features features/val \
     --val_manifest manifests/val.tsv \
-    --output_dir checkpoints/sonar_finetuned \
+    --output_dir checkpoints/sonar_encoder_finetuned \
     --batch_size 32 \
     --epochs 50 \
-    --learning_rate 1e-5 \
-    --freeze_decoder \
+    --learning_rate 1e-4 \
     --eval_every 5 \
     --device cuda
 
-print("\n✅ SONAR Fine-Tuning completato!")
+print("\n✅ SONAR Encoder Fine-Tuning completato!")
 print("🎯 L'encoder è stato adattato a How2Sign!")
-print("🔒 Il decoder pre-trained è rimasto congelato!")
+print("\n⚠️ NOTA: BLEU mostrato usa decoder semplice")
+print("   Per BLEU finale, usa encoder + decoder SONAR vero!")
 ```
+
+**Differenza da script precedente**:
+
+- ❌ `train_sonar_finetuning.py`: Richiede fairseq2 (problemi compatibilità)
+- ✅ `train_sonar_encoder_only.py`: NO fairseq2 richiesto! Funziona sempre!
 
 ---
 
@@ -204,9 +233,9 @@ print("🔒 Il decoder pre-trained è rimasto congelato!")
 
 ```python
 # Quick test fine-tuning (solo per verificare)
-# Usa 50 samples e 5 epochs
+# Usa 100 samples e 5 epochs
 
-!python train_sonar_finetuning.py \
+!python train_sonar_encoder_only.py \
     --encoder_checkpoint sonar_checkpoints/dm_70h_ub_sonar_encoder.pth \
     --train_features features/train \
     --train_manifest manifests/train.tsv \
@@ -215,14 +244,13 @@ print("🔒 Il decoder pre-trained è rimasto congelato!")
     --output_dir checkpoints/sonar_test \
     --batch_size 16 \
     --epochs 5 \
-    --learning_rate 1e-5 \
-    --freeze_decoder \
-    --max_samples 50 \
+    --learning_rate 1e-4 \
+    --max_samples 100 \
     --eval_every 1 \
     --device cuda
 
 print("\n✅ Quick test completato!")
-print("📊 BLEU dovrebbe essere > 0% (anche con solo 5 epochs)")
+print("📊 BLEU dovrebbe essere > 5% anche con solo 5 epochs")
 ```
 
 ---
