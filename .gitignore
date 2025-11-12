@@ -1,5 +1,6 @@
 __pycache__/
 .venv
+.venv_sonar
 raw/
 models/*
 mlruns/
@@ -9,6 +10,7 @@ results/grid_search/
 data/processed/sign_language_landmarks
 data/processed/how2sign_ssvp
 data/processed/landmarks_how2sign
+colab_upload/How2Sign_SONAR/videos
 
 # VS Code
 .vscode/
