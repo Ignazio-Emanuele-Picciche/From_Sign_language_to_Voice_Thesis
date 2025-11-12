@@ -36,11 +36,49 @@ SONAR Text Decoder (pre-trained) → Traduzione inglese
 ### Cella 1: Setup Environment
 
 ```python
-# Installa dipendenze
-!pip install -q torch torchvision tqdm pandas sacrebleu
+# Verifica versione PyTorch su Colab
+import torch
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA version: {torch.version.cuda}")
 
-print("✅ Dipendenze installate")
+# Installa dipendenze base
+!pip install -q tqdm pandas sacrebleu
+
+# Installa fairseq2 compatibile con PyTorch disponibile
+# NOTA: Se errore CUDA version mismatch, usa versione CPU
+!pip install -q fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cu121
+
+print("\n✅ Dipendenze installate")
+print("\n⚠️ Se errori di compatibilità CUDA/PyTorch, prova:")
+print("   !pip uninstall -y fairseq2")
+print("   !pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cpu")
 ```
+
+---
+
+### Cella 1B: 🔧 Fix fairseq2 CUDA Mismatch (SE NECESSARIO)
+
+**Se la Cella 1 ha dato errore tipo "fairseq2 requires CUDA 12.8 but installed is CUDA 12.6":**
+
+```python
+# SOLUZIONE 1: Installa versione CPU di fairseq2 (funziona sempre)
+!pip uninstall -y fairseq2
+!pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cpu
+
+print("✅ fairseq2 CPU installato")
+
+# Verifica import
+try:
+    from fairseq2.models.sonar import load_sonar_text_decoder
+    print("✅ fairseq2 funziona!")
+except Exception as e:
+    print(f"❌ Errore: {e}")
+    print("\n🔧 SOLUZIONE 2: Prova versione PyTorch 2.5.0")
+    print("   !pip install torch==2.5.0 torchvision==0.20.0 --index-url https://download.pytorch.org/whl/cu121")
+    print("   !pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cu121")
+```
+
+**Nota**: La versione CPU di fairseq2 è sufficiente per il decoder (che è congelato). Il training dell'encoder userà comunque la GPU!
 
 ---
 
@@ -119,8 +157,8 @@ from pathlib import Path
 # Crea directory per i checkpoints
 os.makedirs('sonar_checkpoints', exist_ok=True)
 
-# Download SONAR encoder checkpoint
-!wget https://dl.fbaipublicfiles.com/SONAR/dm_70h_ub_sonar_encoder.pth \
+# Download SONAR encoder checkpoint (CORRETTO: aggiungi /asl/ nel path!)
+!wget https://dl.fbaipublicfiles.com/SONAR/asl/dm_70h_ub_sonar_encoder.pth \
     -O sonar_checkpoints/dm_70h_ub_sonar_encoder.pth
 
 print("\n✅ SONAR Encoder checkpoint scaricato!")

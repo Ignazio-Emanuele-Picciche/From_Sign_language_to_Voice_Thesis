@@ -31,8 +31,27 @@ try:
     from fairseq2.models.sonar import load_sonar_text_decoder, load_sonar_text_encoder
 
     FAIRSEQ2_AVAILABLE = True
+    print("✅ fairseq2 imported successfully")
 except ImportError:
-    print("⚠️ WARNING: fairseq2 not installed. Install with: pip install fairseq2")
+    print("⚠️ WARNING: fairseq2 not installed.")
+    print(
+        "   Install with: pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cu121"
+    )
+    FAIRSEQ2_AVAILABLE = False
+except RuntimeError as e:
+    print(f"⚠️ WARNING: fairseq2 version mismatch: {e}")
+    print("\n🔧 Soluzioni possibili:")
+    print("   1. Installa versione CPU:")
+    print("      pip uninstall -y fairseq2")
+    print(
+        "      pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cpu"
+    )
+    print("\n   2. Aggiorna PyTorch a versione compatibile:")
+    print(
+        "      pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128"
+    )
+    print("\n   3. Usa versione fairseq2 specifica per tua versione PyTorch")
+    print("      Vedi: https://github.com/facebookresearch/fairseq2#variants")
     FAIRSEQ2_AVAILABLE = False
 
 
