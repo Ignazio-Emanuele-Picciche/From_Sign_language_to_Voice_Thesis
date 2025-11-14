@@ -40,20 +40,76 @@ class How2SignDataset(Dataset):
         self.features_dir = Path(features_dir)
 
         # Carica manifest con traduzioni
-        self.manifest = pd.read_csv(manifest_path, sep="\t")
+        manifest_full = pd.read_csv(manifest_path, sep="\t")
+
+        print(f"   Total samples in manifest: {len(manifest_full)}")
+
+        # Debug: mostra colonne disponibili
+        if len(manifest_full) > 0:
+            print(f"   Columns: {list(manifest_full.columns)}")
+
+        # Identifica colonne (supporta vari formati)
+        # Possibili nomi: video_id, id, SENTENCE_NAME, etc.
+        self.id_col = None
+        self.text_col = None
+
+        for col in manifest_full.columns:
+            col_lower = col.lower()
+            if "id" in col_lower or "name" in col_lower:
+                self.id_col = col
+            if (
+                "text" in col_lower
+                or "translation" in col_lower
+                or "sentence" in col_lower
+            ):
+                self.text_col = col
+
+        # Fallback: usa prime due colonne
+        if self.id_col is None:
+            self.id_col = manifest_full.columns[0]
+        if self.text_col is None:
+            self.text_col = manifest_full.columns[-1]  # Ultima colonna
+
+        print(f"   Using ID column: '{self.id_col}'")
+        print(f"   Using Text column: '{self.text_col}'")
+
+        # ⚠️ IMPORTANTE: Filtra solo video con feature disponibili!
+        print(f"   Checking available features...")
+        available_ids = []
+
+        for idx, row in manifest_full.iterrows():
+            video_id = str(row[self.id_col])
+
+            # Check se esiste .npy o .pt
+            npy_path = self.features_dir / f"{video_id}.npy"
+            pt_path = self.features_dir / f"{video_id}.pt"
+
+            if npy_path.exists() or pt_path.exists():
+                available_ids.append(idx)
+
+        # Filtra manifest
+        self.manifest = manifest_full.iloc[available_ids].reset_index(drop=True)
+
+        print(f"   ✅ Found {len(self.manifest)} samples with features")
+        print(
+            f"   ❌ Skipped {len(manifest_full) - len(self.manifest)} samples without features"
+        )
 
         if max_samples:
             self.manifest = self.manifest.head(max_samples)
+            print(
+                f"   Limited to {len(self.manifest)} samples (max_samples={max_samples})"
+            )
 
-        print(f"📂 Loaded {len(self.manifest)} samples from {manifest_path}")
+        print(f"📂 Final dataset size: {len(self.manifest)} samples")
 
     def __len__(self):
         return len(self.manifest)
 
     def __getitem__(self, idx):
         row = self.manifest.iloc[idx]
-        video_id = row["video_id"]
-        text = row["text"]
+        video_id = str(row[self.id_col])  # Converti a stringa
+        text = str(row[self.text_col])
 
         # Carica features (.npy)
         feature_path = self.features_dir / f"{video_id}.npy"
@@ -65,7 +121,10 @@ class How2SignDataset(Dataset):
                 data = torch.load(feature_path, map_location="cpu")
                 features = data["features"]
             else:
-                raise FileNotFoundError(f"Feature not found: {video_id}")
+                # Questo non dovrebbe mai accadere dopo il filtering
+                raise FileNotFoundError(
+                    f"Feature not found: {video_id} (should have been filtered!)"
+                )
         else:
             features = np.load(feature_path)
             features = torch.from_numpy(features).float()
@@ -74,12 +133,31 @@ class How2SignDataset(Dataset):
 
 
 def collate_fn(batch):
-    """Collate function per batch con padding"""
+    """Collate function per batch con padding/truncation"""
     video_ids = [item["video_id"] for item in batch]
     texts = [item["text"] for item in batch]
 
-    # Features: tutte (300, 256), già uniform
-    features = torch.stack([item["features"] for item in batch])
+    # Features: possono avere lunghezze diverse!
+    # Padding/truncation a lunghezza fissa
+    max_len = 300  # Lunghezza target
+    feature_dim = 256
+
+    padded_features = []
+    for item in batch:
+        feat = item["features"]  # (T, 256)
+        T = feat.shape[0]
+
+        if T > max_len:
+            # Truncate
+            feat = feat[:max_len, :]
+        elif T < max_len:
+            # Pad con zeri
+            padding = torch.zeros(max_len - T, feature_dim)
+            feat = torch.cat([feat, padding], dim=0)
+
+        padded_features.append(feat)
+
+    features = torch.stack(padded_features)  # (B, 300, 256)
 
     return {
         "video_ids": video_ids,
@@ -416,15 +494,31 @@ def build_vocab(train_manifest: str, val_manifest: str) -> SimpleVocab:
 
     vocab = SimpleVocab()
 
+    # Funzione helper per trovare colonna text
+    def find_text_column(df):
+        for col in df.columns:
+            col_lower = col.lower()
+            if (
+                "text" in col_lower
+                or "translation" in col_lower
+                or "sentence" in col_lower
+            ):
+                return col
+        return df.columns[-1]  # Fallback: ultima colonna
+
     # Train
     df = pd.read_csv(train_manifest, sep="\t")
-    for text in df["text"]:
-        vocab.add_sentence(text)
+    text_col = find_text_column(df)
+    print(f"   Train text column: '{text_col}'")
+    for text in df[text_col]:
+        vocab.add_sentence(str(text))
 
     # Val
     df = pd.read_csv(val_manifest, sep="\t")
-    for text in df["text"]:
-        vocab.add_sentence(text)
+    text_col = find_text_column(df)
+    print(f"   Val text column: '{text_col}'")
+    for text in df[text_col]:
+        vocab.add_sentence(str(text))
 
     print(f"✅ Vocabulary size: {len(vocab)} words")
 
@@ -516,7 +610,7 @@ def main():
 
     # Scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=3, verbose=True
+        optimizer, mode="max", factor=0.5, patience=3
     )
 
     # Training
