@@ -1,11 +1,144 @@
 """
-Emotion Mapper per Bark TTS - Mappa emozioni a speaker prompts
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  EMOTION MAPPER - CONFIGURAZIONE BARK TTS                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-Bark supporta vari tag emotivi:
-- Risate: [laughs], [chuckles], [giggles]
-- Tristezza: [sighs], [gasps], [sad]
-- Suoni: [clears throat], [coughs], [breath]
-- Altri: [music], [whispers], ...
+📋 DESCRIZIONE:
+    Modulo di mappatura intelligente tra emozioni predette dal modello ViViT
+    e configurazioni Bark TTS (speaker prompts, tag emotivi, temperature).
+    Agisce come traduttore tra lo spazio delle emozioni e lo spazio dei
+    parametri di Bark.
+
+🎯 SCOPO PRINCIPALE:
+    Convertire una predizione emotiva (es: "Positive" con confidence 0.92)
+    in una configurazione Bark completa che include:
+    - Speaker voice prompt (quale voce usare)
+    - Tag emotivi da inserire nel testo ([laughs], [sighs], etc.)
+    - Temperature per controllare la variabilità della generazione
+    - Descrizioni leggibili per logging/debug
+
+🏗️ COMPONENTI CHIAVE:
+
+    1. EMOTION_BARK_MAPPING (dict)
+       └─> Mapping principale: emozione → configurazione Bark di default
+           Struttura: {
+               "Positive": {
+                   "history_prompt": "v2/en_speaker_6",  # Voce energica
+                   "text_prefix": "[laughs]",             # Tag di default
+                   "temperature": 0.7,                    # Variabilità
+                   "description": "Voce allegra..."
+               },
+               ...
+           }
+
+    2. EMOTIONAL_TAGS (dict)
+       └─> Sistema multi-tag con selezione basata su confidenza
+           - primary: Tag di default per l'emozione
+           - alternatives: Tag alternativi per varietà ([chuckles], [giggles])
+           - high/medium/low_confidence: Tag scelti in base a confidence score
+
+           INNOVAZIONE: Adapta l'intensità del tag alla certezza della predizione
+           - Confidence >90%: tag forte ([laughs])
+           - Confidence 70-90%: tag moderato ([chuckles])
+           - Confidence <70%: nessun tag (troppo incerto)
+
+    3. ALTERNATIVE_SPEAKERS (dict)
+       └─> Pool di speaker alternativi per ogni emozione
+           Bark ha 10 speaker per lingua (v2/en_speaker_0 a _9)
+           Questo permette varietà vocale mantenendo coerenza emotiva
+
+📊 MAPPING DETTAGLIATO:
+
+    POSITIVE:
+    - Speakers: 6 (energico), 5 (allegro), 7 (vivace)
+    - Tags: [laughs] (genuino), [chuckles] (contenuto), [giggles] (leggero)
+    - Temperature: 0.7 (alta espressività)
+    - Uso: Gioia, eccitazione, soddisfazione
+
+    NEGATIVE:
+    - Speakers: 3 (calmo), 1 (riflessivo), 4 (serio)
+    - Tags: [sighs] (sospiro), [gasps] (shock), [sad] (tristezza), [clears throat]
+    - Temperature: 0.6 (più controllato)
+    - Uso: Tristezza, frustrazione, delusione
+
+    NEUTRAL:
+    - Speakers: 9 (professionale), 0 (narratore), 2 (standard)
+    - Tags: nessuno o [clears throat] (minimalista)
+    - Temperature: 0.5 (bassa variabilità)
+    - Uso: Informazioni fattuali, neutralità
+
+🔧 FUNZIONI PRINCIPALI:
+
+    map_emotion_to_bark_prompt(emotion, use_emotional_tags)
+    └─> Restituisce configurazione Bark completa per un'emozione
+
+    get_emotional_tag(emotion, confidence, alternative)
+    └─> Seleziona tag emotivo ottimale basandosi su confidenza
+        INNOVATIVO: Adapta l'intensità emotiva alla certezza
+
+    get_alternative_emotional_tags(emotion)
+    └─> Lista tutti i tag disponibili per un'emozione (per sperimentazione)
+
+    get_bark_speaker(emotion, alternative)
+    └─> Restituisce speaker prompt con possibilità di varianti
+
+💡 STRATEGIA DI SELEZIONE TAG:
+
+    La selezione del tag emotivo segue una logica a cascata:
+
+    1. Se specificato alternative index → usa tag dalla lista alternatives
+    2. Se specificata confidence → usa tag basato su soglie:
+       - confidence ≥ 0.9 → high_confidence tag (più forte)
+       - 0.7 ≤ confidence < 0.9 → medium_confidence tag
+       - confidence < 0.7 → low_confidence tag (più neutro/assente)
+    3. Altrimenti → usa primary tag (default)
+
+    Questo permette:
+    - Evitare tag inappropriati quando predizione è incerta
+    - Variare l'espressività in base alla certezza del modello
+    - Sperimentare con tag alternativi manualmente
+
+🎨 PERSONALIZZAZIONE:
+
+    Il sistema è facilmente estensibile:
+    - Aggiungi nuove emozioni in EMOTION_BARK_MAPPING
+    - Sperimenta con speaker diversi (Bark ha 10 per lingua)
+    - Crea nuove combinazioni di tag emotivi
+    - Regola temperature per controllare espressività
+
+📈 VALIDAZIONE:
+
+    Il modulo include un blocco __main__ per testing:
+    - Verifica mapping per tutte le emozioni
+    - Testa selezione tag basata su confidenza
+    - Mostra speaker alternativi disponibili
+    - Esporta tutti i tag per debugging
+
+    Esegui: python emotion_mapper.py
+
+🔗 INTEGRAZIONE:
+
+    Usato da:
+    - tts_generator.py: per ottenere configurazione prima della generazione
+    - Script di testing: per verificare mapping e sperimentare
+    - Pipeline principale: come primo step dopo predizione emozione
+
+📚 RIFERIMENTI:
+    - Bark tag emotivi supportati: docs/BARK_EMOTIONAL_TAGS.md
+    - Speaker caratteristiche: README.md sezione "Speaker Mapping"
+    - Temperature tuning: docs/HYPERPARAMETER_TUNING_GUIDE.md
+
+⚠️ NOTE IMPORTANTI:
+    - Gli speaker Bark hanno caratteristiche intrinseche (genere, età, stile)
+      che influenzano la percezione emotiva
+    - Non tutti i tag funzionano bene con tutti gli speaker
+    - La temperature influenza sia prosodia che qualità audio
+    - Tag multipli nello stesso testo possono creare effetti interessanti
+      ma vanno posizionati con cura (vedi emotion_tag_optimizer.py)
+
+👤 AUTORE: Ignazio Emanuele Picciche
+📅 DATA: Novembre 2025
+🎓 PROGETTO: Tesi Magistrale - EmoSign con Bark TTS
 """
 
 # Mapping da emozione a speaker prompts di Bark

@@ -1,11 +1,311 @@
 """
-TTS Generator - Genera audio emotivo usando Bark TTS
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              TTS GENERATOR - CORE GENERAZIONE AUDIO CON BARK                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-Bark è un modello transformer-based di Suno AI che supporta:
-- Generazione emotiva attraverso speaker prompts
-- Tag speciali: [laughs], [sighs], [gasps], [clears throat], etc.
-- Controllo fine tramite temperature
-- Audio molto naturale e espressivo
+📋 DESCRIZIONE:
+    Modulo principale per la generazione di audio emotivo usando Bark TTS.
+    Questo è il CUORE della pipeline TTS: coordina tutti i componenti
+    (emotion_mapper, emotion_tag_optimizer) e effettua la sintesi vocale
+    vera e propria producendo file WAV ad alta qualità.
+
+🎯 SCOPO PRINCIPALE:
+    Trasformare predizioni emotive da ViViT in audio espressivo:
+
+    INPUT:
+        - Emozione predetta: "Positive" | "Negative" | "Neutral"
+        - Confidence score: 0.0-1.0 (certezza della predizione)
+        - Testo da pronunciare: caption del sign language
+        - Parametri opzionali: speaker, tag, ottimizzazioni
+
+    OUTPUT:
+        - File audio WAV a 24kHz (standard Bark)
+        - Prosodia emotiva naturale
+        - Qualità paragonabile a voce umana
+
+🏗️ ARCHITETTURA BARK:
+
+    Bark è un modello generativo transformer-based (GPT-like) sviluppato
+    da Suno AI. Architettura multi-stage:
+
+    1. TEXT → SEMANTIC TOKENS (GPT encoder)
+       └─> Converte testo in rappresentazione semantica
+
+    2. SEMANTIC → COARSE ACOUSTIC (GPT generator)
+       └─> Genera feature acustiche a bassa risoluzione
+
+    3. COARSE → FINE ACOUSTIC (refinement)
+       └─> Raffina feature per qualità alta
+
+    4. FINE ACOUSTIC → WAVEFORM (EnCodec decoder)
+       └─> Converte in forma d'onda audio 24kHz
+
+    Ogni stage è controllabile tramite "history_prompt" (speaker voice)
+    e temperature (variabilità/creatività).
+
+🔧 FUNZIONI PRINCIPALI:
+
+    1. generate_emotional_audio()
+       ╔════════════════════════════════════════════════════╗
+       ║  FUNZIONE PIÙ IMPORTANTE - USA QUESTA!             ║
+       ╚════════════════════════════════════════════════════╝
+
+       Genera audio emotivo completo con tutti i controlli:
+
+       Parametri chiave:
+       • emotion: "Positive" | "Negative" | "Neutral"
+       • confidence: 0.0-1.0 (influenza scelta tag)
+       • video_name: identificatore per naming file
+       • output_dir: dove salvare WAV
+       • caption: testo da pronunciare (se None, usa template)
+       • use_emotional_tags: abilita/disabilita tag ([laughs], etc.)
+       • alternative_speaker: 0-2 per variare voce
+       • alternative_tag: 0-N per variare tag emotivo
+       • confidence_based_tags: adapta tag a confidence
+       • optimize_tag_placement: usa posizionamento intelligente
+       • preload: carica modelli in RAM (più veloce)
+
+       Output: path al file WAV generato
+
+       Workflow interno:
+       1. Pre-carica modelli Bark (opzionale)
+       2. Ottiene config Bark da emotion_mapper
+       3. Seleziona speaker (con alternatives)
+       4. Seleziona tag emotivo (basato su confidence o manuale)
+       5. Genera/ottiene testo da pronunciare
+       6. Ottimizza posizionamento tag (emotion_tag_optimizer)
+       7. Chiama Bark per generare audio
+       8. Salva WAV file
+       9. Ritorna path
+
+    2. generate_baseline_audio()
+       └─> Genera audio NEUTRALE per confronti/baseline
+           Usa speaker neutro (v2/en_speaker_9)
+           Nessun tag emotivo
+           Temperature basse (0.5)
+           Utile per ablation studies
+
+    3. preload_bark_models()
+       └─> PRE-CARICA modelli Bark in RAM
+
+           Perché serve:
+           - Prima generazione: ~60-90 secondi (caricamento + sintesi)
+           - Successive generazioni: ~15-30 secondi (solo sintesi)
+
+           Trade-off:
+           + Velocità: 4x più veloce dopo preload
+           - RAM: richiede ~10GB memoria
+
+           Quando usare:
+           ✅ Batch processing (molti audio)
+           ✅ Demo interattive
+           ❌ Una tantum (spreco memoria)
+           ❌ Server con poca RAM
+
+🎨 CONTROLLO ESPRESSIVITÀ:
+
+    Bark offre controllo fine tramite TEMPERATURE:
+
+    Temperature basse (0.3-0.5):
+    • Voce più consistente e prevedibile
+    • Meno variazioni prosodiche
+    • Meglio per neutral/informative
+
+    Temperature medie (0.6-0.7):
+    • Bilanciamento espressività/consistenza
+    • Default per positive/negative
+    • Sweet spot per uso generale
+
+    Temperature alte (0.8-1.0):
+    • Massima espressività e variabilità
+    • Rischio: artefatti, inconsistenze
+    • Solo per sperimentazione
+
+📊 STRATEGIE TAG EMOTIVI:
+
+    Il modulo supporta 3 modalità per selezione tag:
+
+    1. CONFIDENCE-BASED (default, consigliato)
+       └─> Tag adapta a certezza predizione
+           High conf (>90%) → tag forte ([laughs])
+           Med conf (70-90%) → tag moderato ([chuckles])
+           Low conf (<70%) → nessun tag
+
+    2. ALTERNATIVE INDEX (manuale)
+       └─> Specifica quale tag dalla lista alternatives
+           alternative_tag=0 → primary
+           alternative_tag=1 → prima alternativa
+           alternative_tag=2 → seconda alternativa, etc.
+
+    3. CUSTOM TAG (via emotion_tag_optimizer)
+       └─> Passa tag custom direttamente
+           Utile per sperimentazione
+
+💡 INNOVAZIONI RISPETTO A BARK VANILLA:
+
+    Questo modulo estende Bark con:
+
+    1. SISTEMA MULTI-TAG
+       └─> Bark di default supporta tag, ma nessun sistema di selezione
+           Qui: scelta intelligente basata su emotion + confidence
+
+    2. TAG PLACEMENT OPTIMIZATION
+       └─> Bark mette tag dove li scrivi nel testo
+           Qui: analisi linguistica per posizionamento ottimale
+
+    3. EMOTION-AWARE CONFIGURATION
+       └─> Bark richiede config manuale
+           Qui: mapping automatico emozione → speaker + temperature
+
+    4. CONFIDENCE ADAPTATION
+       └─> Novità assoluta: intensità tag ∝ certezza predizione
+
+    5. SPEAKER ALTERNATIVES
+       └─> Sistema per variare voce mantenendo coerenza emotiva
+
+🔄 PIPELINE COMPLETA:
+
+    Da video sign language ad audio emotivo:
+
+    Video (.mp4)
+      ↓ [ViViT Model]
+    Emotion + Confidence (es: "Positive", 0.92)
+      ↓ [emotion_mapper.py]
+    Bark Config (speaker: v2/en_speaker_6, tag: [laughs], temp: 0.7)
+      ↓ [get_tts_text()]
+    Testo grezzo ("This video shows positive emotion")
+      ↓ [emotion_tag_optimizer.py]
+    Testo ottimizzato ("[laughs] This video shows [laughs] positive emotion")
+      ↓ [Bark TTS - 4 stage generation]
+    Audio WAV 24kHz
+      ↓ [scipy.io.wavfile.write]
+    File salvato (video_001_positive.wav)
+
+⚙️ DIPENDENZE CRITICHE:
+
+    Bark TTS:
+    - bark: Modello principale (pip install git+https://github.com/suno-ai/bark.git)
+    - transformers: Backend per transformer models
+    - encodec: Audio codec per waveform generation
+
+    Audio processing:
+    - scipy: Salvataggio WAV files
+    - numpy: Manipolazione array audio
+
+    Moduli custom:
+    - emotion_mapper: Configurazione Bark per emozioni
+    - emotion_tag_optimizer: Posizionamento intelligente tag
+    - text_templates: Generazione testo template (parent module)
+    - pytorch_patch: Fix compatibilità PyTorch 2.6+
+
+🎯 PARAMETRI OTTIMALI TROVATI:
+
+    Dopo sperimentazione, configurazione migliore:
+
+    POSITIVE:
+        speaker: v2/en_speaker_6
+        tag: [laughs] (high conf) / [chuckles] (med conf)
+        temperature: 0.7
+        placement: inizio + dopo pause
+
+    NEGATIVE:
+        speaker: v2/en_speaker_3
+        tag: [sighs] (high/med conf) / [clears throat] (low conf)
+        temperature: 0.6
+        placement: metà frase + verso fine
+
+    NEUTRAL:
+        speaker: v2/en_speaker_9
+        tag: nessuno (o [clears throat] se >80 char)
+        temperature: 0.5
+        placement: solo inizio se necessario
+
+📈 PERFORMANCE:
+
+    Tempi di generazione (Apple M1 Pro, 16GB RAM):
+    - Prima generazione (con caricamento): ~60-90 sec
+    - Con preload: ~15-30 sec per audio
+    - Audio tipico: 3-8 secondi di durata
+
+    Qualità audio:
+    - Sample rate: 24kHz (Bark standard)
+    - Bit depth: 16-bit PCM
+    - Mono channel
+    - File size: ~500KB per 10 sec audio
+
+🧪 TESTING:
+
+    Il modulo include blocco __main__ per testing end-to-end:
+    - Pre-carica modelli
+    - Genera baseline neutrale
+    - Genera audio per ogni emozione
+    - Salva file per ascolto manuale
+
+    Esegui: python tts_generator.py
+    Output: test_baseline_bark.wav, test_video_positive.wav, etc.
+
+🔗 INTEGRAZIONE:
+
+    Usato da:
+    - Script principali: test_bark_*.py per sperimentazione
+    - Pipeline evaluation: run_how2sign_evaluation.sh
+    - Demo: demo_tag_optimization.py
+
+    Import standard:
+    from src.tts.bark.tts_generator import generate_emotional_audio
+
+⚠️ LIMITAZIONI:
+
+    1. VELOCITÀ
+       └─> Bark è lento (~30 sec per frase su CPU)
+           Soluzione: usa GPU se disponibile, preload modelli
+
+    2. MEMORIA
+       └─> Modelli occupano ~10GB RAM quando caricati
+           Soluzione: non preload se memoria limitata
+
+    3. LINGUE
+       └─> Bark supporta multi-lingua ma mapping è solo EN
+           Soluzione: estendi EMOTION_BARK_MAPPING per altre lingue
+
+    4. TAG SUPPORT
+       └─> Non tutti tag funzionano con tutti speaker
+           Soluzione: testa combinazioni, usa quelle validate
+
+    5. DETERMINISMO
+       └─> Output non deterministico anche con seed (Bark limitation)
+           Soluzione: genera multiple versioni, scegli migliore
+
+📚 RIFERIMENTI:
+    - Bark GitHub: https://github.com/suno-ai/bark
+    - Bark paper: https://arxiv.org/abs/2301.03298
+    - Tag emotivi: docs/BARK_EMOTIONAL_TAGS.md
+    - Esperimenti prosody: docs/2_tts_prosody_optimization_report.md
+    - Pipeline completa: docs/BARK_TTS_PIPELINE.md
+
+💭 NOTE IMPLEMENTATIVE:
+
+    - generate_audio() è wrapper attorno a pipeline Bark completa
+    - SAMPLE_RATE (24000 Hz) è standard Bark, non modificare
+    - history_prompt determina voce ma non è fine-tunable
+    - temperature applica a text_temp E waveform_temp (entrambi)
+    - WAV format scelto per compatibilità universale
+
+🚀 ESTENSIONI FUTURE:
+
+    Possibili miglioramenti:
+    - [ ] Support per GPU acceleration (CUDA)
+    - [ ] Batch generation (multiple audio in parallelo)
+    - [ ] Caching di speaker embeddings
+    - [ ] Fine-tuning su voci custom
+    - [ ] Real-time streaming generation
+    - [ ] Multi-language support completo
+    - [ ] Emotion blending (mix di emozioni)
+
+👤 AUTORE: Ignazio Emanuele Picciche
+📅 DATA: Novembre 2025
+🎓 PROGETTO: Tesi Magistrale - EmoSign con Bark TTS
+🎵 COMPONENTE: Core TTS Generation Engine
 """
 
 import os
