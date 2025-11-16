@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-SONAR Encoder (Fine-Tuned) + T5 Decoder Training
-=================================================
+SONAR Encoder + Perceiver Resampler + T5 Full (Encoder + Decoder)
+==================================================================
 
-Questo script integra l'encoder SONAR fine-tuned (già trainato) con un
-decoder T5 pre-trained per traduzione ASL→English.
+Architettura finale per traduzione ASL→English con vera cross-attention.
 
 Pipeline:
-1. Carica encoder SONAR fine-tuned (FROZEN)
-2. Aggiungi projection layer (1024→512 dims)
-3. Carica T5-small decoder (pre-trained)
-4. Training: Solo projection + T5 decoder
+1. Carica encoder SONAR fine-tuned (pre-trained su ASL)
+2. Perceiver Resampler: 1024-dim → 64 tokens × 512-dim (Flamingo-style)
+3. T5 ENCODER: Processa i 64 token con self-attention
+4. T5 DECODER: Cross-attention con encoder output → genera testo
 5. Evaluation: BLEU score
 
-Expected BLEU: 18-25% (vs 0.01% con LSTM)
+Architettura:
+Video → SONAR (1024-dim) → Perceiver (64×512) → T5 Encoder → T5 Decoder → Text
+
+KEY FIX: Usa T5 Encoder per vera cross-attention (vs inputs_embeds che bypassa encoder)
+
+Expected BLEU: 8-15% (vs 1.73% senza T5 Encoder)
 
 Autore: GitHub Copilot + Ignazio Picciche
 Data: Novembre 2024
@@ -487,6 +491,16 @@ class SONARwithT5(nn.Module):
         # With: Learnable cross-attention resampler (Flamingo-style)
         t5_input_tokens = self.perceiver(sonar_embedding)  # (B, 64, 512)
 
+        # 3. ✅ NEW: Pass through T5 ENCODER for true cross-attention!
+        # This is the KEY FIX: encoder processes tokens with self-attention,
+        # then decoder does proper cross-attention with encoder outputs.
+        # Previous versions bypassed encoder → decoder ignored input!
+        encoder_outputs = self.t5.encoder(
+            inputs_embeds=t5_input_tokens,  # (B, 64, 512)
+            return_dict=True,
+        )
+        # encoder_outputs.last_hidden_state: (B, 64, 512)
+
         if target_texts is not None:
             # ===== TRAINING MODE =====
 
@@ -500,10 +514,10 @@ class SONARwithT5(nn.Module):
             )
             target_ids = target_encoding.input_ids.to(self.device)
 
-            # T5 Decoder (NO encoder, Flamingo-style)
-            # inputs_embeds goes directly to decoder
+            # ✅ MODIFIED: Use encoder_outputs for TRUE cross-attention!
+            # T5 Decoder now MUST attend to encoder output (can't ignore it)
             outputs = self.t5(
-                inputs_embeds=t5_input_tokens,  # (B, 64, 512) from Perceiver
+                encoder_outputs=encoder_outputs,  # ← CHANGED from inputs_embeds!
                 labels=target_ids,
                 return_dict=True,
             )
@@ -513,9 +527,9 @@ class SONARwithT5(nn.Module):
         else:
             # ===== INFERENCE MODE =====
 
-            # Generate with diversity mechanisms to prevent mode collapse
+            # ✅ MODIFIED: Use encoder_outputs for generation too
             generated_ids = self.t5.generate(
-                inputs_embeds=t5_input_tokens,  # (B, 64, 512)
+                encoder_outputs=encoder_outputs,  # ← CHANGED from inputs_embeds!
                 max_length=max_length,
                 num_beams=4,
                 early_stopping=True,
