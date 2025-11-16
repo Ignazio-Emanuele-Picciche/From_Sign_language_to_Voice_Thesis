@@ -218,6 +218,141 @@ class SONAREncoder(nn.Module):
 # ============================================================================
 
 
+class PerceiverResampler(nn.Module):
+    """
+    Perceiver Resampler (inspired by Flamingo, Alayrac et al. 2022)
+
+    Converts a single SONAR embedding (1024-dim) into multiple latent tokens (N x dim)
+    using learnable query tokens and cross-attention.
+
+    This is more powerful than simple projection because:
+    1. Learnable queries can extract different aspects of SONAR embedding
+    2. Cross-attention allows adaptive weighting
+    3. MLP adds non-linearity for better transformation
+
+    Architecture:
+        SONAR embedding (B, 1024)
+            ↓
+        [Project to hidden_dim]
+            ↓
+        Key/Value (B, 1, hidden_dim)
+            ↓
+        Query = Learnable latents (num_latents, hidden_dim)
+            ↓
+        [Cross-Attention] Query attends to Key/Value
+            ↓
+        [MLP] Process attended output
+            ↓
+        Output (B, num_latents, output_dim)
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 1024,  # SONAR embedding dim
+        hidden_dim: int = 768,  # Internal processing dim
+        output_dim: int = 512,  # T5 hidden dim
+        num_latents: int = 64,  # Number of output tokens
+        num_heads: int = 8,  # Attention heads
+        num_layers: int = 2,  # Depth (stacked resampler layers)
+    ):
+        super().__init__()
+
+        self.num_latents = num_latents
+
+        # Learnable query tokens (these will attend to SONAR embedding)
+        self.latents = nn.Parameter(torch.randn(num_latents, hidden_dim))
+
+        # Project SONAR embedding to hidden_dim
+        self.input_proj = nn.Linear(input_dim, hidden_dim)
+
+        # Cross-attention layers (query=latents, key/value=SONAR)
+        self.cross_attentions = nn.ModuleList(
+            [
+                nn.MultiheadAttention(
+                    embed_dim=hidden_dim,
+                    num_heads=num_heads,
+                    dropout=0.1,
+                    batch_first=False,  # (seq, batch, dim)
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
+        # Layer norms
+        self.layer_norms = nn.ModuleList(
+            [nn.LayerNorm(hidden_dim) for _ in range(num_layers)]
+        )
+
+        # MLPs for processing after attention
+        self.mlps = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(hidden_dim, hidden_dim * 2),
+                    nn.GELU(),
+                    nn.Dropout(0.1),
+                    nn.Linear(hidden_dim * 2, hidden_dim),
+                    nn.Dropout(0.1),
+                )
+                for _ in range(num_layers)
+            ]
+        )
+
+        # Final projection to T5 space
+        self.output_proj = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, output_dim),
+            nn.Dropout(0.1),
+        )
+
+        # Initialize latents with Xavier
+        nn.init.xavier_uniform_(self.latents)
+
+    def forward(self, sonar_embedding: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            sonar_embedding: (B, input_dim) - SONAR sentence embedding
+
+        Returns:
+            output: (B, num_latents, output_dim) - Tokens for T5
+        """
+        batch_size = sonar_embedding.size(0)
+
+        # 1. Project SONAR to hidden dim
+        sonar_hidden = self.input_proj(sonar_embedding)  # (B, hidden_dim)
+
+        # 2. Prepare for attention: (seq, batch, dim)
+        key_value = sonar_hidden.unsqueeze(0)  # (1, B, hidden_dim)
+
+        # 3. Expand learnable latents for batch
+        query = self.latents.unsqueeze(1).expand(
+            -1, batch_size, -1
+        )  # (num_latents, B, hidden_dim)
+
+        # 4. Apply stacked cross-attention + MLP layers
+        output = query
+        for cross_attn, ln, mlp in zip(
+            self.cross_attentions, self.layer_norms, self.mlps
+        ):
+            # Cross-attention: latents attend to SONAR
+            attn_output, _ = cross_attn(
+                query=output, key=key_value, value=key_value
+            )  # (num_latents, B, hidden_dim)
+
+            # Residual + LayerNorm
+            output = ln(output + attn_output)
+
+            # MLP with residual
+            output = output + mlp(output)
+
+        # 5. Transpose to (B, num_latents, hidden_dim)
+        output = output.transpose(0, 1)  # (B, num_latents, hidden_dim)
+
+        # 6. Final projection to T5 space
+        output = self.output_proj(output)  # (B, num_latents, output_dim)
+
+        return output
+
+
 class SONARwithT5(nn.Module):
     """
     Integra SONAR Encoder fine-tuned con T5 Decoder
@@ -228,7 +363,10 @@ class SONARwithT5(nn.Module):
 
     Architecture:
     Video Features → SONAR Encoder (frozen/trainable) → Embedding 1024 →
-    Projection → Attention Bridge → T5 Decoder → Text
+    Perceiver Resampler → (B, 64, 512) → T5 Decoder → Text
+
+    Uses Perceiver Resampler (Flamingo-style) instead of simple projection
+    for better adaptation of SONAR embeddings to T5 decoder.
     """
 
     def __init__(
@@ -283,28 +421,18 @@ class SONARwithT5(nn.Module):
         else:
             print("   🔥 SONAR Encoder TRAINABLE (will be fine-tuned further)")
 
-        # 2. Projection Layer: 1024 (SONAR) → 512 (T5)
-        # MIGLIORAMENTO: Projection più profonda per meglio adattare embedding
-        self.projection = nn.Sequential(
-            nn.Linear(1024, 768),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(768, 512),
-            nn.LayerNorm(512),
-            nn.Dropout(0.1),
+        # 2. Perceiver Resampler: 1024-dim SONAR → 64 tokens × 512-dim T5
+        # REPLACEMENT: Più potente di Projection + Attention Bridge!
+        self.perceiver = PerceiverResampler(
+            input_dim=1024,  # SONAR output
+            hidden_dim=768,  # Internal processing
+            output_dim=512,  # T5 hidden size
+            num_latents=64,  # Output tokens (increased from 32!)
+            num_heads=8,  # Attention heads
+            num_layers=2,  # Depth (stacked resampler)
         )
-        print("   ✅ Projection layer created (1024→768→512)")
-
-        # 3. Expander: Converti singolo embedding → sequenza LUNGA
-        # IMPORTANTE: Più token = più informazione per T5
-        self.expander = nn.Parameter(torch.randn(32, 512))  # 32 token (prima era 8!)
-        print("   ✅ Sequence expander created (1→32 tokens)")
-
-        # 4. Attention bridge: Aiuta T5 a "pesare" diversamente i token
-        self.attention_bridge = nn.MultiheadAttention(
-            embed_dim=512, num_heads=8, dropout=0.1, batch_first=True
-        )
-        print("   ✅ Attention bridge created (cross-attention layer)")
+        print("   ✅ Perceiver Resampler created (1024 → 64×512, 2-layer)")
+        print("      Flamingo-style adapter with learnable query tokens")
 
         # 3. Load T5 Decoder
         print(f"\n📦 Loading T5 model: {t5_model_name}")
@@ -354,30 +482,10 @@ class SONARwithT5(nn.Module):
             # Encoder trainable: compute gradient
             sonar_embedding = self.sonar_encoder(features)  # (B, 1024)
 
-        # 2. Project to T5 space
-        t5_embedding = self.projection(sonar_embedding)  # (B, 512)
-
-        # 3. Expand embedding with attention bridge: (B, 512) → (B, seq_len, 512)
-        batch_size = t5_embedding.size(0)
-
-        # Create query tokens from learnable expander
-        query = self.expander.unsqueeze(0).expand(batch_size, -1, -1)  # (B, 32, 512)
-
-        # Repeat SONAR embedding to create multiple key/value positions
-        # This allows attention to work properly
-        key_value = t5_embedding.unsqueeze(1).repeat(1, 32, 1)  # (B, 32, 512)
-
-        # Apply cross-attention: expander tokens attend to SONAR embedding
-        # MultiheadAttention expects (seq_len, batch, embed_dim)
-        query_t = query.transpose(0, 1)  # (32, B, 512)
-        key_value_t = key_value.transpose(0, 1)  # (32, B, 512)
-
-        attended_output, _ = self.attention_bridge(
-            query=query_t, key=key_value_t, value=key_value_t
-        )  # (32, B, 512)
-
-        # Transpose back to (B, 32, 512)
-        t5_embedding_final = attended_output.transpose(0, 1)  # (B, 32, 512)
+        # 2. Perceiver Resampler: Convert SONAR embedding to T5 tokens
+        # This replaces: Projection → Expander → Attention Bridge
+        # With: Learnable cross-attention resampler (Flamingo-style)
+        t5_input_tokens = self.perceiver(sonar_embedding)  # (B, 64, 512)
 
         if target_texts is not None:
             # ===== TRAINING MODE =====
@@ -392,9 +500,10 @@ class SONARwithT5(nn.Module):
             )
             target_ids = target_encoding.input_ids.to(self.device)
 
-            # T5 forward pass with attended embeddings
+            # T5 Decoder (NO encoder, Flamingo-style)
+            # inputs_embeds goes directly to decoder
             outputs = self.t5(
-                inputs_embeds=t5_embedding_final,  # (B, 32, 512) attended embeddings
+                inputs_embeds=t5_input_tokens,  # (B, 64, 512) from Perceiver
                 labels=target_ids,
                 return_dict=True,
             )
@@ -406,7 +515,7 @@ class SONARwithT5(nn.Module):
 
             # Generate with diversity mechanisms to prevent mode collapse
             generated_ids = self.t5.generate(
-                inputs_embeds=t5_embedding_final,  # (B, 32, 512)
+                inputs_embeds=t5_input_tokens,  # (B, 64, 512)
                 max_length=max_length,
                 num_beams=4,
                 early_stopping=True,
@@ -649,7 +758,7 @@ def main():
     else:
         # Encoder unfrozen: usa differential learning rates
         encoder_params = []
-        projection_attention_params = []
+        perceiver_params = []
         t5_params = []
 
         for name, param in model.named_parameters():
@@ -658,15 +767,14 @@ def main():
 
             if "sonar_encoder" in name:
                 encoder_params.append(param)
-            elif (
-                "projection" in name or "expander" in name or "attention_bridge" in name
-            ):
-                projection_attention_params.append(param)
+            elif "perceiver" in name:
+                # Perceiver Resampler parameters (replaces projection + attention)
+                perceiver_params.append(param)
             elif "t5" in name:
                 t5_params.append(param)
 
         # SONAR Encoder: LR molto basso (1/5 del normale) per preservare pre-training
-        # Projection/Attention: LR normale
+        # Perceiver: LR normale (learnable adapter)
         # T5: LR normale
         optimizer_params = [
             {
@@ -675,9 +783,9 @@ def main():
                 "name": "sonar_encoder",
             },
             {
-                "params": projection_attention_params,
+                "params": perceiver_params,
                 "lr": args.learning_rate,
-                "name": "projection",
+                "name": "perceiver",
             },
             {"params": t5_params, "lr": args.learning_rate, "name": "t5"},
         ]
@@ -686,11 +794,13 @@ def main():
         print(
             f"   SONAR Encoder LR: {args.learning_rate / 5:.2e} (1/5x, preserve pre-training)"
         )
-        print(f"   Projection/Attention LR: {args.learning_rate:.2e} (1x)")
+        print(
+            f"   Perceiver Resampler LR: {args.learning_rate:.2e} (1x, learnable adapter)"
+        )
         print(f"   T5 LR: {args.learning_rate:.2e} (1x)")
         print(f"   Trainable params:")
         print(f"     - SONAR Encoder: {len(encoder_params)}")
-        print(f"     - Projection/Attention: {len(projection_attention_params)}")
+        print(f"     - Perceiver Resampler: {len(perceiver_params)}")
         print(f"     - T5: {len(t5_params)}")
 
     optimizer = torch.optim.AdamW(optimizer_params, weight_decay=0.01)
