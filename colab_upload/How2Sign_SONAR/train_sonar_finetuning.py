@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-SONAR Fine-Tuning Script (APPROCCIO CORRETTO)
-==============================================
+SONAR Fine-Tuning Script (APPROCCIO CORRETTO - API SONAR)
+==========================================================
 
 Questo script implementa il fine-tuning CORRETTO di SONAR su How2Sign:
 - Fine-tuna l'encoder SONAR ASL pre-trained (dm_70h_ub_sonar_encoder.pth)
-- Usa il decoder SONAR pre-trained multilingue (scaricato da fairseq2)
+- Usa il decoder SONAR pre-trained multilingue (da sonar-space package)
 - BLEU atteso: 30-40% (vs 0% con approcci sbagliati)
 
+IMPORTANTE: Usa l'API SONAR corretta (sonar-space package, NON fairseq2.models.sonar)
+
 Autore: GitHub Copilot
-Data: 2024
+Data: Novembre 2024
 """
 
 import argparse
@@ -26,33 +28,28 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import sacrebleu
 
-# Fairseq2 per SONAR decoder pre-trained
+# SONAR package (sonar-space) - API CORRETTA!
 try:
-    from fairseq2.models.sonar import load_sonar_text_decoder, load_sonar_text_encoder
+    from sonar.inference_pipelines.text import (
+        TextToEmbeddingModelPipeline,
+        EmbeddingToTextModelPipeline,
+    )
 
-    FAIRSEQ2_AVAILABLE = True
-    print("✅ fairseq2 imported successfully")
-except ImportError:
-    print("⚠️ WARNING: fairseq2 not installed.")
+    SONAR_AVAILABLE = True
+    print("✅ SONAR imported successfully (sonar-space package)")
+except ImportError as e:
+    print("❌ ERROR: SONAR (sonar-space) not installed.")
+    print(f"   Error: {e}")
+    print("\n🔧 SOLUZIONE:")
+    print('   pip install "sonar-space>=0.5.0"')
     print(
-        "   Install with: pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cu121"
+        "   pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.9.0/cu126"
     )
-    FAIRSEQ2_AVAILABLE = False
-except RuntimeError as e:
-    print(f"⚠️ WARNING: fairseq2 version mismatch: {e}")
-    print("\n🔧 Soluzioni possibili:")
-    print("   1. Installa versione CPU:")
-    print("      pip uninstall -y fairseq2")
-    print(
-        "      pip install fairseq2 --extra-index-url https://fair.pkg.atmeta.com/fairseq2/whl/pt2.5.0/cpu"
-    )
-    print("\n   2. Aggiorna PyTorch a versione compatibile:")
-    print(
-        "      pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu128"
-    )
-    print("\n   3. Usa versione fairseq2 specifica per tua versione PyTorch")
-    print("      Vedi: https://github.com/facebookresearch/fairseq2#variants")
-    FAIRSEQ2_AVAILABLE = False
+    SONAR_AVAILABLE = False
+except Exception as e:
+    print(f"❌ ERROR importing SONAR: {e}")
+    print(f"   Tipo: {type(e).__name__}")
+    SONAR_AVAILABLE = False
 
 
 class How2SignDataset(Dataset):
@@ -112,11 +109,11 @@ def collate_fn(batch):
 
 class SONARFineTuner(nn.Module):
     """
-    SONAR Fine-Tuning Model (APPROCCIO CORRETTO)
+    SONAR Fine-Tuning Model (APPROCCIO CORRETTO con API SONAR)
 
     Architettura:
     1. SONAR ASL Encoder (pre-trained, FINE-TUNABILE)
-    2. SONAR Text Decoder (pre-trained, CONGELATO)
+    2. SONAR Text Decoder (pre-trained da sonar-space, CONGELATO)
 
     NOTA: Il decoder non viene addestrato, solo l'encoder!
     """
@@ -125,6 +122,11 @@ class SONARFineTuner(nn.Module):
         self, encoder_checkpoint: str, device: str = "cuda", freeze_decoder: bool = True
     ):
         super().__init__()
+
+        if not SONAR_AVAILABLE:
+            raise ImportError(
+                "SONAR (sonar-space) is required. Install with: pip install 'sonar-space>=0.5.0'"
+            )
 
         self.device = device
 
@@ -145,23 +147,29 @@ class SONARFineTuner(nn.Module):
             f"✅ Encoder loaded: {sum(p.numel() for p in self.encoder.parameters()) / 1e6:.1f}M params"
         )
 
-        # 2. Carica SONAR Text Decoder (pre-trained)
-        if FAIRSEQ2_AVAILABLE:
-            print(f"\n📥 Loading SONAR Text Decoder from fairseq2...")
-            self.decoder = load_sonar_text_decoder(
-                "text_sonar_basic_encoder", device=device
-            )
-            self.tokenizer = self.decoder.tokenizer
+        # 2. Carica SONAR Text Pipelines (pre-trained)
+        print(f"\n📥 Loading SONAR Text Decoder from sonar-space...")
 
-            # Decoder è CONGELATO (pre-trained)
-            if freeze_decoder:
-                for param in self.decoder.parameters():
-                    param.requires_grad = False
-                print(f"🔒 Decoder frozen (pre-trained)")
-            else:
-                print(f"⚠️ Decoder unfrozen (addestramento completo)")
+        # Text embedder (per calcolare target embeddings durante training)
+        self.text_embedder = TextToEmbeddingModelPipeline(
+            encoder="text_sonar_basic_encoder",
+            tokenizer="text_sonar_basic_encoder",
+            device=torch.device(device),
+        )
+
+        # Text decoder (per generare traduzioni durante evaluation)
+        self.text_decoder = EmbeddingToTextModelPipeline(
+            decoder="text_sonar_basic_decoder",
+            tokenizer="text_sonar_basic_encoder",
+            device=torch.device(device),
+        )
+
+        # Decoder è CONGELATO (pre-trained)
+        if freeze_decoder:
+            # I modelli SONAR sono già frozen di default
+            print(f"🔒 Decoder frozen (pre-trained)")
         else:
-            raise ImportError("fairseq2 required for SONAR decoder")
+            print(f"⚠️ Decoder unfrozen mode not supported with SONAR pipelines")
 
         print(f"✅ Model ready!")
 
@@ -217,9 +225,9 @@ class SONARFineTuner(nn.Module):
 
         return embeddings
 
-    def decode(self, embeddings, max_length=50):
+    def decode(self, embeddings, max_length=512):
         """
-        Decodifica embeddings → testo usando decoder pre-trained
+        Decodifica embeddings → testo usando decoder SONAR pre-trained
 
         Args:
             embeddings: (B, 1024) SONAR embeddings
@@ -228,18 +236,51 @@ class SONARFineTuner(nn.Module):
         Returns:
             texts: List[str] traduzioni
         """
-        if not FAIRSEQ2_AVAILABLE:
-            raise ImportError("fairseq2 required for decoding")
+        if not SONAR_AVAILABLE:
+            raise ImportError("SONAR (sonar-space) required for decoding")
 
         # Usa decoder SONAR pre-trained
         with torch.no_grad():
-            # NOTA: Questa è una semplificazione
-            # In produzione si userebbe il decoder SONAR completo
+            # Converti embeddings in formato corretto per SONAR decoder
+            # SONAR decoder si aspetta embeddings (B, 1024) su CPU o device corretto
+            embeddings_np = (
+                embeddings.cpu().numpy() if embeddings.is_cuda else embeddings.numpy()
+            )
 
-            # Per ora: placeholder (implementazione completa richiede fairseq2 API)
-            texts = ["[PLACEHOLDER]"] * embeddings.size(0)
+            # SONAR API: predict(embeddings, target_lang, max_seq_len)
+            texts = self.text_decoder.predict(
+                embeddings_np,
+                target_lang="eng_Latn",  # Inglese
+                max_seq_len=max_length,
+            )
 
         return texts
+
+    def encode_texts(self, texts: List[str]):
+        """
+        Codifica testi → embeddings usando text encoder SONAR
+
+        Args:
+            texts: List[str] testi da codificare
+
+        Returns:
+            embeddings: (B, 1024) SONAR embeddings
+        """
+        if not SONAR_AVAILABLE:
+            raise ImportError("SONAR (sonar-space) required for text encoding")
+
+        with torch.no_grad():
+            # SONAR API: predict(sentences, source_lang)
+            embeddings = self.text_embedder.predict(
+                texts,
+                source_lang="eng_Latn",  # Inglese
+            )
+
+            # Converti a torch tensor
+            if isinstance(embeddings, np.ndarray):
+                embeddings = torch.from_numpy(embeddings).float()
+
+            return embeddings.to(self.device)
 
 
 def train_epoch(
@@ -259,25 +300,23 @@ def train_epoch(
         texts = batch["texts"]
 
         # Forward: features → embeddings
-        embeddings = model(features)  # (B, 1024)
+        pred_embeddings = model(features)  # (B, 1024)
 
-        # Loss: embeddings dovrebbero essere simili a sentence embeddings target
-        # NOTA: Questa è una semplificazione
-        # In produzione si userebbe la loss del decoder SONAR
+        # Calcola target embeddings dai testi usando SONAR text encoder
+        target_embeddings = model.encode_texts(texts)  # (B, 1024)
 
-        # Placeholder loss (MSE contro target embeddings)
-        # In realtà bisognerebbe:
-        # 1. Tokenize texts
-        # 2. Encode texts → target embeddings
-        # 3. MSE(embeddings, target_embeddings)
-
-        # Per ora: mock loss
-        target_embeddings = torch.randn_like(embeddings)
-        loss = nn.functional.mse_loss(embeddings, target_embeddings)
+        # Loss: MSE tra embeddings predetti e target
+        # L'obiettivo è che l'encoder ASL produca embeddings simili
+        # agli embeddings del testo inglese nello spazio SONAR
+        loss = nn.functional.mse_loss(pred_embeddings, target_embeddings)
 
         # Backward
         optimizer.zero_grad()
         loss.backward()
+
+        # Gradient clipping per stabilità
+        torch.nn.utils.clip_grad_norm_(model.encoder.parameters(), max_norm=1.0)
+
         optimizer.step()
 
         total_loss += loss.item()
@@ -290,7 +329,7 @@ def train_epoch(
 def evaluate(
     model: SONARFineTuner, dataloader: DataLoader, device: str
 ) -> Tuple[float, List[Dict]]:
-    """Evaluation: calcola BLEU"""
+    """Evaluation: calcola BLEU usando decoder SONAR reale"""
     model.eval()
 
     predictions = []
@@ -304,11 +343,11 @@ def evaluate(
         texts = batch["texts"]
         video_ids = batch["video_ids"]
 
-        # Forward
-        embeddings = model(features)
+        # Forward: features → embeddings
+        embeddings = model(features)  # (B, 1024)
 
-        # Decode (placeholder per ora)
-        pred_texts = model.decode(embeddings)
+        # Decode usando SONAR decoder
+        pred_texts = model.decode(embeddings, max_length=512)
 
         for video_id, pred, ref in zip(video_ids, pred_texts, texts):
             predictions.append(pred)
@@ -361,6 +400,9 @@ def main():
     )
     parser.add_argument(
         "--eval_every", type=int, default=5, help="Evaluate every N epochs"
+    )
+    parser.add_argument(
+        "--save_every", type=int, default=10, help="Save checkpoint every N epochs"
     )
     parser.add_argument(
         "--max_samples",

@@ -520,9 +520,39 @@ class SONARwithT5(nn.Module):
                 encoder_outputs=encoder_outputs,  # ← CHANGED from inputs_embeds!
                 labels=target_ids,
                 return_dict=True,
+                output_attentions=True,  # ← AGGIUNGI QUESTO!
             )
 
-            return outputs.loss
+            # ✅ NUOVO: Penalizza se decoder non usa input
+            cross_attentions = (
+                outputs.cross_attentions
+            )  # Tuple of (layers, B, heads, tgt_len, src_len)
+
+            # Media su tutti i layer/heads
+            avg_attention = torch.stack(
+                [attn.mean() for attn in cross_attentions]
+            ).mean()
+
+            # Loss: penalizza se attention è bassa
+            attention_loss = -torch.log(avg_attention + 1e-8)
+
+            # Aggiungi penalty se cross-attention è bassa
+            cross_attn_weights = (
+                outputs.cross_attentions
+            )  # (layers, B, heads, tgt, src)
+            avg_cross_attn = torch.stack(
+                [attn.mean() for attn in cross_attn_weights]
+            ).mean()
+
+            # Penalty: se cross-attention < 0.3, paga!
+            attention_loss = F.relu(
+                0.3 - avg_cross_attn
+            )  # 0 se >0.3, positivo altrimenti
+
+            # Loss totale
+            total_loss = outputs.loss + 2.0 * attention_loss  # Peso alto!
+
+            return total_loss
 
         else:
             # ===== INFERENCE MODE =====
