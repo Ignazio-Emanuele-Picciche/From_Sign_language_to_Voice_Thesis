@@ -159,13 +159,17 @@ class SONARFineTuner(nn.Module):
 
         self.device = device
 
-        # 1. Carica SONAR ASL Encoder (pre-trained)
-        print(f"\n📥 Loading SONAR ASL Encoder from {encoder_checkpoint}...")
-        encoder_state = torch.load(encoder_checkpoint, map_location=device)
-
+        # 1. Carica SONAR ASL Encoder (pre-trained o from scratch)
+        if encoder_checkpoint and os.path.exists(encoder_checkpoint):
+            print(f"\n📥 Loading SONAR ASL Encoder from {encoder_checkpoint}...")
+            encoder_state = torch.load(encoder_checkpoint, map_location=device)
+            self.encoder = self._build_encoder_from_state(encoder_state)
+        else:
+            print(f"\n🆕 Initializing SONAR ASL Encoder from scratch (no checkpoint)...")
+            self.encoder = self._build_encoder_from_state(None)
+        
         # L'encoder SONAR mappa (T, 256) → (1024,) embedding
         # Architettura: Transformer encoder
-        self.encoder = self._build_encoder_from_state(encoder_state)
         self.encoder.to(device)
 
         # Encoder è ADDESTRABILE (fine-tuning)
@@ -202,9 +206,9 @@ class SONARFineTuner(nn.Module):
 
         print(f"✅ Model ready!")
 
-    def _build_encoder_from_state(self, state_dict):
+    def _build_encoder_from_state(self, state_dict=None):
         """
-        Ricostruisce l'encoder da state_dict
+        Ricostruisce l'encoder da state_dict (o inizializza da zero se None)
 
         NOTA: Questa è una semplificazione. In produzione si userebbe
         direttamente la classe SONAR da fairseq2.
@@ -222,12 +226,16 @@ class SONARFineTuner(nn.Module):
             nn.Linear(hidden_dim, output_dim),
         )
 
-        # Carica pesi se compatibili
-        try:
-            encoder.load_state_dict(state_dict, strict=False)
-            print("✅ Loaded pre-trained encoder weights")
-        except Exception as e:
-            print(f"⚠️ Could not load encoder weights: {e}")
+        # Carica pesi se compatibili e se forniti
+        if state_dict is not None:
+            try:
+                encoder.load_state_dict(state_dict, strict=False)
+                print("✅ Loaded pre-trained encoder weights")
+            except Exception as e:
+                print(f"⚠️ Could not load encoder weights: {e}")
+                print("⚠️ Using random initialization (will train from scratch)")
+        else:
+            print("✅ Using random initialization (training from scratch)")
             print("⚠️ Using random initialization (will train from scratch)")
 
         return encoder
@@ -259,7 +267,7 @@ class SONARFineTuner(nn.Module):
 
         # Encoder
         embeddings = self.encoder(features_avg)  # (B, 1024)
-        
+
         # FIX 1: NORMALIZZAZIONE L2 (risolve problemi di scala)
         embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
@@ -353,25 +361,27 @@ def train_epoch(
 
         # FIX 2: COSINE LOSS invece di MSE (migliore per embeddings normalizzati)
         # Normalizza anche i target embeddings
-        target_embeddings_norm = torch.nn.functional.normalize(target_embeddings, p=2, dim=1)
-        
+        target_embeddings_norm = torch.nn.functional.normalize(
+            target_embeddings, p=2, dim=1
+        )   
+
         # Cosine similarity: dot product di vettori normalizzati
         cosine_sim = (pred_embeddings * target_embeddings_norm).sum(dim=1).mean()
-        
+
         # Loss: 1 - similarity (range [0, 2], ottimo = 0)
         loss = 1.0 - cosine_sim
 
         # Backward
         optimizer.zero_grad()
         loss.backward()
-        
+
         # FIX 3: GRADIENT MONITORING
         total_norm = 0.0
         for p in model.encoder.parameters():
             if p.grad is not None:
                 param_norm = p.grad.data.norm(2)
                 total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** 0.5
+        total_norm = total_norm**0.5
 
         # Gradient clipping per stabilità
         torch.nn.utils.clip_grad_norm_(model.encoder.parameters(), max_norm=1.0)
@@ -380,11 +390,13 @@ def train_epoch(
 
         total_loss += loss.item()
         # FIX 4: LOGGING AVANZATO
-        progress.set_postfix({
-            "loss": f"{loss.item():.4f}",
-            "grad_norm": f"{total_norm:.4f}",
-            "cosine_sim": f"{cosine_sim.item():.4f}"
-        })
+        progress.set_postfix(
+            {
+                "loss": f"{loss.item():.4f}",
+                "grad_norm": f"{total_norm:.4f}",
+                "cosine_sim": f"{cosine_sim.item():.4f}",
+            }
+        )
 
     return total_loss / len(dataloader)
 
@@ -435,8 +447,8 @@ def main():
     parser.add_argument(
         "--encoder_checkpoint",
         type=str,
-        required=True,
-        help="Path to SONAR encoder checkpoint (.pth)",
+        default=None,
+        help="Path to SONAR encoder checkpoint (.pth). If None, trains from scratch.",
     )
     parser.add_argument(
         "--train_features", type=str, required=True, help="Directory con train features"
