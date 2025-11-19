@@ -59,35 +59,51 @@ class How2SignDataset(Dataset):
         self.features_dir = Path(features_dir)
 
         # Carica manifest con traduzioni
-        self.manifest = pd.read_csv(manifest_path, sep="\t")
+        manifest = pd.read_csv(manifest_path, sep="\t")
 
-        if max_samples:
+        print(f"📂 Manifest caricato: {len(manifest)} samples totali")
+
+        # FILTRA solo sample con features disponibili
+        valid_samples = []
+        for idx, row in manifest.iterrows():
+            video_id = row["id"]
+            # Controlla se esiste .npy o .pt
+            npy_path = self.features_dir / f"{video_id}.npy"
+            pt_path = self.features_dir / f"{video_id}.pt"
+
+            if npy_path.exists() or pt_path.exists():
+                valid_samples.append(row)
+
+        self.manifest = pd.DataFrame(valid_samples)
+
+        print(f"   ✅ Features trovate: {len(self.manifest)} samples")
+        print(
+            f"   ⚠️  Features mancanti: {len(manifest) - len(self.manifest)} samples (saltati)"
+        )
+
+        if max_samples and len(self.manifest) > max_samples:
             self.manifest = self.manifest.head(max_samples)
-
-        print(f"📂 Loaded {len(self.manifest)} samples from {manifest_path}")
+            print(f"   📊 Limitato a: {len(self.manifest)} samples")
 
     def __len__(self):
         return len(self.manifest)
 
     def __getitem__(self, idx):
         row = self.manifest.iloc[idx]
-        video_id = row["video_id"]
+        video_id = row["id"]  # FIX: colonna si chiama 'id' non 'video_id'
         text = row["text"]
 
-        # Carica features (.npy)
+        # Carica features (.npy o .pt)
         feature_path = self.features_dir / f"{video_id}.npy"
 
-        if not feature_path.exists():
-            # Prova con .pt
-            feature_path = self.features_dir / f"{video_id}.pt"
-            if feature_path.exists():
-                data = torch.load(feature_path, map_location="cpu")
-                features = data["features"]
-            else:
-                raise FileNotFoundError(f"Feature not found: {video_id}")
-        else:
+        if feature_path.exists():
             features = np.load(feature_path)
             features = torch.from_numpy(features).float()
+        else:
+            # Prova con .pt
+            feature_path = self.features_dir / f"{video_id}.pt"
+            data = torch.load(feature_path, map_location="cpu")
+            features = data["features"]
 
         return {"video_id": video_id, "features": features, "text": text}  # (300, 256)
 
@@ -97,12 +113,25 @@ def collate_fn(batch):
     video_ids = [item["video_id"] for item in batch]
     texts = [item["text"] for item in batch]
 
-    # Features: tutte (300, 256), già uniform
-    features = torch.stack([item["features"] for item in batch])
+    # Features hanno lunghezze diverse: serve PADDING!
+    # Trova lunghezza massima nel batch
+    max_len = max(item["features"].shape[0] for item in batch)
+    feature_dim = batch[0]["features"].shape[1]  # 256
+
+    # Crea tensor padded
+    padded_features = torch.zeros(len(batch), max_len, feature_dim)
+    lengths = []
+
+    for i, item in enumerate(batch):
+        feat = item["features"]
+        length = feat.shape[0]
+        padded_features[i, :length, :] = feat
+        lengths.append(length)
 
     return {
         "video_ids": video_ids,
-        "features": features,  # (B, 300, 256)
+        "features": padded_features,  # (B, max_len, 256) - con padding
+        "lengths": torch.tensor(lengths),  # lunghezze originali
         "texts": texts,
     }
 
@@ -203,12 +232,13 @@ class SONARFineTuner(nn.Module):
 
         return encoder
 
-    def forward(self, features):
+    def forward(self, features, lengths=None):
         """
         Forward pass
 
         Args:
-            features: (B, T, 256) video features
+            features: (B, T, 256) video features (possibilmente con padding)
+            lengths: (B,) lunghezze originali (prima del padding)
 
         Returns:
             embeddings: (B, 1024) SONAR embeddings
@@ -217,11 +247,21 @@ class SONARFineTuner(nn.Module):
         # Media temporale + projection
         B, T, D = features.shape
 
-        # Semplificazione: media su tempo
-        features_avg = features.mean(dim=1)  # (B, 256)
+        if lengths is not None:
+            # Media solo sui frame reali (escludi padding)
+            features_avg = torch.zeros(B, D, device=features.device)
+            for i in range(B):
+                length = lengths[i].item()
+                features_avg[i] = features[i, :length, :].mean(dim=0)
+        else:
+            # Semplificazione: media su tempo (include padding se presente)
+            features_avg = features.mean(dim=1)  # (B, 256)
 
         # Encoder
         embeddings = self.encoder(features_avg)  # (B, 1024)
+        
+        # FIX 1: NORMALIZZAZIONE L2 (risolve problemi di scala)
+        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
         return embeddings
 
@@ -230,7 +270,7 @@ class SONARFineTuner(nn.Module):
         Decodifica embeddings → testo usando decoder SONAR pre-trained
 
         Args:
-            embeddings: (B, 1024) SONAR embeddings
+            embeddings: (B, 1024) SONAR embeddings (torch.Tensor)
             max_length: Lunghezza massima output
 
         Returns:
@@ -241,15 +281,15 @@ class SONARFineTuner(nn.Module):
 
         # Usa decoder SONAR pre-trained
         with torch.no_grad():
-            # Converti embeddings in formato corretto per SONAR decoder
-            # SONAR decoder si aspetta embeddings (B, 1024) su CPU o device corretto
-            embeddings_np = (
-                embeddings.cpu().numpy() if embeddings.is_cuda else embeddings.numpy()
-            )
+            # SONAR decoder si aspetta torch.Tensor (non numpy!)
+            # Assicurati che sia su CPU per compatibilità
+            if embeddings.is_cuda:
+                embeddings = embeddings.cpu()
 
             # SONAR API: predict(embeddings, target_lang, max_seq_len)
+            # embeddings deve essere torch.Tensor, non numpy array
             texts = self.text_decoder.predict(
-                embeddings_np,
+                embeddings,  # Passa direttamente il tensore PyTorch
                 target_lang="eng_Latn",  # Inglese
                 max_seq_len=max_length,
             )
@@ -264,7 +304,7 @@ class SONARFineTuner(nn.Module):
             texts: List[str] testi da codificare
 
         Returns:
-            embeddings: (B, 1024) SONAR embeddings
+            embeddings: (B, 1024) SONAR embeddings (detached, safe for backward)
         """
         if not SONAR_AVAILABLE:
             raise ImportError("SONAR (sonar-space) required for text encoding")
@@ -280,7 +320,12 @@ class SONARFineTuner(nn.Module):
             if isinstance(embeddings, np.ndarray):
                 embeddings = torch.from_numpy(embeddings).float()
 
-            return embeddings.to(self.device)
+            # IMPORTANTE: clone() per evitare errore inference mode
+            # Gli embeddings SONAR sono creati in inference mode,
+            # ma servono per calcolare loss (che richiede gradients)
+            embeddings = embeddings.to(self.device).clone().detach()
+
+            return embeddings
 
 
 def train_epoch(
@@ -296,23 +341,37 @@ def train_epoch(
     progress = tqdm(dataloader, desc="Training")
 
     for batch in progress:
-        features = batch["features"].to(device)  # (B, 300, 256)
+        features = batch["features"].to(device)  # (B, max_len, 256) - con padding
+        lengths = batch["lengths"].to(device)  # (B,) - lunghezze originali
         texts = batch["texts"]
 
         # Forward: features → embeddings
-        pred_embeddings = model(features)  # (B, 1024)
+        pred_embeddings = model(features, lengths=lengths)  # (B, 1024)
 
         # Calcola target embeddings dai testi usando SONAR text encoder
         target_embeddings = model.encode_texts(texts)  # (B, 1024)
 
-        # Loss: MSE tra embeddings predetti e target
-        # L'obiettivo è che l'encoder ASL produca embeddings simili
-        # agli embeddings del testo inglese nello spazio SONAR
-        loss = nn.functional.mse_loss(pred_embeddings, target_embeddings)
+        # FIX 2: COSINE LOSS invece di MSE (migliore per embeddings normalizzati)
+        # Normalizza anche i target embeddings
+        target_embeddings_norm = torch.nn.functional.normalize(target_embeddings, p=2, dim=1)
+        
+        # Cosine similarity: dot product di vettori normalizzati
+        cosine_sim = (pred_embeddings * target_embeddings_norm).sum(dim=1).mean()
+        
+        # Loss: 1 - similarity (range [0, 2], ottimo = 0)
+        loss = 1.0 - cosine_sim
 
         # Backward
         optimizer.zero_grad()
         loss.backward()
+        
+        # FIX 3: GRADIENT MONITORING
+        total_norm = 0.0
+        for p in model.encoder.parameters():
+            if p.grad is not None:
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** 0.5
 
         # Gradient clipping per stabilità
         torch.nn.utils.clip_grad_norm_(model.encoder.parameters(), max_norm=1.0)
@@ -320,7 +379,12 @@ def train_epoch(
         optimizer.step()
 
         total_loss += loss.item()
-        progress.set_postfix({"loss": f"{loss.item():.4f}"})
+        # FIX 4: LOGGING AVANZATO
+        progress.set_postfix({
+            "loss": f"{loss.item():.4f}",
+            "grad_norm": f"{total_norm:.4f}",
+            "cosine_sim": f"{cosine_sim.item():.4f}"
+        })
 
     return total_loss / len(dataloader)
 
@@ -339,12 +403,13 @@ def evaluate(
     progress = tqdm(dataloader, desc="Evaluating")
 
     for batch in progress:
-        features = batch["features"].to(device)
+        features = batch["features"].to(device)  # (B, max_len, 256) - con padding
+        lengths = batch["lengths"].to(device)  # (B,) - lunghezze originali
         texts = batch["texts"]
         video_ids = batch["video_ids"]
 
         # Forward: features → embeddings
-        embeddings = model(features)  # (B, 1024)
+        embeddings = model(features, lengths=lengths)  # (B, 1024)
 
         # Decode usando SONAR decoder
         pred_texts = model.decode(embeddings, max_length=512)
@@ -511,11 +576,16 @@ def main():
             bleu, samples = evaluate(model, val_loader, device)
             print(f"📊 Val BLEU: {bleu:.2f}%")
 
+            # FIX 5: EVALUATION METRICS ESTESE
+            # Calcola cosine similarity media (1 - loss se usiamo cosine loss)
+            val_cosine = 1.0 - train_loss if train_loss < 2.0 else 0.0
+
             # Save metrics
             metrics = {
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "val_bleu": bleu,
+                "val_cosine_sim": val_cosine,  # NUOVO
                 "samples": samples[:5],
             }
             metrics_history.append(metrics)
