@@ -3,8 +3,9 @@
 ## 📋 Problema Risolto
 
 **Errore precedente:**
+
 ```
-FileNotFoundError: [Errno 2] No such file or directory: 
+FileNotFoundError: [Errno 2] No such file or directory:
 'checkpoints/sonar_encoder_finetuned/best_encoder.pt'
 ```
 
@@ -19,6 +20,7 @@ Lo script `train_sonar_finetuning.py` ora supporta il **training da zero** senza
 ### Modifiche Applicate:
 
 1. **Parametro `--encoder_checkpoint` ora opzionale**
+
    ```python
    parser.add_argument(
        "--encoder_checkpoint",
@@ -29,6 +31,7 @@ Lo script `train_sonar_finetuning.py` ora supporta il **training da zero** senza
    ```
 
 2. **Inizializzazione condizionale dell'encoder**
+
    ```python
    # Se checkpoint esiste → carica pesi
    if encoder_checkpoint and os.path.exists(encoder_checkpoint):
@@ -45,13 +48,13 @@ Lo script `train_sonar_finetuning.py` ora supporta il **training da zero** senza
    ```python
    def _build_encoder_from_state(self, state_dict=None):
        encoder = nn.Sequential(...)
-       
+
        if state_dict is not None:
            encoder.load_state_dict(state_dict, strict=False)
            print("✅ Loaded pre-trained encoder weights")
        else:
            print("✅ Using random initialization (training from scratch)")
-       
+
        return encoder
    ```
 
@@ -91,6 +94,7 @@ Lo script `train_sonar_finetuning.py` ora supporta il **training da zero** senza
 ## 📊 Output Atteso (Training da Zero)
 
 ### Prima Epoca:
+
 ```
 Epoch 1/10
 Training: 100%|██████████| 40/40 [00:45<00:00]
@@ -101,6 +105,7 @@ Training: 100%|██████████| 40/40 [00:45<00:00]
 ```
 
 ### Dopo 10 Epoche:
+
 ```
 Epoch 10/10
 Training: 100%|██████████| 40/40 [00:42<00:00]
@@ -112,6 +117,7 @@ Training: 100%|██████████| 40/40 [00:42<00:00]
 ```
 
 ### Dopo 50 Epoche (Target):
+
 ```
 📊 Val BLEU: 35.67%  ← TARGET RAGGIUNTO! 🎯
 ```
@@ -120,34 +126,38 @@ Training: 100%|██████████| 40/40 [00:42<00:00]
 
 ## 🔍 Confronto: Prima vs Dopo
 
-| Metrica | VECCHIO (con bug) | NUOVO (da zero) |
-|---------|-------------------|-----------------|
-| **Loss Iniziale** | 0.0009 ❌ (collasso) | 1.0-1.5 ✅ (sano) |
-| **BLEU @ 10 epochs** | 0.13% ❌ | 5-15% ✅ |
-| **BLEU @ 50 epochs** | - | 30-40% ✅ (atteso) |
-| **Gradient Norm** | Non loggato ❌ | Loggato ✅ |
-| **Cosine Similarity** | Non loggato ❌ | Loggato ✅ |
+| Metrica               | VECCHIO (con bug)    | NUOVO (da zero)    |
+| --------------------- | -------------------- | ------------------ |
+| **Loss Iniziale**     | 0.0009 ❌ (collasso) | 1.0-1.5 ✅ (sano)  |
+| **BLEU @ 10 epochs**  | 0.13% ❌             | 5-15% ✅           |
+| **BLEU @ 50 epochs**  | -                    | 30-40% ✅ (atteso) |
+| **Gradient Norm**     | Non loggato ❌       | Loggato ✅         |
+| **Cosine Similarity** | Non loggato ❌       | Loggato ✅         |
 
 ---
 
 ## 🎯 Metriche da Monitorare
 
 ### 1. **Loss (Cosine Loss)**
+
 - **Range sano**: 0.5 - 1.5
 - **Trend atteso**: Decrescente (verso 0.3-0.5)
 - **⚠️ Allarme**: Se < 0.1 → possibile overfitting
 
 ### 2. **Gradient Norm**
+
 - **Range sano**: 0.1 - 1.0
 - **⚠️ Allarme**: Se > 10 → gradient explosion
 - **⚠️ Allarme**: Se < 0.001 → vanishing gradients
 
 ### 3. **Cosine Similarity**
+
 - **Range sano**: 0.3 - 0.9
 - **Trend atteso**: Crescente (verso 0.7-0.8)
 - **Target finale**: > 0.7
 
 ### 4. **BLEU Score**
+
 - **@ 10 epochs**: 5-15% (aspettativa realistica)
 - **@ 20 epochs**: 15-25%
 - **@ 50 epochs**: 30-40% (target finale)
@@ -157,22 +167,28 @@ Training: 100%|██████████| 40/40 [00:42<00:00]
 ## 🛠️ Troubleshooting
 
 ### Problema: Loss troppo bassa (< 0.1)
+
 **Causa:** Possibile overfitting o data leakage  
-**Soluzione:** 
+**Soluzione:**
+
 - Verifica che train/val siano separati
 - Aggiungi dropout/regularization
 - Riduci learning rate
 
 ### Problema: BLEU non migliora dopo 20 epochs
+
 **Causa:** Plateau di apprendimento  
 **Soluzione:**
+
 - Riduci learning rate (1e-5 invece di 1e-4)
 - Aumenta batch size (64 invece di 32)
 - Verifica qualità features
 
 ### Problema: Gradient Norm > 10
+
 **Causa:** Gradient explosion  
 **Soluzione:**
+
 - Già implementato: `clip_grad_norm_` con max=1.0
 - Riduci learning rate
 
@@ -210,17 +226,20 @@ checkpoints/sonar_finetuned_FIXED/
 ## 📌 Comandi Utili
 
 ### Push modifiche su GitHub (da locale)
+
 ```bash
 git push origin dev
 ```
 
 ### Sincronizza su Colab (da Colab)
+
 ```bash
 cd /content/drive/MyDrive/How2Sign_SONAR
 git pull origin dev
 ```
 
 ### Esegui training (da Colab)
+
 ```python
 # Vedi cella aggiornata nel notebook!
 ```
