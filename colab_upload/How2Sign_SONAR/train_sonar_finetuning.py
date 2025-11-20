@@ -389,8 +389,8 @@ def train_epoch(
 
         # Loss Totale
         # Diamo priorità alla semantica (loss_cosine) ma correggiamo la scala (loss_mag)
-        # Il fattore 0.01 serve a non far dominare la magnitude loss se è molto grande.
-        loss = loss_cosine + 0.01 * loss_mag
+        # AUMENTATO PESO MAGNITUDE: 0.01 -> 1.0 per forzare l'adattamento della scala
+        loss = loss_cosine + 1.0 * loss_mag
 
         # Backward
         optimizer.zero_grad()
@@ -458,6 +458,16 @@ def evaluate(
 
         # Decode usando SONAR decoder
         pred_texts = model.decode(embeddings, max_length=512)
+
+        # SANITY CHECK: Decodifica anche i target embeddings (ground truth)
+        # Questo ci dice se il decoder funziona correttamente con input perfetti
+        if len(predictions) == 0: # Fallo solo per il primo batch
+            target_embeddings = model.encode_texts(texts)
+            target_texts = model.decode(target_embeddings, max_length=512)
+            print(f"\n[SANITY CHECK] Ground Truth Decoding:")
+            print(f"  Original: {texts[0]}")
+            print(f"  Decoded:  {target_texts[0]}")
+            print(f"  T-Norm:   {target_embeddings[0].norm().item():.4f}")
 
         for i, (video_id, pred, ref) in enumerate(zip(video_ids, pred_texts, texts)):
             predictions.append(pred)
