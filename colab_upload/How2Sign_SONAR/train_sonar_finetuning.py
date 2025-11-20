@@ -8,12 +8,49 @@ Questo script implementa la pipeline di traduzione Sign Language -> Text usando 
 L'obiettivo è adattare (fine-tune) un encoder visivo per proiettare video di lingua dei segni
 nello spazio di embedding multilingue di SONAR.
 
-PIPELINE:
-1.  **Input**: Video How2Sign processati in features visive (SignHiera, dim=768).
-2.  **Encoder (Trainable)**: Un semplice MLP (o Transformer) che mappa le features visive (768)
-    nello spazio di embedding di SONAR (1024).
-3.  **Decoder (Frozen)**: Il decoder testuale pre-addestrato di SONAR (da `sonar-space`)
-    che traduce gli embedding (1024) in testo inglese.
+PIPELINE DETTAGLIATA:
+---------------------
+1.  **DATA LOADING (How2SignDataset)**:
+    -   Carica i video processati (features `.npy` o `.pt`).
+    -   Carica le traduzioni testuali corrispondenti dal manifest `.tsv`.
+    -   Gestisce il padding delle sequenze video (lunghezze variabili) nel `collate_fn`.
+
+2.  **MODEL ARCHITECTURE (SONARFineTuner)**:
+    -   **Encoder (Trainable)**:
+        -   Input: Features visive (es. SignHiera 768-dim).
+        -   Pooling: Media temporale delle features (T, 768) -> (768).
+        -   Projection: MLP a 2 strati (768 -> 512 -> 1024) che mappa nello spazio SONAR.
+        -   Output: Embedding SONAR (1024-dim).
+    -   **Text Embedder (Frozen)**:
+        -   Modello SONAR ufficiale (pre-addestrato).
+        -   Input: Testo ground truth (inglese).
+        -   Output: Embedding SONAR target (1024-dim).
+        -   Scopo: Fornire il "bersaglio" per l'addestramento dell'encoder.
+    -   **Text Decoder (Frozen)**:
+        -   Modello SONAR ufficiale (pre-addestrato).
+        -   Input: Embedding SONAR (predetto o target).
+        -   Output: Testo tradotto.
+        -   Scopo: Valutazione (calcolo BLEU) e inferenza.
+
+3.  **TRAINING LOOP (`train_epoch`)**:
+    -   Per ogni batch:
+        a.  L'encoder predice l'embedding dal video (`pred_embeddings`).
+        b.  L'embedder calcola l'embedding dal testo reale (`target_embeddings`).
+        c.  Calcolo della Loss (vedi sotto).
+        d.  Backpropagation solo sull'Encoder (Embedder e Decoder sono congelati).
+
+4.  **LOSS FUNCTION (Il cuore del training)**:
+    -   Combina due obiettivi per allineare i vettori nello spazio SONAR:
+        a.  **Cosine Loss**: `1 - cosine_similarity(pred, target)`
+            -   Allinea la DIREZIONE dei vettori (il significato semantico).
+        b.  **Magnitude Loss**: `MSE(norm(pred), norm(target))`
+            -   Allinea la SCALA/LUNGHEZZA dei vettori (l'intensità del segnale).
+            -   Fondamentale perché il decoder SONAR richiede una norma specifica (~32) per funzionare.
+
+5.  **EVALUATION (`evaluate`)**:
+    -   Genera traduzioni usando il Decoder SONAR reale.
+    -   Calcola il punteggio BLEU confrontando le predizioni con i riferimenti.
+    -   Esegue Sanity Check per verificare che il decoder funzioni correttamente.
 
 STORIA DELLE MODIFICHE E FIX (Perché ora funziona):
 ---------------------------------------------------
@@ -168,18 +205,25 @@ class SONARFineTuner(nn.Module):
     """
     Modello per il Fine-Tuning di SONAR.
 
-    Componenti:
+    Questa classe incapsula l'intera logica di adattamento:
+    - L'Encoder visivo (che addestriamo).
+    - I modelli SONAR originali (che usiamo come "oracolo" e decoder).
+
+    Componenti Dettagliati:
     1.  **Encoder (Trainable)**:
         -   Prende in input features visive (es. SignHiera 768-dim).
         -   Le proietta nello spazio SONAR (1024-dim).
         -   Non applica normalizzazione forzata (impara la scala dai dati).
-    
+        -   È l'unica parte che accumula gradienti e si aggiorna.
+
     2.  **Text Embedder (Frozen)**:
         -   Usato solo in training per calcolare i "Target Embeddings" dalle frasi di ground truth.
-    
+        -   Ci dice "dove dovrebbe trovarsi" il vettore di questo video nello spazio semantico.
+
     3.  **Text Decoder (Frozen)**:
         -   Usato in evaluation per generare testo dagli embeddings predetti.
         -   Richiede il pacchetto `sonar-space`.
+        -   È il giudice finale della qualità della traduzione.
     """
 
     def __init__(
@@ -291,8 +335,11 @@ class SONARFineTuner(nn.Module):
         """
         Forward pass: Trasforma sequenze video in embeddings SONAR.
 
+        Il flusso dei dati è:
+        Video (T frames) -> Features (T, 768) -> Pooling -> (768) -> MLP -> Embedding (1024)
+
         Args:
-            features: (B, T, 256) video features (possibilmente con padding)
+            features: (B, T, 256/768) video features (possibilmente con padding)
             lengths: (B,) lunghezze originali (prima del padding)
 
         Returns:
@@ -300,11 +347,13 @@ class SONARFineTuner(nn.Module):
         """
         # 1. Pooling Temporale (Average Pooling)
         # Riduciamo la sequenza temporale (T) a un singolo vettore per video.
-        # Encoder: (B, T, 256) → (B, 256)
+        # Questo è un approccio semplice ma efficace per SONAR che lavora su frasi intere.
+        # Encoder: (B, T, D) → (B, D)
         B, T, D = features.shape
 
         if lengths is not None:
             # Media solo sui frame reali (escludendo il padding zero)
+            # Questo è cruciale per non "diluire" il segnale con gli zeri del padding
             features_avg = torch.zeros(B, D, device=features.device)
             for i in range(B):
                 length = lengths[i].item()
@@ -313,16 +362,18 @@ class SONARFineTuner(nn.Module):
                     features_avg[i] = features[i, :length, :].mean(dim=0)
         else:
             # Fallback: media su tutto (include padding se presente, meno preciso)
-            features_avg = features.mean(dim=1)  # (B, 256)
+            features_avg = features.mean(dim=1)  # (B, D)
 
         # 2. Proiezione nello Spazio SONAR
-        # L'encoder (MLP) mappa le feature visive (256) nello spazio multilingue (1024)
+        # L'encoder (MLP) mappa le feature visive (D) nello spazio multilingue (1024)
         embeddings = self.encoder(features_avg)  # (B, 1024)
 
-        # NOTA IMPORTANTE:
+        # NOTA IMPORTANTE SU SCALA E NORMALIZZAZIONE:
         # Non applichiamo normalizzazione L2 qui (F.normalize).
-        # Il decoder SONAR ha bisogno di vettori con una specifica magnitudo (norma),
-        # non vettori unitari. Lasciamo che la rete impari la scala corretta.
+        # Il decoder SONAR ha bisogno di vettori con una specifica magnitudo (norma ~32),
+        # non vettori unitari (norma 1).
+        # Se normalizzassimo qui, distruggeremmo l'informazione di "intensità" che il decoder si aspetta.
+        # Lasciamo che la rete impari la scala corretta tramite la Magnitude Loss.
 
         return embeddings
 
@@ -416,10 +467,12 @@ def train_epoch(
         # CALCOLO DELLA LOSS (Funzione di Costo)
         # -------------------------------------------------------------------------
         # Usiamo una loss composta da due parti per gestire sia la direzione che la scala.
+        # Questo è stato il FIX CRUCIALE per far funzionare il modello.
 
         # 1. Cosine Loss (Direzione/Semantica)
         # Misura l'angolo tra i vettori. Vogliamo che puntino nella stessa direzione.
         # È la parte più importante per la traduzione (il significato).
+        # Formula: 1 - cos(theta)
         pred_norm = torch.nn.functional.normalize(pred_embeddings, p=2, dim=1)
         target_norm = torch.nn.functional.normalize(target_embeddings, p=2, dim=1)
         cosine_sim = (pred_norm * target_norm).sum(dim=1).mean()
@@ -428,6 +481,7 @@ def train_epoch(
         # 2. Magnitude Loss (Scala/Intensità)
         # Misura la lunghezza dei vettori. Il decoder SONAR si aspetta una certa "energia".
         # Se i vettori sono troppo piccoli (es. norm=1), il decoder potrebbe generare silenzio.
+        # Formula: MSE( ||pred||, ||target|| )
         pred_mag = pred_embeddings.norm(p=2, dim=1)
         target_mag = target_embeddings.norm(p=2, dim=1)
         loss_mag = torch.nn.functional.mse_loss(pred_mag, target_mag)
@@ -435,6 +489,7 @@ def train_epoch(
         # Loss Totale
         # Diamo priorità alla semantica (loss_cosine) ma correggiamo la scala (loss_mag)
         # AUMENTATO PESO MAGNITUDE: 0.01 -> 1.0 per forzare l'adattamento della scala
+        # Senza questo peso alto, il modello convergeva a norma 1 e BLEU 0.
         loss = loss_cosine + 1.0 * loss_mag
 
         # Backward
