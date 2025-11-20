@@ -72,7 +72,9 @@ def load_signhiera_model(model_path: Path, device: str):
         print(f"\n❌ SSVP-SLT repo not found at: {ssvp_repo}")
         print("   Clone it first:")
         print("   cd src/sign_to_text_ssvp/models")
-        print("   git clone https://github.com/facebookresearch/ssvp_slt.git ssvp_slt_repo")
+        print(
+            "   git clone https://github.com/facebookresearch/ssvp_slt.git ssvp_slt_repo"
+        )
         sys.exit(1)
 
     sys.path.insert(0, str(ssvp_repo))

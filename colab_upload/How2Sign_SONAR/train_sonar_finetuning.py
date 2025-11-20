@@ -262,6 +262,12 @@ class SONARFineTuner(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = True
 
+        # 1.5 Attention Pooling (Novità!)
+        # Sostituisce il Mean Pooling brutale. Impara a pesare i frame.
+        self.attention_layer = nn.Sequential(
+            nn.Linear(self.input_dim, 256), nn.Tanh(), nn.Linear(256, 1)
+        )
+
         print(
             f"✅ Encoder loaded: {sum(p.numel() for p in self.encoder.parameters()) / 1e6:.1f}M params"
         )
@@ -334,46 +340,31 @@ class SONARFineTuner(nn.Module):
     def forward(self, features, lengths=None):
         """
         Forward pass: Trasforma sequenze video in embeddings SONAR.
-
-        Il flusso dei dati è:
-        Video (T frames) -> Features (T, 768) -> Pooling -> (768) -> MLP -> Embedding (1024)
-
-        Args:
-            features: (B, T, 256/768) video features (possibilmente con padding)
-            lengths: (B,) lunghezze originali (prima del padding)
-
-        Returns:
-            embeddings: (B, 1024) SONAR embeddings pronti per il decoder
+        Usa ATTENTION POOLING invece della media semplice.
         """
-        # 1. Pooling Temporale (Average Pooling)
-        # Riduciamo la sequenza temporale (T) a un singolo vettore per video.
-        # Questo è un approccio semplice ma efficace per SONAR che lavora su frasi intere.
-        # Encoder: (B, T, D) → (B, D)
         B, T, D = features.shape
 
+        # 1. Calcolo Attention Weights
+        # (B, T, D) -> (B, T, 1)
+        attn_scores = self.attention_layer(features)
+
+        # Maschera il padding (se lengths è fornito)
         if lengths is not None:
-            # Media solo sui frame reali (escludendo il padding zero)
-            # Questo è cruciale per non "diluire" il segnale con gli zeri del padding
-            features_avg = torch.zeros(B, D, device=features.device)
-            for i in range(B):
-                length = lengths[i].item()
-                # Evita divisione per zero
-                if length > 0:
-                    features_avg[i] = features[i, :length, :].mean(dim=0)
-        else:
-            # Fallback: media su tutto (include padding se presente, meno preciso)
-            features_avg = features.mean(dim=1)  # (B, D)
+            # Crea maschera: True dove c'è padding, False dove c'è dati
+            # shape (B, T)
+            mask = torch.arange(T, device=features.device)[None, :] >= lengths[:, None]
+            # Imposta score a -inf dove c'è padding così softmax diventa 0
+            attn_scores = attn_scores.masked_fill(mask.unsqueeze(-1), -float("inf"))
 
-        # 2. Proiezione nello Spazio SONAR
-        # L'encoder (MLP) mappa le feature visive (D) nello spazio multilingue (1024)
-        embeddings = self.encoder(features_avg)  # (B, 1024)
+        # Softmax sui frame (dim=1) -> pesi che sommano a 1 per ogni video
+        attn_weights = torch.softmax(attn_scores, dim=1)  # (B, T, 1)
 
-        # NOTA IMPORTANTE SU SCALA E NORMALIZZAZIONE:
-        # Non applichiamo normalizzazione L2 qui (F.normalize).
-        # Il decoder SONAR ha bisogno di vettori con una specifica magnitudo (norma ~32),
-        # non vettori unitari (norma 1).
-        # Se normalizzassimo qui, distruggeremmo l'informazione di "intensità" che il decoder si aspetta.
-        # Lasciamo che la rete impari la scala corretta tramite la Magnitude Loss.
+        # 2. Weighted Pooling
+        # Somma pesata dei frame: (B, T, D) * (B, T, 1) -> sum(dim=1) -> (B, D)
+        features_pooled = (features * attn_weights).sum(dim=1)
+
+        # 3. Proiezione nello Spazio SONAR
+        embeddings = self.encoder(features_pooled)  # (B, 1024)
 
         return embeddings
 
