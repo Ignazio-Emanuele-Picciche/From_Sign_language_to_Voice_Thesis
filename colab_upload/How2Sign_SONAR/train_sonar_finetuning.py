@@ -757,6 +757,10 @@ def main():
             }
             metrics_history.append(metrics)
 
+            # Print detailed BLEU stats (1-gram, 2-gram, etc.)
+            # bleu is a BLEUScore object, printing it shows details
+            print(f"📊 Val BLEU Details: {bleu}")
+
             # Save predictions
             pred_path = Path(args.output_dir) / f"predictions_epoch{epoch:03d}.json"
             with open(pred_path, "w") as f:
