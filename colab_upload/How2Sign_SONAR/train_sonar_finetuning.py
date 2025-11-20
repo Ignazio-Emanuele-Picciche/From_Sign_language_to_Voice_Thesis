@@ -165,9 +165,11 @@ class SONARFineTuner(nn.Module):
             encoder_state = torch.load(encoder_checkpoint, map_location=device)
             self.encoder = self._build_encoder_from_state(encoder_state)
         else:
-            print(f"\n🆕 Initializing SONAR ASL Encoder from scratch (no checkpoint)...")
+            print(
+                f"\n🆕 Initializing SONAR ASL Encoder from scratch (no checkpoint)..."
+            )
             self.encoder = self._build_encoder_from_state(None)
-        
+
         # L'encoder SONAR mappa (T, 256) → (1024,) embedding
         # Architettura: Transformer encoder
         self.encoder.to(device)
@@ -268,8 +270,9 @@ class SONARFineTuner(nn.Module):
         # Encoder
         embeddings = self.encoder(features_avg)  # (B, 1024)
 
-        # FIX 1: NORMALIZZAZIONE L2 (risolve problemi di scala)
-        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+        # FIX 1: RIMOSSA NORMALIZZAZIONE FORZATA
+        # Lasciamo che il modello impari la magnitudo corretta per il decoder
+        # embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
 
         return embeddings
 
@@ -359,17 +362,20 @@ def train_epoch(
         # Calcola target embeddings dai testi usando SONAR text encoder
         target_embeddings = model.encode_texts(texts)  # (B, 1024)
 
-        # FIX 2: COSINE LOSS invece di MSE (migliore per embeddings normalizzati)
-        # Normalizza anche i target embeddings
-        target_embeddings_norm = torch.nn.functional.normalize(
-            target_embeddings, p=2, dim=1
-        )   
+        # FIX 2: COSINE LOSS + MAGNITUDE LOSS
+        # 1. Cosine Loss (per la direzione/semantica)
+        pred_norm = torch.nn.functional.normalize(pred_embeddings, p=2, dim=1)
+        target_norm = torch.nn.functional.normalize(target_embeddings, p=2, dim=1)
+        cosine_sim = (pred_norm * target_norm).sum(dim=1).mean()
+        loss_cosine = 1.0 - cosine_sim
 
-        # Cosine similarity: dot product di vettori normalizzati
-        cosine_sim = (pred_embeddings * target_embeddings_norm).sum(dim=1).mean()
+        # 2. Magnitude Loss (per la scala/decoder)
+        pred_mag = pred_embeddings.norm(p=2, dim=1)
+        target_mag = target_embeddings.norm(p=2, dim=1)
+        loss_mag = torch.nn.functional.mse_loss(pred_mag, target_mag)
 
-        # Loss: 1 - similarity (range [0, 2], ottimo = 0)
-        loss = 1.0 - cosine_sim
+        # Loss totale: Cosine dominante + piccola penalità per magnitudo
+        loss = loss_cosine + 0.01 * loss_mag
 
         # Backward
         optimizer.zero_grad()
@@ -393,8 +399,10 @@ def train_epoch(
         progress.set_postfix(
             {
                 "loss": f"{loss.item():.4f}",
-                "grad_norm": f"{total_norm:.4f}",
-                "cosine_sim": f"{cosine_sim.item():.4f}",
+                "cos_loss": f"{loss_cosine.item():.4f}",
+                "mag_loss": f"{loss_mag.item():.4f}",
+                "grad": f"{total_norm:.2f}",
+                "sim": f"{cosine_sim.item():.3f}",
             }
         )
 
