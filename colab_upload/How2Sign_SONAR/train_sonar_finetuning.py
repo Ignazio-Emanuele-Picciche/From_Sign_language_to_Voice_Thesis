@@ -399,9 +399,10 @@ def train_epoch(
         progress.set_postfix(
             {
                 "loss": f"{loss.item():.4f}",
-                "cos_loss": f"{loss_cosine.item():.4f}",
-                "mag_loss": f"{loss_mag.item():.4f}",
-                "grad": f"{total_norm:.2f}",
+                "cos": f"{loss_cosine.item():.3f}",
+                "mag": f"{loss_mag.item():.3f}",
+                "p_norm": f"{pred_mag.mean().item():.1f}",
+                "t_norm": f"{target_mag.mean().item():.1f}",
                 "sim": f"{cosine_sim.item():.3f}",
             }
         )
@@ -434,11 +435,16 @@ def evaluate(
         # Decode usando SONAR decoder
         pred_texts = model.decode(embeddings, max_length=512)
 
-        for video_id, pred, ref in zip(video_ids, pred_texts, texts):
+        for i, (video_id, pred, ref) in enumerate(zip(video_ids, pred_texts, texts)):
             predictions.append(pred)
             references.append(ref)
 
             samples.append({"video_id": video_id, "reference": ref, "prediction": pred})
+            
+            # DEBUG: Stampa primi 3 esempi per capire cosa genera
+            if len(predictions) <= 3:
+                print(f"\n[DEBUG] Ref:  {ref}")
+                print(f"[DEBUG] Pred: {pred}")
 
     # Calcola BLEU
     bleu = sacrebleu.corpus_bleu(predictions, [references])
