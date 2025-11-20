@@ -148,7 +148,11 @@ class SONARFineTuner(nn.Module):
     """
 
     def __init__(
-        self, encoder_checkpoint: str, device: str = "cuda", freeze_decoder: bool = True
+        self,
+        encoder_checkpoint: str,
+        input_dim: int = 768,
+        device: str = "cuda",
+        freeze_decoder: bool = True,
     ):
         super().__init__()
 
@@ -158,6 +162,7 @@ class SONARFineTuner(nn.Module):
             )
 
         self.device = device
+        self.input_dim = input_dim
 
         # 1. Carica SONAR ASL Encoder (pre-trained o from scratch)
         if encoder_checkpoint and os.path.exists(encoder_checkpoint):
@@ -165,9 +170,7 @@ class SONARFineTuner(nn.Module):
             encoder_state = torch.load(encoder_checkpoint, map_location=device)
             self.encoder = self._build_encoder_from_state(encoder_state)
         else:
-            print(
-                f"\n🆕 Initializing SONAR ASL Encoder from scratch (no checkpoint)..."
-            )
+            print(f"\n🆕 Initializing SONAR ASL Encoder from scratch (no checkpoint)...")
             self.encoder = self._build_encoder_from_state(None)
 
         # L'encoder SONAR mappa (T, 256) → (1024,) embedding
@@ -216,13 +219,16 @@ class SONARFineTuner(nn.Module):
         direttamente la classe SONAR da fairseq2.
         """
         # Dimensioni encoder SONAR
-        input_dim = 256
+        # input_dim = 256  # VECCHIO (Features base)
+        # input_dim = 768  # NUOVO (SignHiera Features)
         hidden_dim = 512
         output_dim = 1024  # SONAR embedding
 
+        print(f"🔧 Encoder Architecture: Input={self.input_dim} -> Hidden={hidden_dim} -> Output={output_dim}")
+
         # Simple projection per ora (in produzione: full transformer)
         encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
+            nn.Linear(self.input_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_dim, output_dim),
@@ -461,7 +467,7 @@ def evaluate(
 
         # SANITY CHECK: Decodifica anche i target embeddings (ground truth)
         # Questo ci dice se il decoder funziona correttamente con input perfetti
-        if len(predictions) == 0: # Fallo solo per il primo batch
+        if len(predictions) == 0:  # Fallo solo per il primo batch
             target_embeddings = model.encode_texts(texts)
             target_texts = model.decode(target_embeddings, max_length=512)
             print(f"\n[SANITY CHECK] Ground Truth Decoding:")
@@ -538,6 +544,12 @@ def main():
 
     # Model
     parser.add_argument(
+        "--input_dim",
+        type=int,
+        default=768,
+        help="Input feature dimension (256 for old features, 768 for SignHiera)",
+    )
+    parser.add_argument(
         "--freeze_decoder",
         action="store_true",
         default=True,
@@ -585,6 +597,7 @@ def main():
     print("\n🔧 Building model...")
     model = SONARFineTuner(
         encoder_checkpoint=args.encoder_checkpoint,
+        input_dim=args.input_dim,
         device=device,
         freeze_decoder=args.freeze_decoder,
     )

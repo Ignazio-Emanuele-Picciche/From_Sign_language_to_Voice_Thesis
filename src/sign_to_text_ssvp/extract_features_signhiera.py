@@ -149,6 +149,12 @@ def load_video(video_path: Path, target_fps: int = 25) -> Optional[torch.Tensor]
                 frame = cv2.resize(frame, (224, 224))
                 # Normalize to [0, 1]
                 frame = frame.astype(np.float32) / 255.0
+
+                # ImageNet Normalization (Standard per SignHiera/ViT)
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+                frame = (frame - mean) / std
+
                 frames.append(frame)
 
             frame_idx += 1
