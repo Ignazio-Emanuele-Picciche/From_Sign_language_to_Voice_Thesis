@@ -244,35 +244,40 @@ class SONARFineTuner(nn.Module):
 
     def forward(self, features, lengths=None):
         """
-        Forward pass
+        Forward pass: Trasforma sequenze video in embeddings SONAR.
 
         Args:
             features: (B, T, 256) video features (possibilmente con padding)
             lengths: (B,) lunghezze originali (prima del padding)
 
         Returns:
-            embeddings: (B, 1024) SONAR embeddings
+            embeddings: (B, 1024) SONAR embeddings pronti per il decoder
         """
-        # Encoder: (B, T, 256) → (B, 1024)
-        # Media temporale + projection
+        # 1. Pooling Temporale (Average Pooling)
+        # Riduciamo la sequenza temporale (T) a un singolo vettore per video.
+        # Encoder: (B, T, 256) → (B, 256)
         B, T, D = features.shape
 
         if lengths is not None:
-            # Media solo sui frame reali (escludi padding)
+            # Media solo sui frame reali (escludendo il padding zero)
             features_avg = torch.zeros(B, D, device=features.device)
             for i in range(B):
                 length = lengths[i].item()
-                features_avg[i] = features[i, :length, :].mean(dim=0)
+                # Evita divisione per zero
+                if length > 0:
+                    features_avg[i] = features[i, :length, :].mean(dim=0)
         else:
-            # Semplificazione: media su tempo (include padding se presente)
+            # Fallback: media su tutto (include padding se presente, meno preciso)
             features_avg = features.mean(dim=1)  # (B, 256)
 
-        # Encoder
+        # 2. Proiezione nello Spazio SONAR
+        # L'encoder (MLP) mappa le feature visive (256) nello spazio multilingue (1024)
         embeddings = self.encoder(features_avg)  # (B, 1024)
 
-        # FIX 1: RIMOSSA NORMALIZZAZIONE FORZATA
-        # Lasciamo che il modello impari la magnitudo corretta per il decoder
-        # embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+        # NOTA IMPORTANTE:
+        # Non applichiamo normalizzazione L2 qui (F.normalize).
+        # Il decoder SONAR ha bisogno di vettori con una specifica magnitudo (norma),
+        # non vettori unitari. Lasciamo che la rete impari la scala corretta.
 
         return embeddings
 
@@ -362,19 +367,29 @@ def train_epoch(
         # Calcola target embeddings dai testi usando SONAR text encoder
         target_embeddings = model.encode_texts(texts)  # (B, 1024)
 
-        # FIX 2: COSINE LOSS + MAGNITUDE LOSS
-        # 1. Cosine Loss (per la direzione/semantica)
+        # -------------------------------------------------------------------------
+        # CALCOLO DELLA LOSS (Funzione di Costo)
+        # -------------------------------------------------------------------------
+        # Usiamo una loss composta da due parti per gestire sia la direzione che la scala.
+
+        # 1. Cosine Loss (Direzione/Semantica)
+        # Misura l'angolo tra i vettori. Vogliamo che puntino nella stessa direzione.
+        # È la parte più importante per la traduzione (il significato).
         pred_norm = torch.nn.functional.normalize(pred_embeddings, p=2, dim=1)
         target_norm = torch.nn.functional.normalize(target_embeddings, p=2, dim=1)
         cosine_sim = (pred_norm * target_norm).sum(dim=1).mean()
         loss_cosine = 1.0 - cosine_sim
 
-        # 2. Magnitude Loss (per la scala/decoder)
+        # 2. Magnitude Loss (Scala/Intensità)
+        # Misura la lunghezza dei vettori. Il decoder SONAR si aspetta una certa "energia".
+        # Se i vettori sono troppo piccoli (es. norm=1), il decoder potrebbe generare silenzio.
         pred_mag = pred_embeddings.norm(p=2, dim=1)
         target_mag = target_embeddings.norm(p=2, dim=1)
         loss_mag = torch.nn.functional.mse_loss(pred_mag, target_mag)
 
-        # Loss totale: Cosine dominante + piccola penalità per magnitudo
+        # Loss Totale
+        # Diamo priorità alla semantica (loss_cosine) ma correggiamo la scala (loss_mag)
+        # Il fattore 0.01 serve a non far dominare la magnitude loss se è molto grande.
         loss = loss_cosine + 0.01 * loss_mag
 
         # Backward
@@ -395,7 +410,16 @@ def train_epoch(
         optimizer.step()
 
         total_loss += loss.item()
-        # FIX 4: LOGGING AVANZATO
+        # -------------------------------------------------------------------------
+        # LOGGING METRICHE (Barra di progresso)
+        # -------------------------------------------------------------------------
+        # loss   : Loss totale (quella che viene minimizzata)
+        # cos    : Componente Cosine Loss (1 - similarità). Più basso è meglio.
+        # mag    : Componente Magnitude Loss (errore di scala). Più basso è meglio.
+        # p_norm : Norma media delle predizioni (quanto sono "forti" i vettori generati)
+        # t_norm : Norma media dei target (quanto sono "forti" i vettori SONAR reali)
+        #          NOTA: p_norm dovrebbe avvicinarsi a t_norm durante il training.
+        # sim    : Cosine Similarity pura (quanto sono allineati i vettori). Più alto è meglio (max 1.0).
         progress.set_postfix(
             {
                 "loss": f"{loss.item():.4f}",
@@ -440,7 +464,7 @@ def evaluate(
             references.append(ref)
 
             samples.append({"video_id": video_id, "reference": ref, "prediction": pred})
-            
+
             # DEBUG: Stampa primi 3 esempi per capire cosa genera
             if len(predictions) <= 3:
                 print(f"\n[DEBUG] Ref:  {ref}")
