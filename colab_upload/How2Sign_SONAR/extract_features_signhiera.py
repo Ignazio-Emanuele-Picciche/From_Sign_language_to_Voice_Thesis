@@ -94,6 +94,12 @@ class VideoDataset(Dataset):
             # Normalize to [0, 1]
             frame = frame.astype(np.float32) / 255.0
 
+            # ImageNet Normalization (Mean/Std)
+            # Crucial for SignHiera/ResNet based models
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            frame = (frame - mean) / std
+
             # HWC to CHW
             frame = np.transpose(frame, (2, 0, 1))
 
@@ -142,12 +148,14 @@ class SimpleSignHiera(nn.Module):
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
                 nn.ReLU(inplace=True),
-                nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+                nn.Conv2d(
+                    128, 768, kernel_size=3, stride=2, padding=1
+                ),  # Updated to 768
                 nn.ReLU(inplace=True),
                 nn.AdaptiveAvgPool2d((1, 1)),
             )
 
-            self.feature_dim = 256
+            self.feature_dim = 768
 
             # Try to load weights if checkpoint structure matches
             try:
@@ -173,12 +181,14 @@ class SimpleSignHiera(nn.Module):
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
                 nn.ReLU(inplace=True),
-                nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+                nn.Conv2d(
+                    128, 768, kernel_size=3, stride=2, padding=1
+                ),  # Updated to 768
                 nn.ReLU(inplace=True),
                 nn.AdaptiveAvgPool2d((1, 1)),
             )
 
-            self.feature_dim = 256
+            self.feature_dim = 768
 
     def forward(self, x):
         """
