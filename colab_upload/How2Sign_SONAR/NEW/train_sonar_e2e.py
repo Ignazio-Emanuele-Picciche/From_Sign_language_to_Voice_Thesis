@@ -1,8 +1,7 @@
 import os
 import math
 import argparse
-import json
-from typing import List, Dict
+from typing import List
 
 import cv2
 import numpy as np
@@ -95,7 +94,7 @@ class VideoEncoder(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=hidden_dim,
             nhead=num_heads,
-            dim_feedforward=hidden_dim * 4,
+            dim_feedforward=hidden_dim * 4,  # FIX
             dropout=dropout,
             batch_first=True,
         )
@@ -129,9 +128,7 @@ class VideoEncoder(nn.Module):
             B, T, _ = x.shape
             device = x.device
             time_ids = torch.arange(T, device=device).unsqueeze(0)  # (1, T)
-            src_key_padding_mask = time_ids >= lengths.unsqueeze(
-                1
-            )  # (B, T), True sui pad
+            src_key_padding_mask = time_ids >= lengths.unsqueeze(1)  # (B, T)
         else:
             src_key_padding_mask = None
 
@@ -248,12 +245,17 @@ def collate_fn(batch):
     }
 
 
+##############################################
+# 4. SONAR FineTuner (encoder/decoder veri)
+##############################################
+
+
 class SONARFineTuner(nn.Module):
     def __init__(self, device="cuda", mode="sonar"):
         super().__init__()
         self.device = device
 
-        # 1) Video encoder (quello end-to-end che abbiamo definito)
+        # 1) Video encoder
         self.video_encoder = VideoEncoder(
             hidden_dim=512,
             num_layers=4,
@@ -262,7 +264,7 @@ class SONARFineTuner(nn.Module):
             output_dim=1024,
         )
 
-        # 2) SONAR text pipelines (come nel tuo script originale)
+        # 2) SONAR text pipelines
         print("\n📥 Loading SONAR Text Pipelines from sonar-space...")
         self.text_embedder = TextToEmbeddingModelPipeline(
             encoder="text_sonar_basic_encoder",
@@ -276,14 +278,9 @@ class SONARFineTuner(nn.Module):
         )
         print("✅ SONAR text encoder/decoder loaded.")
 
-        # SONAR è frozen: non facciamo .requires_grad=True su di loro
         self.mode = mode  # per ora solo "sonar"
 
     def encode_texts(self, texts: List[str]) -> torch.Tensor:
-        """
-        Usa il text encoder SONAR per ottenere gli embedding target (B, 1024)
-        esattamente come nel tuo train_sonar_finetuning.py.
-        """
         with torch.no_grad():
             embeddings = self.text_embedder.predict(
                 texts,
@@ -295,10 +292,6 @@ class SONARFineTuner(nn.Module):
         return embeddings
 
     def decode(self, embeddings: torch.Tensor, max_length: int = 512) -> List[str]:
-        """
-        Usa il text decoder SONAR per generare testo da embeddings (B, 1024).
-        Copiato dal tuo script, con gli stessi accorgimenti.
-        """
         if embeddings.is_cuda:
             embeddings = embeddings.cpu()
         texts = self.text_decoder.predict(
@@ -309,16 +302,11 @@ class SONARFineTuner(nn.Module):
         return texts
 
     def forward(self, frames, lengths, texts=None):
-        """
-        frames: (B, T, 3, H, W)
-        lengths: (B,)
-        texts: lista di stringhe (ground truth), opzionale
-        """
         # 1) Video -> embedding
         video_embeddings = self.video_encoder(frames, lengths)  # (B, 1024)
         outputs = {"video_embeddings": video_embeddings}
 
-        # 2) Se in training SONAR, calcola anche i target embeddings dal testo
+        # 2) Target embeddings da testo (solo in training)
         if self.mode == "sonar" and texts is not None:
             text_embeddings = self.encode_texts(texts)  # (B, 1024)
             outputs["text_embeddings"] = text_embeddings
@@ -326,11 +314,6 @@ class SONARFineTuner(nn.Module):
         return outputs
 
     def compute_loss(self, outputs):
-        """
-        Stessa loss del tuo script:
-        - cosine loss sulla direzione
-        - MSE sulle norme (magnitudo)
-        """
         video_embeddings = outputs["video_embeddings"]
         text_embeddings = outputs["text_embeddings"]
 
@@ -345,7 +328,6 @@ class SONARFineTuner(nn.Module):
         target_mag = text_embeddings.norm(p=2, dim=1)
         loss_mag = nn.functional.mse_loss(pred_mag, target_mag)
 
-        # 3) Loss totale (come nel tuo script: peso 1.0 per la magnitudo)
         loss = loss_cosine + 1.0 * loss_mag
 
         return loss, {
@@ -358,22 +340,15 @@ class SONARFineTuner(nn.Module):
         }
 
     def generate(self, video_embeddings: torch.Tensor, max_len: int = 40) -> List[str]:
-        """
-        Funzione per la valutazione: prende (B, 1024) e genera testo con SONAR decoder.
-        """
         return self.decode(video_embeddings, max_length=max_len)
 
 
 ##############################################
-# 6. BLEU (semplicissimo, puoi sostituire con sacrebleu)
+# 5. BLEU (semplice 1-gram)
 ##############################################
 
 
 def simple_bleu(reference: List[str], hypothesis: List[str]) -> float:
-    """
-    BLEU 1-gram molto grezzo, giusto per debug.
-    Sostituisci con sacrebleu o nltk quando vuoi.
-    """
     assert len(reference) == len(hypothesis)
     total_match = 0
     total_words = 0
@@ -388,13 +363,18 @@ def simple_bleu(reference: List[str], hypothesis: List[str]) -> float:
 
 
 ##############################################
-# 7. Training + valutazione
+# 6. Training + valutazione
 ##############################################
 
 
 def train_one_epoch(model, dataloader, optimizer, device):
     model.train()
     total_loss = 0.0
+    total_cos = 0.0
+    total_p = 0.0
+    total_t = 0.0
+    n_batches = 0
+
     for batch in tqdm(dataloader, desc="Train"):
         frames = batch["frames"].to(device)  # (B, T, C, H, W)
         lengths = batch["lengths"].to(device)  # (B,)
@@ -409,15 +389,23 @@ def train_one_epoch(model, dataloader, optimizer, device):
         optimizer.step()
 
         total_loss += loss.item()
+        total_cos += loss_dict["cos_sim"]
+        total_p += loss_dict["p_norm"]
+        total_t += loss_dict["t_norm"]
+        n_batches += 1
 
-    return total_loss / len(dataloader)
+    avg_loss = total_loss / n_batches
+    avg_cos = total_cos / n_batches
+    avg_p = total_p / n_batches
+    avg_t = total_t / n_batches
+
+    return avg_loss, avg_cos, avg_p, avg_t
 
 
 def evaluate(model, dataloader, device, print_examples=5):
     model.eval()
     all_ref = []
     all_hyp = []
-
     printed = 0
 
     with torch.no_grad():
@@ -433,7 +421,6 @@ def evaluate(model, dataloader, device, print_examples=5):
             all_ref.extend(texts)
             all_hyp.extend(preds)
 
-            # stampa qualche esempio solo nelle prime batch
             if printed < print_examples:
                 for r, p in zip(texts, preds):
                     print("\n[REF]", r)
@@ -442,16 +429,12 @@ def evaluate(model, dataloader, device, print_examples=5):
                     if printed >= print_examples:
                         break
 
-            if printed >= print_examples:
-                # continua comunque a processare per BLEU
-                continue
-
     bleu = simple_bleu(all_ref, all_hyp)
     return bleu
 
 
 ##############################################
-# 8. Main
+# 7. Main
 ##############################################
 
 
@@ -513,13 +496,18 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         print(f"\n=== Epoch {epoch}/{args.epochs} ===")
-        train_loss = train_one_epoch(model, train_loader, optimizer, device)
-        print(f"Train loss: {train_loss:.4f}")
+        train_loss, cos_sim, p_norm, t_norm = train_one_epoch(
+            model, train_loader, optimizer, device
+        )
+        print(
+            f"Train loss: {train_loss:.4f} | "
+            f"cos_sim: {cos_sim:.3f} | "
+            f"p_norm: {p_norm:.2f} | t_norm: {t_norm:.2f}"
+        )
 
         bleu = evaluate(model, val_loader, device, print_examples=5)
         print(f"Val BLEU (simple): {bleu:.2f}")
 
-        # salva se migliora
         if bleu > best_bleu:
             best_bleu = bleu
             ckpt_path = os.path.join(
