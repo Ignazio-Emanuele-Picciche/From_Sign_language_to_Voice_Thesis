@@ -54,11 +54,14 @@ class VideoBackboneResNet(nn.Module):
     Output: (B, T, 2048)
     """
 
-    def __init__(self):
+    def __init__(self, freeze_first=True):
         super().__init__()
         resnet = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-        self.backbone = nn.Sequential(*list(resnet.children())[:-1])  # fino ad avgpool
+        self.backbone = nn.Sequential(*list(resnet.children())[:-1])
         self.feature_dim = 2048
+        if freeze_first:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
 
     def forward(self, x):
         B, T, C, H, W = x.shape
@@ -150,7 +153,7 @@ class VideoEncoder(nn.Module):
         # 7. Proiezione nello spazio SONAR
         emb = self.output_projection(x_pooled)  # (B, 1024)
         emb = self.output_norm(emb)
-        emb = torch.tanh(emb)  # opzionale, per restare in range [-1,1]
+        # emb = torch.tanh(emb)  # opzionale, per restare in range [-1,1]
 
         return emb
 
@@ -317,23 +320,27 @@ class SONARFineTuner(nn.Module):
         video_embeddings = outputs["video_embeddings"]
         text_embeddings = outputs["text_embeddings"]
 
-        # 1) Cosine loss (direzione)
         pred_norm = nn.functional.normalize(video_embeddings, p=2, dim=1)
         target_norm = nn.functional.normalize(text_embeddings, p=2, dim=1)
         cosine_sim = (pred_norm * target_norm).sum(dim=1).mean()
         loss_cosine = 1.0 - cosine_sim
 
-        # 2) Magnitude loss (scala)
+        # Magnitude loss (norma)
         pred_mag = video_embeddings.norm(p=2, dim=1)
         target_mag = text_embeddings.norm(p=2, dim=1)
         loss_mag = nn.functional.mse_loss(pred_mag, target_mag)
 
-        loss = loss_cosine + 1.0 * loss_mag
+        # L2 loss (aiuta la regressione, opzionale ma utile!)
+        loss_l2 = nn.functional.mse_loss(video_embeddings, text_embeddings)
+
+        # Somma pesata
+        loss = loss_cosine + 1.0 * loss_mag + 0.5 * loss_l2
 
         return loss, {
             "loss": loss.item(),
             "cos_loss": loss_cosine.item(),
             "mag_loss": loss_mag.item(),
+            "l2_loss": loss_l2.item(),
             "p_norm": pred_mag.mean().item(),
             "t_norm": target_mag.mean().item(),
             "cos_sim": cosine_sim.item(),
