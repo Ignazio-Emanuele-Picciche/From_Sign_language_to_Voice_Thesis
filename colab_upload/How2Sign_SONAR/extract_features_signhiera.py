@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import argparse
 import os
 import cv2
@@ -10,22 +9,29 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+import math  # Aggiunto per calcolo radice quadrata
 
 import warnings
 
 warnings.filterwarnings("ignore")
 
+# --- Importiamo la versione VIDEO di Hiera ---
+try:
+    from hiera import hiera_base_16x224
+except ImportError:
+    raise ImportError("Installare la libreria: pip install hiera-transformer")
+
 
 # ===========
-# Dataset
+# Dataset (Invariato - 128 Frames)
 # ===========
 class VideoDataset(Dataset):
     def __init__(
-        self, manifest_path, video_dir, target_size=(224, 224), max_frames=300
+        self, manifest_path, video_dir, target_size=(224, 224), target_frames=128
     ):
         self.video_dir = Path(video_dir)
         self.target_size = target_size
-        self.max_frames = max_frames
+        self.target_frames = target_frames
         self.manifest = pd.read_csv(manifest_path, sep="\t")
         print(f"Loaded {len(self.manifest)} videos from manifest")
 
@@ -38,111 +44,162 @@ class VideoDataset(Dataset):
         video_path = self.video_dir / f"{video_id}.mp4"
         frames = self._load_video(video_path)
         if frames is None:
-            frames = torch.zeros(1, 3, *self.target_size)
+            frames = torch.zeros(self.target_frames, 3, *self.target_size)
             valid = False
         else:
             valid = True
-        return {
-            "video_id": video_id,
-            "frames": frames,  # (T, 3, H, W)
-            "valid": valid,
-        }
+        return {"video_id": video_id, "frames": frames, "valid": valid}
 
     def _load_video(self, video_path):
         if not video_path.exists():
-            print(f"⚠️  Video not found: {video_path}")
             return None
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
-            print(f"⚠️  Failed to open video: {video_path}")
             return None
-        frames = []
+
+        raw_frames = []
         while True:
             ret, frame = cap.read()
-            if not ret or len(frames) >= self.max_frames:
+            if not ret:
                 break
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.resize(frame, self.target_size)
-            frame = frame.astype(np.float32) / 255.0
-            mean = np.array([0.485, 0.456, 0.406])
-            std = np.array([0.229, 0.224, 0.225])
-            frame = (frame - mean) / std
-            frame = np.transpose(frame, (2, 0, 1))
-            frames.append(frame)
+            raw_frames.append(frame)
         cap.release()
-        if len(frames) == 0:
+        if len(raw_frames) == 0:
             return None
-        frames = np.stack(frames, axis=0)
+        raw_frames = np.stack(raw_frames)
+
+        # Sampling 128 frames
+        T_orig = len(raw_frames)
+        if T_orig > 0:
+            indices = np.linspace(0, T_orig - 1, self.target_frames).astype(int)
+            frames = raw_frames[indices]
+        else:
+            return None
+
+        frames = frames.astype(np.float32) / 255.0
+        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array([0.229, 0.224, 0.225])
+        frames = (frames - mean) / std
+        frames = np.transpose(frames, (0, 3, 1, 2))
         return torch.from_numpy(frames).float()
 
 
-def collate_fn(batch):
-    return batch
-
-
 # =========================
-# MODEL: SignHiera Fallback
+# MODEL: REAL SignHiera (ADAPTIVE FORWARD)
 # =========================
-class SimpleSignHiera(nn.Module):
+class RealSignHiera(nn.Module):
     def __init__(self, pretrained_path=None):
         super().__init__()
-        # Try to load real model
-        if pretrained_path and os.path.exists(pretrained_path):
+        print(f"🏗️  Building SignHiera architecture...")
+
+        self.backbone = hiera_base_16x224(pretrained=False)
+        self.backbone.head = nn.Identity()
+        self.feature_dim = 768
+
+        # --- FIX: Allarghiamo i pesi TEMPORALI ---
+        # SignHiera usa 64 token temporali (per 128 frame input)
+        expected_temp_pos = 64
+        current_temp_pos = self.backbone.pos_embed_temporal.shape[1]
+
+        if current_temp_pos != expected_temp_pos:
             print(
-                f"Loading SignHiera backbone from {pretrained_path} (NOTE: expects arch compatible with this script!)"
+                f"🔧 Resizing temporal parameter from {current_temp_pos} to {expected_temp_pos}..."
             )
+            new_pos_embed = nn.Parameter(torch.zeros(1, expected_temp_pos, 96))
+            self.backbone.pos_embed_temporal = new_pos_embed
+            self.backbone.tokens_temporal = expected_temp_pos
+
+        # Caricamento Pesi
+        if pretrained_path and os.path.exists(pretrained_path):
+            print(f"📂 Loading weights from {pretrained_path}")
             checkpoint = torch.load(pretrained_path, map_location="cpu")
-            # You must adjust this if you have access to real SignHiera model class!
-            # Fallback: random simple CNN for now
-            self.backbone = nn.Sequential(
-                nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-                nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(128, 768, kernel_size=3, stride=2, padding=1),
-                nn.ReLU(inplace=True),
-                nn.AdaptiveAvgPool2d((1, 1)),
+            state_dict = (
+                checkpoint.get("model") or checkpoint.get("state_dict") or checkpoint
             )
-            self.feature_dim = 768
-            # Try to load weights
-            try:
-                state_dict = (
-                    checkpoint.get("model")
-                    or checkpoint.get("state_dict")
-                    or checkpoint
-                )
-                self.load_state_dict(state_dict, strict=False)
-                print("✅ Loaded model weights (if compatible).")
-            except Exception as e:
-                print(f"⚠️  Could not load weights: {e}")
-                print("   Using random initialization.")
+            state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+
+            # Carichiamo tollerando i mismatch (perché pos_spatial potrebbe essere diverso dallo standard)
+            missing, unexpected = self.backbone.load_state_dict(
+                state_dict, strict=False
+            )
+
+            # DEBUG: Vediamo quanto è grande davvero pos_spatial dopo il caricamento
+            spatial_shape = self.backbone.pos_embed_spatial.shape
+            print(f"📊 DEBUG: Loaded Spatial Embed Shape: {spatial_shape}")
+            print("✅ Pesi SignHiera caricati!")
         else:
-            print("⚠️  No pretrained model found, using simple CNN fallback.")
-            self.backbone = nn.Sequential(
-                nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
-                nn.ReLU(inplace=True),
-                nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
-                nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(128, 768, kernel_size=3, stride=2, padding=1),
-                nn.ReLU(inplace=True),
-                nn.AdaptiveAvgPool2d((1, 1)),
-            )
-            self.feature_dim = 768
+            raise ValueError(f"❌ Modello non trovato: {pretrained_path}")
 
     def forward(self, x):
-        # x: (T, 3, H, W) or (B, T, 3, H, W)
-        if x.dim() == 5:
-            B, T, C, H, W = x.shape
-            x = x.view(B * T, C, H, W)
-            features = self.backbone(x)
-            features = features.view(B, T, -1)
+        # x: (T, C, H, W) -> (128, 3, 224, 224)
+        x = x.unsqueeze(0).permute(0, 2, 1, 3, 4)  # (1, 3, 128, 224, 224)
+
+        # === MANUAL FORWARD PASS (ADAPTIVE) ===
+
+        # 1. Patch Embedding -> (B, 200704, 96)
+        x = self.backbone.patch_embed(x)
+
+        # 2. Add Position Embeddings (ADAPTIVE LOGIC)
+        # Recuperiamo i pesi attuali dal modello
+        pos_spatial = (
+            self.backbone.pos_embed_spatial
+        )  # Shape incognita (o 1x49x96 o 1x3136x96)
+        pos_temporal = self.backbone.pos_embed_temporal  # Shape (1, 64, 96)
+
+        B, L, C = x.shape
+        # L atteso = 200704 (64 * 56 * 56)
+
+        # --- GESTIONE SPAZIALE ---
+        num_spatial_tokens = pos_spatial.shape[1]  # es. 3136 o 49
+        side_dim = int(math.sqrt(num_spatial_tokens))  # es. 56 o 7
+
+        if side_dim == 7:
+            # Caso Standard Hiera: i pesi sono piccoli, dobbiamo espanderli
+            pos_spatial = pos_spatial.reshape(1, 1, 7, 7, C)
+            # Ripetiamo 8 volte per arrivare a 56x56
+            pos_spatial = pos_spatial.repeat_interleave(8, dim=2).repeat_interleave(
+                8, dim=3
+            )
+        elif side_dim == 56:
+            # Caso SignHiera Checkpoint: i pesi sono GIÀ espansi
+            pos_spatial = pos_spatial.reshape(1, 1, 56, 56, C)
         else:
-            T, C, H, W = x.shape
-            features = self.backbone(x)
-            features = features.view(T, -1)
-        return features  # (B, T, D) or (T, D)
+            raise ValueError(
+                f"Dimensione spaziale imprevista nei pesi: {side_dim}x{side_dim}"
+            )
+
+        # Ora pos_spatial è sicuramente (1, 1, 56, 56, 96)
+
+        # --- GESTIONE TEMPORALE ---
+        # pos_temporal è (1, 64, 96) -> reshape a (1, 64, 1, 1, 96)
+        pos_temporal = pos_temporal.reshape(1, 64, 1, 1, C)
+
+        # --- SOMMA BROADCASTING ---
+        # (1, 1, 56, 56, 96) + (1, 64, 1, 1, 96) = (1, 64, 56, 56, 96)
+        pos_total = pos_spatial + pos_temporal
+
+        # Flatten finale: (1, 200704, 96)
+        pos_total = pos_total.flatten(1, 3)
+
+        # Check sicurezza finale
+        if pos_total.shape[1] != x.shape[1]:
+            # Se capita questo, tronchiamo o paddiamo (fallback estremo)
+            # Ma matematicamente non dovrebbe succedere ora.
+            print(f"⚠️ Shape mismatch finale: Embed {pos_total.shape} vs X {x.shape}")
+
+        # Addizione
+        x = x + pos_total
+
+        # 3. Passaggio nei Blocchi
+        for block in self.backbone.blocks:
+            x = block(x)
+
+        # 4. Normale finale
+        x = self.backbone.norm(x)
+
+        return x
 
 
 # =========================
@@ -150,85 +207,71 @@ class SimpleSignHiera(nn.Module):
 # =========================
 def extract_features(args):
     print("=" * 70)
-    print("🚀 SIGNHIERA FEATURE EXTRACTION")
+    print("🚀 SIGNHIERA EXTRACTION (ADAPTIVE)")
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
-    model = SimpleSignHiera(pretrained_path=args.model_path).to(device)
-    model.eval()
 
-    dataset = VideoDataset(args.manifest, args.video_dir, max_frames=args.max_frames)
+    try:
+        model = RealSignHiera(pretrained_path=args.model_path).to(device)
+        model.eval()
+    except Exception as e:
+        print(f"❌ Errore Setup Modello: {e}")
+        return
+
+    dataset = VideoDataset(args.manifest, args.video_dir, target_frames=128)
     dataloader = DataLoader(
         dataset,
         batch_size=1,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=collate_fn,
+        collate_fn=lambda x: x,
     )
 
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Output dir: {out_dir}")
 
-    num_processed, num_failed = 0, 0
-
+    num_processed = 0
     with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Extracting features"):
+        for batch in tqdm(dataloader, desc="Extracting"):
             sample = batch[0]
             video_id = sample["video_id"]
             frames = sample["frames"]
-            valid = sample["valid"]
-            if not valid:
-                num_failed += 1
+
+            if not sample["valid"]:
                 continue
+
             frames = frames.to(device)
             try:
-                features = model(frames)  # (T, D)
+                features = model(frames)
                 features = features.cpu().numpy()
+                if features.shape[0] == 1:
+                    features = features.squeeze(0)
+
                 np.save(out_dir / f"{video_id}.npy", features)
                 num_processed += 1
             except Exception as e:
-                print(f"⚠️  Error processing {video_id}: {e}")
-                num_failed += 1
+                print(f"⚠️ Error {video_id}: {e}")
+                import traceback
 
-    print("=" * 70)
-    print("✅ EXTRACTION COMPLETE")
-    print(f"Processed: {num_processed} videos")
-    print(f"Failed:    {num_failed} videos")
-    print(f"Features saved to: {out_dir}")
-    print("🎉 Done!")
+                traceback.print_exc()
+                if num_processed == 0:
+                    break
+
+    print(f"✅ Finito! Salvati {num_processed} video in {out_dir}")
 
 
 # =====================
 def main():
-    parser = argparse.ArgumentParser(
-        description="Extract SignHiera features from videos"
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manifest", type=str, required=True)
+    parser.add_argument("--video_dir", type=str, required=True)
     parser.add_argument(
-        "--manifest", type=str, required=True, help="TSV manifest (id, ...)"
+        "--model_path", type=str, default="models/dm_70h_ub_signhiera.pth"
     )
-    parser.add_argument(
-        "--video_dir", type=str, required=True, help="Directory with videos"
-    )
-    parser.add_argument(
-        "--model_path",
-        type=str,
-        default="models/dm_70h_ub_signhiera.pth",
-        help="Path to the SignHiera checkpoint (default: models/dm_70h_ub_signhiera.pth)",
-    )
-    parser.add_argument(
-        "--output_dir", type=str, required=True, help="Where to save features"
-    )
+    parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--max_frames", type=int, default=300)
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()
-    assert os.path.exists(args.manifest), f"Manifest not found: {args.manifest}"
-    assert os.path.exists(args.video_dir), f"Video dir not found: {args.video_dir}"
-    if not os.path.exists(args.model_path):
-        print(
-            f"⚠️ Model {args.model_path} not found, using random weights! (LOW PERFORMANCE)\n"
-            f"   Expected model location: models/dm_70h_ub_signhiera.pth"
-        )
     extract_features(args)
 
 
