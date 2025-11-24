@@ -18,6 +18,21 @@ import random
 import mlflow
 
 
+# python train_sonar_slt.py \
+#   --train_features_dir "data/features/train" \
+#   --train_manifest "data/manifests/train.tsv" \
+#   --val_features_dir "data/features/val" \
+#   --val_manifest "data/manifests/val.tsv" \
+#   --output_dir "models/run_english_final" \
+#   --lang "eng_Latn" \
+#   --batch_size 8 \
+#   --epochs 2 \
+#   --save_every 2 \
+#   --val_every 2 \
+#   --patience 5 \
+#   --random_seed 42
+
+
 # ==========================================
 # 0. FUNZIONE PER LA RIPRODUCIBILITÀ
 # ==========================================
