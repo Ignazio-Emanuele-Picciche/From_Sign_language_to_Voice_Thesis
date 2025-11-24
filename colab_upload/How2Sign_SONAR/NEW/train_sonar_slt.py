@@ -220,38 +220,34 @@ def calculate_metrics(predictions, references):
     print("📊 Calcolo metriche...")
     results = {}
 
-    # Importiamo direttamente la libreria per evitare i limiti del wrapper 'evaluate'
-    import sacrebleu
+    # Importiamo le classi metriche specifiche
+    from sacrebleu.metrics import BLEU
     import evaluate  # Serve ancora per ROUGE/BLEURT
 
-    # PREPARAZIONE DATI PER SACREBLEU
-    # SacreBLEU si aspetta che le referenze siano una lista di liste (es. [ [ref1_tutta_la_lista], [ref2_opzionale] ])
-    # Noi abbiamo una sola referenza per video, quindi mettiamo tutta la lista dentro un'altra lista.
+    # SacreBLEU vuole [[ref1, ref2, ...]] dove ref1 è la lista di tutte le frasi target
+    # Poiché abbiamo 1 sola referenza per video, avvolgiamo la lista references in un'altra lista
     sacrebleu_refs = [references]
 
-    # 1. BLEU-4 (Standard)
-    # Questo è lo score ufficiale che si usa nei paper
-    bleu4 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs)
-    results["BLEU-4"] = bleu4.score
+    # 1. Calcolo BLEU-1, 2, 3, 4 usando la classe moderna BLEU
+    # max_ngram_order=N calcola il BLEU score cumulativo fino a N grammi
 
-    # 2. BLEU-1, 2, 3 (Custom)
-    # Usiamo i pesi (weights) per isolare gli n-grammi
+    # BLEU-1
+    b1 = BLEU(max_ngram_order=1)
+    results["BLEU-1"] = b1.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-1 (Solo parole singole)
-    b1 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs, weights=[1.0, 0, 0, 0])
-    results["BLEU-1"] = b1.score
+    # BLEU-2
+    b2 = BLEU(max_ngram_order=2)
+    results["BLEU-2"] = b2.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-2 (Media tra 1-gram e 2-gram)
-    b2 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs, weights=[0.5, 0.5, 0, 0])
-    results["BLEU-2"] = b2.score
+    # BLEU-3
+    b3 = BLEU(max_ngram_order=3)
+    results["BLEU-3"] = b3.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-3 (Media tra 1, 2 e 3-gram)
-    b3 = sacrebleu.corpus_bleu(
-        predictions, sacrebleu_refs, weights=[1 / 3, 1 / 3, 1 / 3, 0]
-    )
-    results["BLEU-3"] = b3.score
+    # BLEU-4 (Standard)
+    b4 = BLEU(max_ngram_order=4)
+    results["BLEU-4"] = b4.corpus_score(predictions, sacrebleu_refs).score
 
-    # 3. ROUGE-L
+    # 2. ROUGE-L
     try:
         rouge_metric = evaluate.load("rouge")
         rouge = rouge_metric.compute(predictions=predictions, references=references)
@@ -260,15 +256,15 @@ def calculate_metrics(predictions, references):
         print(f"⚠️ Errore ROUGE: {e}")
         results["ROUGE-L"] = 0.0
 
-    # 4. BLEURT (Opzionale - se fallisce lo ignoriamo per non bloccare tutto)
+    # 3. BLEURT (Opzionale)
     try:
+        # Usiamo bleurt-tiny se disponibile per velocità
         bleurt_metric = evaluate.load("bleurt", config_name="bleurt-tiny-128")
         bleurt_res = bleurt_metric.compute(
             predictions=predictions, references=references
         )
         results["BLEURT"] = np.mean(bleurt_res["scores"])
     except Exception:
-        # BLEURT spesso fallisce se manca internet o la libreria, non è critico
         pass
 
     return results
