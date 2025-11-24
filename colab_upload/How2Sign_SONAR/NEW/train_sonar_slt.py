@@ -270,6 +270,31 @@ def calculate_metrics(predictions, references):
     return results
 
 
+# Metti questo PRIMA di def train(args):
+class EarlyStopping:
+    def __init__(self, patience=3, min_delta=0.0):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.counter = 0
+        self.best_loss = None
+        self.early_stop = False
+
+    def __call__(self, val_loss):
+        if self.best_loss is None:
+            self.best_loss = val_loss
+            return True
+        elif val_loss > self.best_loss - self.min_delta:
+            self.counter += 1
+            print(f"⏳ EarlyStopping counter: {self.counter} su {self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+            return False
+        else:
+            self.best_loss = val_loss
+            self.counter = 0
+            return True
+
+
 # ==========================================
 # 4. MAIN
 # ==========================================
@@ -301,7 +326,7 @@ def train(args):
         split_name="VAL",
     )
 
-    # DataLoader non split, ma diretti
+    # DataLoader
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
     )
@@ -311,25 +336,30 @@ def train(args):
 
     model = SonarSignModel(pretrained_model=model_name).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.amp.GradScaler("cuda")  # Sintassi aggiornata per evitare warning
 
     total_steps = len(train_loader) * args.epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=100, num_training_steps=total_steps
     )
 
+    # Resume Logic
     start_epoch = 0
     if args.resume_from:
         start_epoch = load_checkpoint(
             args.resume_from, model, optimizer, scheduler, scaler
         )
 
+    # --- INIZIALIZZA EARLY STOPPING ---
+    early_stopper = EarlyStopping(patience=args.patience, min_delta=0.001)
+
     print(
         f"🔥 Inizio Training: {len(train_dataset)} train samples, {len(val_dataset)} val samples."
     )
 
+    # --- UNICO LOOP DI TRAINING ---
     for epoch in range(start_epoch, args.epochs):
-        # --- TRAIN ---
+        # 1. TRAIN
         model.train()
         total_loss = 0
         progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
@@ -339,7 +369,7 @@ def train(args):
             labels = batch["labels"].to(device)
 
             optimizer.zero_grad()
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):  # Sintassi aggiornata
                 outputs = model(inputs, labels=labels)
                 loss = outputs.loss
 
@@ -354,28 +384,7 @@ def train(args):
         avg_train_loss = total_loss / len(train_loader)
         print(f"\n📉 Epoch {epoch+1} - Avg Train Loss: {avg_train_loss:.4f}")
 
-        # --- CHECKPOINT ---
-        if (epoch + 1) % args.save_every == 0:
-            save_checkpoint(
-                model,
-                optimizer,
-                scheduler,
-                scaler,
-                epoch,
-                args,
-                filename=f"checkpoint_epoch_{epoch+1}.pth",
-            )
-        save_checkpoint(
-            model,
-            optimizer,
-            scheduler,
-            scaler,
-            epoch,
-            args,
-            filename="checkpoint_last.pth",
-        )
-
-        # --- VALIDATION ---
+        # 2. VALIDATION & EARLY STOPPING
         if (epoch + 1) % args.val_every == 0:
             model.eval()
             val_loss = 0
@@ -389,21 +398,22 @@ def train(args):
                     labels = batch["labels"].to(device)
                     texts = batch["text"]
 
-                    with torch.cuda.amp.autocast():
+                    with torch.amp.autocast("cuda"):
                         outputs = model(inputs, labels=labels)
                         val_loss += outputs.loss.item()
 
+                    # Generazione per metriche
                     tokenizer.tgt_lang = args.lang
                     gen_ids = model.generate(inputs, tokenizer)
                     decoded_preds = tokenizer.batch_decode(
                         gen_ids, skip_special_tokens=True
                     )
-
                     all_preds.extend(decoded_preds)
                     all_targets.extend(texts)
 
             avg_val_loss = val_loss / len(val_loader)
 
+            # Calcolo Metriche
             metrics = calculate_metrics(all_preds, all_targets)
 
             print(f"\n📊 REPORT VALIDAZIONE (Epoch {epoch+1}):")
@@ -411,10 +421,58 @@ def train(args):
             for k, v in metrics.items():
                 print(f"   {k}: {v:.2f}")
 
-            print("\n👀 Esempio:")
-            print(f"   ✅: {all_targets[0]}")
-            print(f"   🤖: {all_preds[0]}")
-            print("-" * 40)
+            # Esempio visivo
+            if len(all_preds) > 0:
+                print("\n👀 Esempio:")
+                print(f"   ✅: {all_targets[0]}")
+                print(f"   🤖: {all_preds[0]}")
+                print("-" * 40)
+
+            # --- LOGICA EARLY STOPPING ---
+            is_best = early_stopper(avg_val_loss)
+
+            if is_best:
+                print(
+                    f"🏆 Nuova Best Val Loss: {avg_val_loss:.4f}. Salvataggio checkpoint_best.pth..."
+                )
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    scaler,
+                    epoch,
+                    args,
+                    filename="checkpoint_best.pth",
+                )
+
+            # Salvataggio ricorrente
+            if (epoch + 1) % args.save_every == 0:
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    scaler,
+                    epoch,
+                    args,
+                    filename=f"checkpoint_epoch_{epoch+1}.pth",
+                )
+            # Salvataggio "sicurezza" (sempre)
+            save_checkpoint(
+                model,
+                optimizer,
+                scheduler,
+                scaler,
+                epoch,
+                args,
+                filename="checkpoint_last.pth",
+            )
+
+            # Stop check
+            if early_stopper.early_stop:
+                print(
+                    f"🛑 Early Stopping attivato! Nessun miglioramento per {args.patience} controlli consecutivi."
+                )
+                break
 
     print(f"🎉 Training completato! Output in {args.output_dir}")
 
@@ -436,6 +494,13 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--val_every", type=int, default=1)
+    parser.add_argument("--random_seed", type=int, default=42)  # TODO: usare il seed
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=5,
+        help="Quante validazioni aspettare prima di stoppare",
+    )
 
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
