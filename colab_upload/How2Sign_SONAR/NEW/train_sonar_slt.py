@@ -1,18 +1,3 @@
-# !pip install evaluate sacrebleu rouge_score bert_score git+https://github.com/google-research/bleurt.git
-
-# python train_sonar_slt.py \
-#   --train_features_dir "data/features/train" \
-#   --train_manifest "data/manifests/train.tsv" \
-#   --val_features_dir "data/features/val" \
-#   --val_manifest "data/manifests/val.tsv" \
-#   --output_dir "models/run_english" \
-#   --lang "eng_Latn" \
-#   --batch_size 8 \
-#   --epochs 5 \
-#   --save_every 5 \
-#   --val_every 5
-
-
 import os
 import argparse
 import torch
@@ -29,12 +14,29 @@ from transformers import (
 )
 import torch.optim as optim
 import evaluate
+import random  # <--- NUOVO IMPORT
+
 
 # ==========================================
-# 1. DATASET (Invariato ma usato due volte)
+# 0. FUNZIONE PER LA RIPRODUCIBILITÀ
 # ==========================================
+def set_seed(seed):
+    """Fissa il seed per riproducibilità totale."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    # Garantisce che le operazioni convoluzionali siano deterministiche
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"🌱 Random Seed fissato a: {seed}")
 
 
+# ==========================================
+# 1. DATASET
+# ==========================================
 class SignTranslationDataset(Dataset):
     def __init__(
         self,
@@ -43,7 +45,7 @@ class SignTranslationDataset(Dataset):
         tokenizer,
         max_length=128,
         tgt_lang="eng_Latn",
-        split_name="data",  # Solo per print di debug
+        split_name="data",
     ):
         self.features_dir = Path(features_dir)
         self.tokenizer = tokenizer
@@ -51,7 +53,6 @@ class SignTranslationDataset(Dataset):
         self.tgt_lang = tgt_lang
         self.split_name = split_name
 
-        # --- CARICAMENTO ROBUSTO DEL MANIFEST ---
         try:
             df = pd.read_csv(manifest_path, sep="\t")
             if "text" not in df.columns or "id" not in df.columns:
@@ -75,7 +76,6 @@ class SignTranslationDataset(Dataset):
 
         print(f"🔍 Verifica file per split: {split_name}...")
         missing_count = 0
-        # Usiamo tqdm solo se ci sono tanti file
         iterator = (
             tqdm(df.iterrows(), total=len(df), desc=f"Check {split_name}")
             if len(df) > 100
@@ -109,7 +109,7 @@ class SignTranslationDataset(Dataset):
         video_features = np.load(feature_path)
         video_tensor = torch.from_numpy(video_features).float()
 
-        self.tokenizer.src_lang = "eng_Latn"  # Dummy source
+        self.tokenizer.src_lang = "eng_Latn"
         self.tokenizer.tgt_lang = self.tgt_lang
 
         labels = self.tokenizer(
@@ -126,10 +126,8 @@ class SignTranslationDataset(Dataset):
 
 
 # ==========================================
-# 2. MODELLO (Invariato)
+# 2. MODELLO
 # ==========================================
-
-
 class SonarSignModel(nn.Module):
     def __init__(
         self, pretrained_model="facebook/nllb-200-distilled-600M", feature_dim=768
@@ -162,8 +160,6 @@ class SonarSignModel(nn.Module):
             inputs_embeds.shape[:2], device=inputs_embeds.device
         )
 
-        # --- FIX QUI SOTTO ---
-        # Invece di tokenizer.lang_code_to_id[...] usiamo convert_tokens_to_ids
         forced_bos_token_id = tokenizer.convert_tokens_to_ids(tokenizer.tgt_lang)
 
         generated_ids = self.nllb.generate(
@@ -177,10 +173,8 @@ class SonarSignModel(nn.Module):
 
 
 # ==========================================
-# 3. UTILITY (Invariato)
+# 3. UTILITY
 # ==========================================
-
-
 def save_checkpoint(
     model, optimizer, scheduler, scaler, epoch, args, filename="checkpoint_latest.pth"
 ):
@@ -219,35 +213,23 @@ def load_checkpoint(path, model, optimizer, scheduler, scaler):
 def calculate_metrics(predictions, references):
     print("📊 Calcolo metriche...")
     results = {}
-
-    # Importiamo le classi metriche specifiche
     from sacrebleu.metrics import BLEU
-    import evaluate  # Serve ancora per ROUGE/BLEURT
+    import evaluate
 
-    # SacreBLEU vuole [[ref1, ref2, ...]] dove ref1 è la lista di tutte le frasi target
-    # Poiché abbiamo 1 sola referenza per video, avvolgiamo la lista references in un'altra lista
     sacrebleu_refs = [references]
 
-    # 1. Calcolo BLEU-1, 2, 3, 4 usando la classe moderna BLEU
-    # max_ngram_order=N calcola il BLEU score cumulativo fino a N grammi
-
-    # BLEU-1
     b1 = BLEU(max_ngram_order=1)
     results["BLEU-1"] = b1.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-2
     b2 = BLEU(max_ngram_order=2)
     results["BLEU-2"] = b2.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-3
     b3 = BLEU(max_ngram_order=3)
     results["BLEU-3"] = b3.corpus_score(predictions, sacrebleu_refs).score
 
-    # BLEU-4 (Standard)
     b4 = BLEU(max_ngram_order=4)
     results["BLEU-4"] = b4.corpus_score(predictions, sacrebleu_refs).score
 
-    # 2. ROUGE-L
     try:
         rouge_metric = evaluate.load("rouge")
         rouge = rouge_metric.compute(predictions=predictions, references=references)
@@ -256,9 +238,7 @@ def calculate_metrics(predictions, references):
         print(f"⚠️ Errore ROUGE: {e}")
         results["ROUGE-L"] = 0.0
 
-    # 3. BLEURT (Opzionale)
     try:
-        # Usiamo bleurt-tiny se disponibile per velocità
         bleurt_metric = evaluate.load("bleurt", config_name="bleurt-tiny-128")
         bleurt_res = bleurt_metric.compute(
             predictions=predictions, references=references
@@ -270,7 +250,6 @@ def calculate_metrics(predictions, references):
     return results
 
 
-# Metti questo PRIMA di def train(args):
 class EarlyStopping:
     def __init__(self, patience=3, min_delta=0.0):
         self.patience = patience
@@ -296,10 +275,8 @@ class EarlyStopping:
 
 
 # ==========================================
-# 4. MAIN
+# 4. TRAINING LOOP
 # ==========================================
-
-
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"🚀 Training su device: {device}")
@@ -307,7 +284,6 @@ def train(args):
     model_name = "facebook/nllb-200-distilled-600M"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    # --- DATASETS SEPARATI ---
     print("\n📂 Caricamento TRAIN SET...")
     train_dataset = SignTranslationDataset(
         features_dir=args.train_features_dir,
@@ -326,7 +302,6 @@ def train(args):
         split_name="VAL",
     )
 
-    # DataLoader
     train_loader = DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
     )
@@ -336,28 +311,25 @@ def train(args):
 
     model = SonarSignModel(pretrained_model=model_name).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    scaler = torch.amp.GradScaler("cuda")  # Sintassi aggiornata per evitare warning
+    scaler = torch.amp.GradScaler("cuda")
 
     total_steps = len(train_loader) * args.epochs
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=100, num_training_steps=total_steps
     )
 
-    # Resume Logic
     start_epoch = 0
     if args.resume_from:
         start_epoch = load_checkpoint(
             args.resume_from, model, optimizer, scheduler, scaler
         )
 
-    # --- INIZIALIZZA EARLY STOPPING ---
     early_stopper = EarlyStopping(patience=args.patience, min_delta=0.001)
 
     print(
         f"🔥 Inizio Training: {len(train_dataset)} train samples, {len(val_dataset)} val samples."
     )
 
-    # --- UNICO LOOP DI TRAINING ---
     for epoch in range(start_epoch, args.epochs):
         # 1. TRAIN
         model.train()
@@ -369,7 +341,7 @@ def train(args):
             labels = batch["labels"].to(device)
 
             optimizer.zero_grad()
-            with torch.amp.autocast("cuda"):  # Sintassi aggiornata
+            with torch.amp.autocast("cuda"):
                 outputs = model(inputs, labels=labels)
                 loss = outputs.loss
 
@@ -384,7 +356,7 @@ def train(args):
         avg_train_loss = total_loss / len(train_loader)
         print(f"\n📉 Epoch {epoch+1} - Avg Train Loss: {avg_train_loss:.4f}")
 
-        # 2. VALIDATION & EARLY STOPPING
+        # 2. VALIDATION
         if (epoch + 1) % args.val_every == 0:
             model.eval()
             val_loss = 0
@@ -402,7 +374,6 @@ def train(args):
                         outputs = model(inputs, labels=labels)
                         val_loss += outputs.loss.item()
 
-                    # Generazione per metriche
                     tokenizer.tgt_lang = args.lang
                     gen_ids = model.generate(inputs, tokenizer)
                     decoded_preds = tokenizer.batch_decode(
@@ -413,7 +384,6 @@ def train(args):
 
             avg_val_loss = val_loss / len(val_loader)
 
-            # Calcolo Metriche
             metrics = calculate_metrics(all_preds, all_targets)
 
             print(f"\n📊 REPORT VALIDAZIONE (Epoch {epoch+1}):")
@@ -421,14 +391,13 @@ def train(args):
             for k, v in metrics.items():
                 print(f"   {k}: {v:.2f}")
 
-            # Esempio visivo
             if len(all_preds) > 0:
                 print("\n👀 Esempio:")
                 print(f"   ✅: {all_targets[0]}")
                 print(f"   🤖: {all_preds[0]}")
                 print("-" * 40)
 
-            # --- LOGICA EARLY STOPPING ---
+            # Early Stopping Check
             is_best = early_stopper(avg_val_loss)
 
             if is_best:
@@ -445,7 +414,6 @@ def train(args):
                     filename="checkpoint_best.pth",
                 )
 
-            # Salvataggio ricorrente
             if (epoch + 1) % args.save_every == 0:
                 save_checkpoint(
                     model,
@@ -456,7 +424,6 @@ def train(args):
                     args,
                     filename=f"checkpoint_epoch_{epoch+1}.pth",
                 )
-            # Salvataggio "sicurezza" (sempre)
             save_checkpoint(
                 model,
                 optimizer,
@@ -467,7 +434,6 @@ def train(args):
                 filename="checkpoint_last.pth",
             )
 
-            # Stop check
             if early_stopper.early_stop:
                 print(
                     f"🛑 Early Stopping attivato! Nessun miglioramento per {args.patience} controlli consecutivi."
@@ -480,7 +446,6 @@ def train(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    # Nuovi argomenti separati per Train e Val
     parser.add_argument("--train_features_dir", type=str, required=True)
     parser.add_argument("--train_manifest", type=str, required=True)
     parser.add_argument("--val_features_dir", type=str, required=True)
@@ -494,7 +459,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--val_every", type=int, default=1)
-    parser.add_argument("--random_seed", type=int, default=42)  # TODO: usare il seed
+    parser.add_argument("--random_seed", type=int, default=42)  # Nuovo argomento
     parser.add_argument(
         "--patience",
         type=int,
@@ -503,5 +468,9 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    # --- CHIAMATA CRUCIALE PER LA RIPRODUCIBILITÀ ---
+    set_seed(args.random_seed)
+
     os.makedirs(args.output_dir, exist_ok=True)
     train(args)
