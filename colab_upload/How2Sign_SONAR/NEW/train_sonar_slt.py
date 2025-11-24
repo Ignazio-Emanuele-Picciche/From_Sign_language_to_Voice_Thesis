@@ -14,7 +14,8 @@ from transformers import (
 )
 import torch.optim as optim
 import evaluate
-import random  # <--- NUOVO IMPORT
+import random
+import mlflow
 
 
 # ==========================================
@@ -28,7 +29,6 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-    # Garantisce che le operazioni convoluzionali siano deterministiche
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     print(f"🌱 Random Seed fissato a: {seed}")
@@ -281,164 +281,187 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"🚀 Training su device: {device}")
 
-    model_name = "facebook/nllb-200-distilled-600M"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    # --- MLFLOW SETUP ---
+    mlflow.set_experiment("SONAR_SLT_Experiment")
 
-    print("\n📂 Caricamento TRAIN SET...")
-    train_dataset = SignTranslationDataset(
-        features_dir=args.train_features_dir,
-        manifest_path=args.train_manifest,
-        tokenizer=tokenizer,
-        tgt_lang=args.lang,
-        split_name="TRAIN",
-    )
+    # Inizia il tracciamento MLflow
+    with mlflow.start_run():
+        # Logghiamo tutti gli iperparametri
+        mlflow.log_params(vars(args))
+        print("📊 MLflow run avviata. Parametri loggati.")
 
-    print("\n📂 Caricamento VAL SET...")
-    val_dataset = SignTranslationDataset(
-        features_dir=args.val_features_dir,
-        manifest_path=args.val_manifest,
-        tokenizer=tokenizer,
-        tgt_lang=args.lang,
-        split_name="VAL",
-    )
+        model_name = "facebook/nllb-200-distilled-600M"
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    train_loader = DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
-    )
-    val_loader = DataLoader(
-        val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2
-    )
-
-    model = SonarSignModel(pretrained_model=model_name).to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    scaler = torch.amp.GradScaler("cuda")
-
-    total_steps = len(train_loader) * args.epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=100, num_training_steps=total_steps
-    )
-
-    start_epoch = 0
-    if args.resume_from:
-        start_epoch = load_checkpoint(
-            args.resume_from, model, optimizer, scheduler, scaler
+        print("\n📂 Caricamento TRAIN SET...")
+        train_dataset = SignTranslationDataset(
+            features_dir=args.train_features_dir,
+            manifest_path=args.train_manifest,
+            tokenizer=tokenizer,
+            tgt_lang=args.lang,
+            split_name="TRAIN",
         )
 
-    early_stopper = EarlyStopping(patience=args.patience, min_delta=0.001)
+        print("\n📂 Caricamento VAL SET...")
+        val_dataset = SignTranslationDataset(
+            features_dir=args.val_features_dir,
+            manifest_path=args.val_manifest,
+            tokenizer=tokenizer,
+            tgt_lang=args.lang,
+            split_name="VAL",
+        )
 
-    print(
-        f"🔥 Inizio Training: {len(train_dataset)} train samples, {len(val_dataset)} val samples."
-    )
+        train_loader = DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
+        )
+        val_loader = DataLoader(
+            val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2
+        )
 
-    for epoch in range(start_epoch, args.epochs):
-        # 1. TRAIN
-        model.train()
-        total_loss = 0
-        progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
+        model = SonarSignModel(pretrained_model=model_name).to(device)
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+        scaler = torch.amp.GradScaler("cuda")
 
-        for batch in progress_bar:
-            inputs = batch["input_features"].to(device)
-            labels = batch["labels"].to(device)
+        total_steps = len(train_loader) * args.epochs
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer, num_warmup_steps=100, num_training_steps=total_steps
+        )
 
-            optimizer.zero_grad()
-            with torch.amp.autocast("cuda"):
-                outputs = model(inputs, labels=labels)
-                loss = outputs.loss
-
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            scheduler.step()
-
-            total_loss += loss.item()
-            progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
-
-        avg_train_loss = total_loss / len(train_loader)
-        print(f"\n📉 Epoch {epoch+1} - Avg Train Loss: {avg_train_loss:.4f}")
-
-        # 2. VALIDATION
-        if (epoch + 1) % args.val_every == 0:
-            model.eval()
-            val_loss = 0
-            all_preds = []
-            all_targets = []
-
-            print(f"🔍 Validazione su {len(val_dataset)} campioni...")
-            with torch.no_grad():
-                for i, batch in enumerate(tqdm(val_loader, desc="Validation")):
-                    inputs = batch["input_features"].to(device)
-                    labels = batch["labels"].to(device)
-                    texts = batch["text"]
-
-                    with torch.amp.autocast("cuda"):
-                        outputs = model(inputs, labels=labels)
-                        val_loss += outputs.loss.item()
-
-                    tokenizer.tgt_lang = args.lang
-                    gen_ids = model.generate(inputs, tokenizer)
-                    decoded_preds = tokenizer.batch_decode(
-                        gen_ids, skip_special_tokens=True
-                    )
-                    all_preds.extend(decoded_preds)
-                    all_targets.extend(texts)
-
-            avg_val_loss = val_loss / len(val_loader)
-
-            metrics = calculate_metrics(all_preds, all_targets)
-
-            print(f"\n📊 REPORT VALIDAZIONE (Epoch {epoch+1}):")
-            print(f"   Loss Val: {avg_val_loss:.4f}")
-            for k, v in metrics.items():
-                print(f"   {k}: {v:.2f}")
-
-            if len(all_preds) > 0:
-                print("\n👀 Esempio:")
-                print(f"   ✅: {all_targets[0]}")
-                print(f"   🤖: {all_preds[0]}")
-                print("-" * 40)
-
-            # Early Stopping Check
-            is_best = early_stopper(avg_val_loss)
-
-            if is_best:
-                print(
-                    f"🏆 Nuova Best Val Loss: {avg_val_loss:.4f}. Salvataggio checkpoint_best.pth..."
-                )
-                save_checkpoint(
-                    model,
-                    optimizer,
-                    scheduler,
-                    scaler,
-                    epoch,
-                    args,
-                    filename="checkpoint_best.pth",
-                )
-
-            if (epoch + 1) % args.save_every == 0:
-                save_checkpoint(
-                    model,
-                    optimizer,
-                    scheduler,
-                    scaler,
-                    epoch,
-                    args,
-                    filename=f"checkpoint_epoch_{epoch+1}.pth",
-                )
-            save_checkpoint(
-                model,
-                optimizer,
-                scheduler,
-                scaler,
-                epoch,
-                args,
-                filename="checkpoint_last.pth",
+        start_epoch = 0
+        if args.resume_from:
+            start_epoch = load_checkpoint(
+                args.resume_from, model, optimizer, scheduler, scaler
             )
 
-            if early_stopper.early_stop:
-                print(
-                    f"🛑 Early Stopping attivato! Nessun miglioramento per {args.patience} controlli consecutivi."
+        early_stopper = EarlyStopping(patience=args.patience, min_delta=0.001)
+
+        print(
+            f"🔥 Inizio Training: {len(train_dataset)} train samples, {len(val_dataset)} val samples."
+        )
+
+        for epoch in range(start_epoch, args.epochs):
+            # 1. TRAIN
+            model.train()
+            total_loss = 0
+            progress_bar = tqdm(
+                train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]"
+            )
+
+            for batch in progress_bar:
+                inputs = batch["input_features"].to(device)
+                labels = batch["labels"].to(device)
+
+                optimizer.zero_grad()
+                with torch.amp.autocast("cuda"):
+                    outputs = model(inputs, labels=labels)
+                    loss = outputs.loss
+
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                scheduler.step()
+
+                total_loss += loss.item()
+                progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
+
+            avg_train_loss = total_loss / len(train_loader)
+            print(f"\n📉 Epoch {epoch+1} - Avg Train Loss: {avg_train_loss:.4f}")
+
+            # MLFLOW LOG: Train Loss
+            mlflow.log_metric("train_loss", avg_train_loss, step=epoch + 1)
+
+            # 2. VALIDATION
+            if (epoch + 1) % args.val_every == 0:
+                model.eval()
+                val_loss = 0
+                all_preds = []
+                all_targets = []
+
+                print(f"🔍 Validazione su {len(val_dataset)} campioni...")
+                with torch.no_grad():
+                    for i, batch in enumerate(tqdm(val_loader, desc="Validation")):
+                        inputs = batch["input_features"].to(device)
+                        labels = batch["labels"].to(device)
+                        texts = batch["text"]
+
+                        with torch.amp.autocast("cuda"):
+                            outputs = model(inputs, labels=labels)
+                            val_loss += outputs.loss.item()
+
+                        tokenizer.tgt_lang = args.lang
+                        gen_ids = model.generate(inputs, tokenizer)
+                        decoded_preds = tokenizer.batch_decode(
+                            gen_ids, skip_special_tokens=True
+                        )
+                        all_preds.extend(decoded_preds)
+                        all_targets.extend(texts)
+
+                avg_val_loss = val_loss / len(val_loader)
+
+                metrics = calculate_metrics(all_preds, all_targets)
+
+                print(f"\n📊 REPORT VALIDAZIONE (Epoch {epoch+1}):")
+                print(f"   Loss Val: {avg_val_loss:.4f}")
+
+                # MLFLOW LOG: Val Loss & Metrics
+                mlflow.log_metric("val_loss", avg_val_loss, step=epoch + 1)
+
+                for k, v in metrics.items():
+                    print(f"   {k}: {v:.2f}")
+                    mlflow.log_metric(k, v, step=epoch + 1)
+
+                if len(all_preds) > 0:
+                    print("\n👀 Esempio:")
+                    print(f"   ✅: {all_targets[0]}")
+                    print(f"   🤖: {all_preds[0]}")
+                    print("-" * 40)
+
+                # Early Stopping & Best Model Logic
+                is_best = early_stopper(avg_val_loss)
+
+                if is_best:
+                    print(
+                        f"🏆 Nuova Best Val Loss: {avg_val_loss:.4f}. Salvataggio checkpoint_best.pth..."
+                    )
+                    save_checkpoint(
+                        model,
+                        optimizer,
+                        scheduler,
+                        scaler,
+                        epoch,
+                        args,
+                        filename="checkpoint_best.pth",
+                    )
+                    # Opzionale: Loggare che abbiamo trovato un best model su MLflow
+                    mlflow.log_metric(
+                        "best_val_loss_so_far", avg_val_loss, step=epoch + 1
+                    )
+
+                if (epoch + 1) % args.save_every == 0:
+                    save_checkpoint(
+                        model,
+                        optimizer,
+                        scheduler,
+                        scaler,
+                        epoch,
+                        args,
+                        filename=f"checkpoint_epoch_{epoch+1}.pth",
+                    )
+                save_checkpoint(
+                    model,
+                    optimizer,
+                    scheduler,
+                    scaler,
+                    epoch,
+                    args,
+                    filename="checkpoint_last.pth",
                 )
-                break
+
+                if early_stopper.early_stop:
+                    print(
+                        f"🛑 Early Stopping attivato! Nessun miglioramento per {args.patience} controlli consecutivi."
+                    )
+                    break
 
     print(f"🎉 Training completato! Output in {args.output_dir}")
 
@@ -459,7 +482,7 @@ if __name__ == "__main__":
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--val_every", type=int, default=1)
-    parser.add_argument("--random_seed", type=int, default=42)  # Nuovo argomento
+    parser.add_argument("--random_seed", type=int, default=42)
     parser.add_argument(
         "--patience",
         type=int,
@@ -469,7 +492,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # --- CHIAMATA CRUCIALE PER LA RIPRODUCIBILITÀ ---
     set_seed(args.random_seed)
 
     os.makedirs(args.output_dir, exist_ok=True)
