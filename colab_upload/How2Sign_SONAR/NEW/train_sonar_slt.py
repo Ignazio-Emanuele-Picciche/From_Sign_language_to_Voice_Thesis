@@ -18,6 +18,8 @@ import random
 import mlflow
 
 
+# mlflow ui --backend-store-uri ./mlruns
+
 # python train_sonar_slt.py \
 #   --train_features_dir "data/features/train" \
 #   --train_manifest "data/manifests/train.tsv" \
