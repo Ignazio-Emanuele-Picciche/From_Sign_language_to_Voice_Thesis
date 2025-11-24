@@ -1,3 +1,18 @@
+# !pip install evaluate sacrebleu rouge_score bert_score git+https://github.com/google-research/bleurt.git
+
+# python train_sonar_slt.py \
+#   --train_features_dir "data/features/train" \
+#   --train_manifest "data/manifests/train.tsv" \
+#   --val_features_dir "data/features/val" \
+#   --val_manifest "data/manifests/val.tsv" \
+#   --output_dir "models/run_english" \
+#   --lang "eng_Latn" \
+#   --batch_size 8 \
+#   --epochs 5 \
+#   --save_every 5 \
+#   --val_every 5
+
+
 import os
 import argparse
 import torch
@@ -146,10 +161,15 @@ class SonarSignModel(nn.Module):
         attention_mask = torch.ones(
             inputs_embeds.shape[:2], device=inputs_embeds.device
         )
+
+        # --- FIX QUI SOTTO ---
+        # Invece di tokenizer.lang_code_to_id[...] usiamo convert_tokens_to_ids
+        forced_bos_token_id = tokenizer.convert_tokens_to_ids(tokenizer.tgt_lang)
+
         generated_ids = self.nllb.generate(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
-            forced_bos_token_id=tokenizer.lang_code_to_id[tokenizer.tgt_lang],
+            forced_bos_token_id=forced_bos_token_id,
             max_new_tokens=max_new_tokens,
             num_beams=4,
         )
@@ -199,40 +219,56 @@ def load_checkpoint(path, model, optimizer, scheduler, scaler):
 def calculate_metrics(predictions, references):
     print("📊 Calcolo metriche...")
     results = {}
-    # Caricamento metriche lazy
-    bleu_metric = evaluate.load("sacrebleu")
-    rouge_metric = evaluate.load("rouge")
 
-    # BLEU-4
-    bleu4 = bleu_metric.compute(predictions=predictions, references=references)
-    results["BLEU-4"] = bleu4["score"]
+    # Importiamo direttamente la libreria per evitare i limiti del wrapper 'evaluate'
+    import sacrebleu
+    import evaluate  # Serve ancora per ROUGE/BLEURT
 
-    # BLEU-1,2,3 approssimati
-    b1 = bleu_metric.compute(
-        predictions=predictions, references=references, max_order=1
+    # PREPARAZIONE DATI PER SACREBLEU
+    # SacreBLEU si aspetta che le referenze siano una lista di liste (es. [ [ref1_tutta_la_lista], [ref2_opzionale] ])
+    # Noi abbiamo una sola referenza per video, quindi mettiamo tutta la lista dentro un'altra lista.
+    sacrebleu_refs = [references]
+
+    # 1. BLEU-4 (Standard)
+    # Questo è lo score ufficiale che si usa nei paper
+    bleu4 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs)
+    results["BLEU-4"] = bleu4.score
+
+    # 2. BLEU-1, 2, 3 (Custom)
+    # Usiamo i pesi (weights) per isolare gli n-grammi
+
+    # BLEU-1 (Solo parole singole)
+    b1 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs, weights=[1.0, 0, 0, 0])
+    results["BLEU-1"] = b1.score
+
+    # BLEU-2 (Media tra 1-gram e 2-gram)
+    b2 = sacrebleu.corpus_bleu(predictions, sacrebleu_refs, weights=[0.5, 0.5, 0, 0])
+    results["BLEU-2"] = b2.score
+
+    # BLEU-3 (Media tra 1, 2 e 3-gram)
+    b3 = sacrebleu.corpus_bleu(
+        predictions, sacrebleu_refs, weights=[1 / 3, 1 / 3, 1 / 3, 0]
     )
-    results["BLEU-1"] = b1["score"]
-    b2 = bleu_metric.compute(
-        predictions=predictions, references=references, max_order=2
-    )
-    results["BLEU-2"] = b2["score"]
-    b3 = bleu_metric.compute(
-        predictions=predictions, references=references, max_order=3
-    )
-    results["BLEU-3"] = b3["score"]
+    results["BLEU-3"] = b3.score
 
-    # ROUGE-L
-    rouge = rouge_metric.compute(predictions=predictions, references=references)
-    results["ROUGE-L"] = rouge["rougeL"] * 100
+    # 3. ROUGE-L
+    try:
+        rouge_metric = evaluate.load("rouge")
+        rouge = rouge_metric.compute(predictions=predictions, references=references)
+        results["ROUGE-L"] = rouge["rougeL"] * 100
+    except Exception as e:
+        print(f"⚠️ Errore ROUGE: {e}")
+        results["ROUGE-L"] = 0.0
 
-    # BLEURT (opzionale, lento da caricare)
+    # 4. BLEURT (Opzionale - se fallisce lo ignoriamo per non bloccare tutto)
     try:
         bleurt_metric = evaluate.load("bleurt", config_name="bleurt-tiny-128")
         bleurt_res = bleurt_metric.compute(
             predictions=predictions, references=references
         )
         results["BLEURT"] = np.mean(bleurt_res["scores"])
-    except:
+    except Exception:
+        # BLEURT spesso fallisce se manca internet o la libreria, non è critico
         pass
 
     return results
