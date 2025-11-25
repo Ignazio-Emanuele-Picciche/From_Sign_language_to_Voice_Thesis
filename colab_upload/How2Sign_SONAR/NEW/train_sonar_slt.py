@@ -212,23 +212,52 @@ def save_checkpoint(model, optimizer, scheduler, epoch, args, filename):
 
 
 def calculate_metrics(preds, refs):
+    print("📊 Calcolo metriche complete...")
+    results = {}
+
+    # Import librerie
     from sacrebleu.metrics import BLEU
     import evaluate
 
-    res = {}
-    refs_list = [refs]
+    # SacreBLEU vuole una lista di liste per le referenze
+    sacrebleu_refs = [refs]
+
+    # 1. BLEU Scores (1, 2, 3, 4)
+    # max_ngram_order=N calcola lo score cumulativo fino a N
+    b1 = BLEU(max_ngram_order=1)
+    results["BLEU-1"] = b1.corpus_score(preds, sacrebleu_refs).score
+
+    b2 = BLEU(max_ngram_order=2)
+    results["BLEU-2"] = b2.corpus_score(preds, sacrebleu_refs).score
+
+    b3 = BLEU(max_ngram_order=3)
+    results["BLEU-3"] = b3.corpus_score(preds, sacrebleu_refs).score
 
     b4 = BLEU(max_ngram_order=4)
-    res["BLEU-4"] = b4.corpus_score(preds, refs_list).score
+    results["BLEU-4"] = b4.corpus_score(preds, sacrebleu_refs).score
 
+    # 2. ROUGE-L
     try:
         rouge = evaluate.load("rouge")
-        res["ROUGE-L"] = (
+        # Compute ritorna un dizionario, prendiamo rougeL e moltiplichiamo per 100
+        results["ROUGE-L"] = (
             rouge.compute(predictions=preds, references=refs)["rougeL"] * 100
         )
-    except:
-        res["ROUGE-L"] = 0.0
-    return res
+    except Exception as e:
+        print(f"⚠️ ROUGE saltato: {e}")
+        results["ROUGE-L"] = 0.0
+
+    # 3. BLEURT (Opzionale - scarica un modello)
+    try:
+        # Usa 'bleurt-tiny-128' che è veloce e leggero
+        bleurt = evaluate.load("bleurt", config_name="bleurt-tiny-128")
+        scores = bleurt.compute(predictions=preds, references=refs)["scores"]
+        results["BLEURT"] = np.mean(scores)
+    except Exception:
+        # Se fallisce (es. niente internet o modello non trovato), metti 0
+        pass
+
+    return results
 
 
 class EarlyStopping:
@@ -402,7 +431,8 @@ def train(args):
                 metrics = calculate_metrics(all_preds, all_targets)
 
                 print(
-                    f"📊 Val Loss: {avg_val_loss:.4f} | BLEU-4: {metrics['BLEU-4']:.2f}"
+                    f"📊 Val Loss: {avg_val_loss:.4f} | "
+                    + " | ".join([f"{k}: {v:.2f}" for k, v in metrics.items()])
                 )
                 mlflow.log_metric("val_loss", avg_val_loss, step=epoch + 1)
                 for k, v in metrics.items():
