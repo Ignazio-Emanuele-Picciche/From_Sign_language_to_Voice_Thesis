@@ -318,17 +318,21 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=n_workers,  # <--- AUMENTATO
+            num_workers=64,  # <--- BASSO (Max 4 o 8 su Drive)
+            prefetch_factor=600,  # <--- ALTO (Bufferizza 8 batch in RAM)
             pin_memory=True,
+            persistent_workers=True,  # Mantiene i processi attivi
         )
 
-        val_bs = max(1, args.batch_size // 2)
+        val_bs = max(1, args.batch_size // 4)
         val_dl = DataLoader(
             val_ds,
             batch_size=val_bs,
             shuffle=False,
-            num_workers=n_workers,
-            pin_memory=True,  # <--- AUMENTATO
+            num_workers=16,  # <--- BASSO
+            prefetch_factor=200,
+            pin_memory=True,
+            persistent_workers=True,
         )
 
         # Attenzione: Ho rimesso freeze_decoder=False come default per sicurezza
@@ -342,7 +346,9 @@ def train(args):
         scaler = torch.amp.GradScaler("cuda")
 
         num_steps = len(train_dl) * args.epochs
-        num_warmup_steps = len(train_dl) * 10
+        # num_warmup_steps = len(train_dl) * 10
+
+        num_warmup_steps = int(num_steps * 0.1)
         scheduler = get_cosine_schedule_with_warmup(
             optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_steps
         )
