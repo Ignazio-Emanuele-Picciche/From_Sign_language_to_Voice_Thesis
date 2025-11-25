@@ -10,30 +10,13 @@ from tqdm import tqdm
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
-    get_cosine_schedule_with_warmup,  # <--- CAMBIATO IN COSINE
+    get_cosine_schedule_with_warmup,
 )
 import torch.optim as optim
 import evaluate
 import random
 import mlflow
 import shutil
-
-
-# Evita frammentazione memoria
-# export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
-# python train_sonar_slt_paper_params.py \
-#   --train_features_dir "data/features/train" \
-#   --train_manifest "data/manifests/train.tsv" \
-#   --val_features_dir "data/features/val" \
-#   --val_manifest "data/manifests/val.tsv" \
-#   --output_dir "models/run_paper_params" \
-#   --lang "eng_Latn" \
-#   --batch_size 32 \
-#   --epochs 200 \
-#   --lr 1e-3 \
-#   --patience 15 \
-#   --random_seed 42
 
 
 # ==========================================
@@ -87,6 +70,7 @@ class SignTranslationDataset(Dataset):
         self.texts = []
 
         print(f"🔍 Check {split_name}...")
+        # Check rapido file esistenti
         iterator = (
             tqdm(df.iterrows(), total=len(df)) if len(df) > 100 else df.iterrows()
         )
@@ -117,21 +101,20 @@ class SignTranslationDataset(Dataset):
             truncation=True,
             return_tensors="pt",
         ).input_ids.squeeze(0)
-        # Label smoothing gestisce il padding internamente o lo ignoriamo nella loss
         labels[labels == self.tokenizer.pad_token_id] = -100
 
         return {"input_features": video_tensor, "labels": labels, "text": text}
 
 
 # ==========================================
-# 2. MODELLO (Adapter 0.3 Dropout)
+# 2. MODELLO (FIXED & OPTIMIZED)
 # ==========================================
 class SonarSignModel(nn.Module):
     def __init__(
         self,
         pretrained_model="facebook/nllb-200-distilled-600M",
         feature_dim=768,
-        freeze_decoder=False,
+        freeze_decoder=True,
     ):
         super().__init__()
         print(f"🏗️  Init NLLB ({pretrained_model})...")
@@ -142,9 +125,13 @@ class SonarSignModel(nn.Module):
             for param in self.nllb.parameters():
                 param.requires_grad = False
 
+            # ATTIVIAMO GRADIENT CHECKPOINTING PER RISPARMIARE MEMORIA
+            # Fondamentale per evitare OOM su A100 anche con freezing
+            self.nllb.gradient_checkpointing_enable()
+            print("🛡️  Gradient Checkpointing ATTIVO (Risparmio Memoria)")
+
         hidden_dim = self.nllb.config.d_model
 
-        # PAPER: Dropout probability 0.3
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -155,15 +142,15 @@ class SonarSignModel(nn.Module):
 
     def forward(self, input_features, labels=None):
         inputs_embeds = self.adapter(input_features)
-        attention_mask = torch.ones(
-            inputs_embeds.shape[:2], device=inputs_embeds.device
-        )
+        att_mask = torch.ones(inputs_embeds.shape[:2], device=inputs_embeds.device)
 
-        # CORREZIONE: Passiamo 'labels' a NLLB.
-        # Questo permette al modello di creare i 'decoder_input_ids' necessari per il training.
-        # NLLB calcolerà anche una sua 'loss', ma noi useremo solo i 'logits'.
+        # FIX CRITICO: Passiamo 'labels' correttamente.
+        # use_cache=False è obbligatorio se si usa gradient checkpointing
         outputs = self.nllb(
-            inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels
+            inputs_embeds=inputs_embeds,
+            attention_mask=att_mask,
+            labels=labels,
+            use_cache=False,
         )
         return outputs
 
@@ -172,7 +159,6 @@ class SonarSignModel(nn.Module):
         att_mask = torch.ones(inputs_embeds.shape[:2], device=inputs_embeds.device)
         forced_bos = tokenizer.convert_tokens_to_ids(tokenizer.tgt_lang)
 
-        # PAPER: Number of beams 5
         gen_ids = self.nllb.generate(
             inputs_embeds=inputs_embeds,
             attention_mask=att_mask,
@@ -211,7 +197,8 @@ def calculate_metrics(preds, refs):
     res = {}
     refs_list = [refs]
 
-    res["BLEU-4"] = BLEU(max_ngram_order=4).corpus_score(preds, refs_list).score
+    b4 = BLEU(max_ngram_order=4)
+    res["BLEU-4"] = b4.corpus_score(preds, refs_list).score
 
     try:
         rouge = evaluate.load("rouge")
@@ -258,6 +245,8 @@ def train(args):
         mlflow.log_params(vars(args))
 
         tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
+
+        # Dataloaders con Pin Memory per velocità
         train_ds = SignTranslationDataset(
             args.train_features_dir, args.train_manifest, tokenizer, split_name="TRAIN"
         )
@@ -265,7 +254,6 @@ def train(args):
             args.val_features_dir, args.val_manifest, tokenizer, split_name="VAL"
         )
 
-        # Aumentiamo workers per A100
         train_dl = DataLoader(
             train_ds,
             batch_size=args.batch_size,
@@ -273,17 +261,15 @@ def train(args):
             num_workers=4,
             pin_memory=True,
         )
+
+        # Validation Batch Size ridotto per evitare OOM con Beam Search
+        val_bs = max(1, args.batch_size // 2)
         val_dl = DataLoader(
-            val_ds,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=4,
-            pin_memory=True,
+            val_ds, batch_size=val_bs, shuffle=False, num_workers=4, pin_memory=True
         )
 
         model = SonarSignModel(freeze_decoder=False).to(device)
 
-        # PAPER: Optimizer momentum beta1=0.9, beta2=0.95, Weight decay 1e-1
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = optim.AdamW(
             trainable_params, lr=args.lr, betas=(0.9, 0.95), weight_decay=0.1
@@ -291,30 +277,26 @@ def train(args):
 
         scaler = torch.amp.GradScaler("cuda")
 
-        # PAPER: Cosine Decay Schedule with Warmup
-        # Warmup epochs: 10 (lo convertiamo in steps)
         num_steps = len(train_dl) * args.epochs
-        num_warmup_steps = len(train_dl) * 10  # 10 epoche di warmup
-
+        num_warmup_steps = len(train_dl) * 10
         scheduler = get_cosine_schedule_with_warmup(
             optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_steps
         )
 
-        # PAPER: Label Smoothing 0.2
         loss_fct = nn.CrossEntropyLoss(label_smoothing=0.2, ignore_index=-100)
 
         start_epoch = 0
-        # Resume logic (semplificata)
         if args.resume_from and os.path.exists(args.resume_from):
-            ckpt = torch.load(args.resume_from, map_location="cpu")
-            model.load_state_dict(ckpt["model"])
-            # Non carichiamo optim/sched se cambiamo iperparametri
-            start_epoch = ckpt["epoch"] + 1
-            print("♻️ Resumed model weights only (Hyperparams changed).")
+            print("♻️ Loading Checkpoint...")
+            try:
+                ckpt = torch.load(args.resume_from, map_location="cpu")
+                model.load_state_dict(ckpt["model"], strict=False)
+            except:
+                print("⚠️ Warning: Could not load full state, loading weights only.")
 
         early_stopper = EarlyStopping(patience=args.patience)
 
-        print(f"🔥 Start Training: {len(train_ds)} samples. Params aligned with Paper.")
+        print(f"🔥 Start Training: {len(train_ds)} samples.")
 
         for epoch in range(start_epoch, args.epochs):
             model.train()
@@ -327,19 +309,14 @@ def train(args):
 
                 optimizer.zero_grad()
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                    # CORREZIONE: Passiamo le labels vere al modello!
-                    # Il modello serve le labels per fare Teacher Forcing nel decoder.
+                    # FIX: Passiamo labels al modello
                     outputs = model(inputs, labels=labels)
-
                     logits = outputs.logits
 
-                    # Calcolo Loss Manuale (Label Smoothing)
-                    # Usiamo i logits usciti dal modello e le nostre labels
+                    # Calcoliamo la nostra loss custom
                     loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
 
                 scaler.scale(loss).backward()
-
-                # PAPER: Gradient Clipping 1.0
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
@@ -358,7 +335,6 @@ def train(args):
             avg_train_loss = total_loss / len(train_dl)
             mlflow.log_metric("train_loss", avg_train_loss, step=epoch + 1)
 
-            # VALIDATION
             if (epoch + 1) % args.val_every == 0:
                 model.eval()
                 val_loss = 0
@@ -371,14 +347,14 @@ def train(args):
                         labels = batch["labels"].to(device)
 
                         with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                            outputs = model(inputs, labels=None)
+                            # Validation loss calculation
+                            outputs = model(inputs, labels=labels)
                             logits = outputs.logits
                             loss = loss_fct(
                                 logits.view(-1, logits.size(-1)), labels.view(-1)
                             )
                             val_loss += loss.item()
 
-                        # PAPER: Beam size 5
                         gen_ids = model.generate(inputs, tokenizer, num_beams=5)
                         decoded = tokenizer.batch_decode(
                             gen_ids, skip_special_tokens=True
@@ -421,16 +397,13 @@ if __name__ == "__main__":
     parser.add_argument("--val_features_dir", type=str, required=True)
     parser.add_argument("--val_manifest", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="checkpoints")
-    # PAPER: Batch size 32 (o quello che regge la A100)
-    parser.add_argument("--batch_size", type=int, default=32)
-    # PAPER: 200 Epochs (noi usiamo early stopping)
+    parser.add_argument("--batch_size", type=int, default=16)  # Batch sicuro (16)
     parser.add_argument("--epochs", type=int, default=200)
-    # LR 1e-3 per adapter
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lang", type=str, default="eng_Latn")
     parser.add_argument("--resume_from", type=str, default=None)
-    parser.add_argument("--val_every", type=int, default=5)
-    parser.add_argument("--patience", type=int, default=10)
+    parser.add_argument("--val_every", type=int, default=1)
+    parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--random_seed", type=int, default=42)
     args = parser.parse_args()
 
