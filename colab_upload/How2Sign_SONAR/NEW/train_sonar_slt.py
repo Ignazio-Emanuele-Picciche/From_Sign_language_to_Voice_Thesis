@@ -10,7 +10,6 @@ from tqdm import tqdm
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
-    get_cosine_schedule_with_warmup,
 )
 import torch.optim as optim
 import evaluate
@@ -61,7 +60,7 @@ class SignTranslationDataset(Dataset):
         max_length=128,
         tgt_lang="eng_Latn",
         split_name="data",
-        max_samples=None,  # <--- NUOVO
+        max_samples=None,
     ):
         self.features_dir = Path(features_dir)
         self.tokenizer = tokenizer
@@ -80,7 +79,6 @@ class SignTranslationDataset(Dataset):
         except Exception as e:
             raise ValueError(f"Errore Manifest {split_name}: {e}")
 
-        # --- TAGLIO DATASET ---
         if max_samples is not None and max_samples > 0:
             print(f"✂️  Limitando {split_name} a {max_samples} campioni.")
             df = df.head(max_samples)
@@ -127,7 +125,7 @@ class SignTranslationDataset(Dataset):
 
 
 # ==========================================
-# 2. MODELLO (FIXED & OPTIMIZED)
+# 2. MODELLO (PAPER CONFIG)
 # ==========================================
 class SonarSignModel(nn.Module):
     def __init__(
@@ -141,7 +139,7 @@ class SonarSignModel(nn.Module):
         self.nllb = AutoModelForSeq2SeqLM.from_pretrained(pretrained_model)
 
         if freeze_decoder:
-            print("❄️  FREEZING ATTIVO.")
+            print("❄️  FREEZING ATTIVO (Training sicuro per High LR).")
             for param in self.nllb.parameters():
                 param.requires_grad = False
             self.nllb.gradient_checkpointing_enable()
@@ -149,6 +147,7 @@ class SonarSignModel(nn.Module):
 
         hidden_dim = self.nllb.config.d_model
 
+        # PAPER: Dropout 0.3
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -172,12 +171,7 @@ class SonarSignModel(nn.Module):
         inputs_embeds = self.adapter(input_features)
         att_mask = torch.ones(inputs_embeds.shape[:2], device=inputs_embeds.device)
 
-        # FIX: Se tokenizer.tgt_lang è None, usiamo quello di default o args
         target_lang = getattr(tokenizer, "tgt_lang", "eng_Latn")
-
-        # FIX 2: convert_tokens_to_ids a volte vuole una lista, a volte una stringa
-        # NLLB usa un token speciale per la lingua (es. 'eng_Latn')
-        # Ci assicuriamo di ottenere l'ID intero (int)
         forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)
 
         gen_ids = self.nllb.generate(
@@ -214,47 +208,35 @@ def save_checkpoint(model, optimizer, scheduler, epoch, args, filename):
 def calculate_metrics(preds, refs):
     print("📊 Calcolo metriche complete...")
     results = {}
-
-    # Import librerie
     from sacrebleu.metrics import BLEU
     import evaluate
 
-    # SacreBLEU vuole una lista di liste per le referenze
     sacrebleu_refs = [refs]
 
-    # 1. BLEU Scores (1, 2, 3, 4)
-    # max_ngram_order=N calcola lo score cumulativo fino a N
+    # BLEU 1-4
     b1 = BLEU(max_ngram_order=1)
     results["BLEU-1"] = b1.corpus_score(preds, sacrebleu_refs).score
-
     b2 = BLEU(max_ngram_order=2)
     results["BLEU-2"] = b2.corpus_score(preds, sacrebleu_refs).score
-
     b3 = BLEU(max_ngram_order=3)
     results["BLEU-3"] = b3.corpus_score(preds, sacrebleu_refs).score
-
     b4 = BLEU(max_ngram_order=4)
     results["BLEU-4"] = b4.corpus_score(preds, sacrebleu_refs).score
 
-    # 2. ROUGE-L
     try:
         rouge = evaluate.load("rouge")
-        # Compute ritorna un dizionario, prendiamo rougeL e moltiplichiamo per 100
         results["ROUGE-L"] = (
             rouge.compute(predictions=preds, references=refs)["rougeL"] * 100
         )
-    except Exception as e:
-        print(f"⚠️ ROUGE saltato: {e}")
+    except:
         results["ROUGE-L"] = 0.0
 
-    # 3. BLEURT (Opzionale - scarica un modello)
+    # BLEURT Opzionale
     try:
-        # Usa 'bleurt-tiny-128' che è veloce e leggero
         bleurt = evaluate.load("bleurt", config_name="bleurt-tiny-128")
         scores = bleurt.compute(predictions=preds, references=refs)["scores"]
         results["BLEURT"] = np.mean(scores)
-    except Exception:
-        # Se fallisce (es. niente internet o modello non trovato), metti 0
+    except:
         pass
 
     return results
@@ -301,27 +283,25 @@ def train(args):
             args.train_manifest,
             tokenizer,
             split_name="TRAIN",
-            max_samples=args.max_train_samples,  # <--- USO
+            max_samples=args.max_train_samples,
         )
         val_ds = SignTranslationDataset(
             args.val_features_dir,
             args.val_manifest,
             tokenizer,
             split_name="VAL",
-            max_samples=args.max_val_samples,  # <--- PASSAGGIO QUI
+            max_samples=args.max_val_samples,
         )
 
-        # Sfruttiamo la RAM enorme (167GB)
-        n_workers = 128  # O anche 32 se la CPU ha tanti core
-
+        # --- DATALOADER OTTIMIZZATI (RAM 167GB) ---
         train_dl = DataLoader(
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=64,  # <--- BASSO (Max 4 o 8 su Drive)
-            prefetch_factor=600,  # <--- ALTO (Bufferizza 8 batch in RAM)
+            num_workers=96,
+            prefetch_factor=600,  # High Buffer
             pin_memory=True,
-            persistent_workers=True,  # Mantiene i processi attivi
+            persistent_workers=True,
         )
 
         val_bs = max(1, args.batch_size // 4)
@@ -329,30 +309,46 @@ def train(args):
             val_ds,
             batch_size=val_bs,
             shuffle=False,
-            num_workers=16,  # <--- BASSO
+            num_workers=16,
             prefetch_factor=200,
             pin_memory=True,
             persistent_workers=True,
         )
 
-        # Attenzione: Ho rimesso freeze_decoder=False come default per sicurezza
+        # PAPER: Freeze=True è essenziale con LR=1e-2
         model = SonarSignModel(freeze_decoder=False).to(device)
 
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+
+        # PAPER: Weight Decay 1e-1, Betas (0.9, 0.95)
         optimizer = optim.AdamW(
             trainable_params, lr=args.lr, betas=(0.9, 0.95), weight_decay=0.1
         )
 
         scaler = torch.amp.GradScaler("cuda")
 
+        # --- SCHEDULER (Paper: Cosine Decay con Min LR) ---
         num_steps = len(train_dl) * args.epochs
-        # num_warmup_steps = len(train_dl) * 10
+        num_warmup_steps = int(num_steps * 0.1)  # 10% Warmup
 
-        num_warmup_steps = int(num_steps * 0.1)
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_steps
+        # Scheduler Principale (Cosine che scende fino a 1e-4)
+        main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=num_steps - num_warmup_steps, eta_min=1e-4  # Minimum LR
         )
 
+        # Warmup Scheduler (Lineare da quasi-0 a Peak)
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=0.01, end_factor=1.0, total_iters=num_warmup_steps
+        )
+
+        # Sequential LR
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, main_scheduler],
+            milestones=[num_warmup_steps],
+        )
+
+        # PAPER: Label Smoothing 0.2
         loss_fct = nn.CrossEntropyLoss(label_smoothing=0.2, ignore_index=-100)
 
         start_epoch = 0
@@ -362,11 +358,11 @@ def train(args):
                 ckpt = torch.load(args.resume_from, map_location="cpu")
                 model.load_state_dict(ckpt["model"], strict=False)
             except:
-                print("⚠️ Warning: Could not load full state, loading weights only.")
+                print("⚠️ Warning: Could not load full state.")
 
         early_stopper = EarlyStopping(patience=args.patience)
 
-        print(f"🔥 Start Training: {len(train_ds)} samples.")
+        print(f"🔥 Start Training: {len(train_ds)} samples. Steps: {num_steps}")
 
         for epoch in range(start_epoch, args.epochs):
             model.train()
@@ -385,6 +381,8 @@ def train(args):
 
                 scaler.scale(loss).backward()
                 scaler.unscale_(optimizer)
+
+                # PAPER: Gradient Clipping 1.0
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
                 scaler.step(optimizer)
@@ -421,11 +419,10 @@ def train(args):
                             )
                             val_loss += loss.item()
 
-                        tokenizer.src_lang = (
-                            "eng_Latn"  # O qualsiasi sia la source (dummy)
-                        )
-                        tokenizer.tgt_lang = args.lang  # <--- IMPORTANTE
+                        tokenizer.src_lang = "eng_Latn"
+                        tokenizer.tgt_lang = args.lang
 
+                        # PAPER: Beam Search 5
                         gen_ids = model.generate(inputs, tokenizer, num_beams=5)
                         decoded = tokenizer.batch_decode(
                             gen_ids, skip_special_tokens=True
@@ -436,12 +433,10 @@ def train(args):
                 avg_val_loss = val_loss / len(val_dl)
                 metrics = calculate_metrics(all_preds, all_targets)
 
-                print(
-                    f"📊 Val Loss: {avg_val_loss:.4f} | "
-                    + " | ".join([f"{k}: {v:.2f}" for k, v in metrics.items()])
-                )
+                print(f"📊 Report (Ep {epoch+1}): Val Loss: {avg_val_loss:.4f}")
                 mlflow.log_metric("val_loss", avg_val_loss, step=epoch + 1)
                 for k, v in metrics.items():
+                    print(f"   {k}: {v:.2f}")
                     mlflow.log_metric(k, v, step=epoch + 1)
 
                 if len(all_preds) > 0:
@@ -471,20 +466,16 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, default="checkpoints")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--lr", type=float, default=1e-3)
+
+    # PAPER: Peak LR 1e-2 (Usato come max)
+    parser.add_argument("--lr", type=float, default=1e-2)
+
     parser.add_argument("--lang", type=str, default="eng_Latn")
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--val_every", type=int, default=1)
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--random_seed", type=int, default=42)
-
-    # NUOVO FLAG
-    parser.add_argument(
-        "--max_train_samples",
-        type=int,
-        default=None,
-        help="Numero massimo di campioni training (debug)",
-    )
+    parser.add_argument("--max_train_samples", type=int, default=None)
     parser.add_argument("--max_val_samples", type=int, default=None)
 
     args = parser.parse_args()
