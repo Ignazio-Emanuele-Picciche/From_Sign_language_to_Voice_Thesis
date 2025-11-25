@@ -30,7 +30,8 @@ import shutil
 #   --epochs 200 \
 #   --lr 1e-3 \
 #   --patience 8 \
-#   --random_seed 42
+#   --random_seed 42 \
+# --max_train_samples 5000
 
 
 # ==========================================
@@ -60,6 +61,7 @@ class SignTranslationDataset(Dataset):
         max_length=128,
         tgt_lang="eng_Latn",
         split_name="data",
+        max_samples=None,  # <--- NUOVO
     ):
         self.features_dir = Path(features_dir)
         self.tokenizer = tokenizer
@@ -78,13 +80,17 @@ class SignTranslationDataset(Dataset):
         except Exception as e:
             raise ValueError(f"Errore Manifest {split_name}: {e}")
 
+        # --- TAGLIO DATASET ---
+        if max_samples is not None and max_samples > 0:
+            print(f"✂️  Limitando {split_name} a {max_samples} campioni.")
+            df = df.head(max_samples)
+
         df["id"] = df["id"].astype(str)
         df["text"] = df["text"].astype(str)
         self.ids = []
         self.texts = []
 
         print(f"🔍 Check {split_name}...")
-        # Check rapido file esistenti
         iterator = (
             tqdm(df.iterrows(), total=len(df)) if len(df) > 100 else df.iterrows()
         )
@@ -138,11 +144,8 @@ class SonarSignModel(nn.Module):
             print("❄️  FREEZING ATTIVO.")
             for param in self.nllb.parameters():
                 param.requires_grad = False
-
-            # ATTIVIAMO GRADIENT CHECKPOINTING PER RISPARMIARE MEMORIA
-            # Fondamentale per evitare OOM su A100 anche con freezing
             self.nllb.gradient_checkpointing_enable()
-            print("🛡️  Gradient Checkpointing ATTIVO (Risparmio Memoria)")
+            print("🛡️  Gradient Checkpointing ATTIVO")
 
         hidden_dim = self.nllb.config.d_model
 
@@ -157,9 +160,6 @@ class SonarSignModel(nn.Module):
     def forward(self, input_features, labels=None):
         inputs_embeds = self.adapter(input_features)
         att_mask = torch.ones(inputs_embeds.shape[:2], device=inputs_embeds.device)
-
-        # FIX CRITICO: Passiamo 'labels' correttamente.
-        # use_cache=False è obbligatorio se si usa gradient checkpointing
         outputs = self.nllb(
             inputs_embeds=inputs_embeds,
             attention_mask=att_mask,
@@ -260,9 +260,12 @@ def train(args):
 
         tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
 
-        # Dataloaders con Pin Memory per velocità
         train_ds = SignTranslationDataset(
-            args.train_features_dir, args.train_manifest, tokenizer, split_name="TRAIN"
+            args.train_features_dir,
+            args.train_manifest,
+            tokenizer,
+            split_name="TRAIN",
+            max_samples=args.max_train_samples,  # <--- USO
         )
         val_ds = SignTranslationDataset(
             args.val_features_dir, args.val_manifest, tokenizer, split_name="VAL"
@@ -276,13 +279,13 @@ def train(args):
             pin_memory=True,
         )
 
-        # Validation Batch Size ridotto per evitare OOM con Beam Search
         val_bs = max(1, args.batch_size // 2)
         val_dl = DataLoader(
             val_ds, batch_size=val_bs, shuffle=False, num_workers=4, pin_memory=True
         )
 
-        model = SonarSignModel(freeze_decoder=False).to(device)
+        # Attenzione: Ho rimesso freeze_decoder=True come default per sicurezza
+        model = SonarSignModel(freeze_decoder=True).to(device)
 
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = optim.AdamW(
@@ -323,11 +326,8 @@ def train(args):
 
                 optimizer.zero_grad()
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                    # FIX: Passiamo labels al modello
                     outputs = model(inputs, labels=labels)
                     logits = outputs.logits
-
-                    # Calcoliamo la nostra loss custom
                     loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1))
 
                 scaler.scale(loss).backward()
@@ -361,7 +361,6 @@ def train(args):
                         labels = batch["labels"].to(device)
 
                         with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                            # Validation loss calculation
                             outputs = model(inputs, labels=labels)
                             logits = outputs.logits
                             loss = loss_fct(
@@ -411,7 +410,7 @@ if __name__ == "__main__":
     parser.add_argument("--val_features_dir", type=str, required=True)
     parser.add_argument("--val_manifest", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="checkpoints")
-    parser.add_argument("--batch_size", type=int, default=16)  # Batch sicuro (16)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--lang", type=str, default="eng_Latn")
@@ -419,12 +418,15 @@ if __name__ == "__main__":
     parser.add_argument("--val_every", type=int, default=1)
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--random_seed", type=int, default=42)
+
+    # NUOVO FLAG
     parser.add_argument(
         "--max_train_samples",
         type=int,
         default=None,
-        help="Limita il numero di campioni di training (utile per debug)",
+        help="Numero massimo di campioni training (debug)",
     )
+
     args = parser.parse_args()
 
     set_seed(args.random_seed)
