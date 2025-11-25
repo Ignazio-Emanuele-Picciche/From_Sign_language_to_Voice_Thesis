@@ -171,12 +171,19 @@ class SonarSignModel(nn.Module):
     def generate(self, input_features, tokenizer, max_new_tokens=60, num_beams=5):
         inputs_embeds = self.adapter(input_features)
         att_mask = torch.ones(inputs_embeds.shape[:2], device=inputs_embeds.device)
-        forced_bos = tokenizer.convert_tokens_to_ids(tokenizer.tgt_lang)
+
+        # FIX: Se tokenizer.tgt_lang è None, usiamo quello di default o args
+        target_lang = getattr(tokenizer, "tgt_lang", "eng_Latn")
+
+        # FIX 2: convert_tokens_to_ids a volte vuole una lista, a volte una stringa
+        # NLLB usa un token speciale per la lingua (es. 'eng_Latn')
+        # Ci assicuriamo di ottenere l'ID intero (int)
+        forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)
 
         gen_ids = self.nllb.generate(
             inputs_embeds=inputs_embeds,
             attention_mask=att_mask,
-            forced_bos_token_id=forced_bos,
+            forced_bos_token_id=forced_bos_token_id,
             max_new_tokens=max_new_tokens,
             num_beams=num_beams,
         )
@@ -268,24 +275,35 @@ def train(args):
             max_samples=args.max_train_samples,  # <--- USO
         )
         val_ds = SignTranslationDataset(
-            args.val_features_dir, args.val_manifest, tokenizer, split_name="VAL"
+            args.val_features_dir,
+            args.val_manifest,
+            tokenizer,
+            split_name="VAL",
+            max_samples=args.max_val_samples,  # <--- PASSAGGIO QUI
         )
+
+        # Sfruttiamo la RAM enorme (167GB)
+        n_workers = 128  # O anche 32 se la CPU ha tanti core
 
         train_dl = DataLoader(
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=4,
+            num_workers=n_workers,  # <--- AUMENTATO
             pin_memory=True,
         )
 
         val_bs = max(1, args.batch_size // 2)
         val_dl = DataLoader(
-            val_ds, batch_size=val_bs, shuffle=False, num_workers=4, pin_memory=True
+            val_ds,
+            batch_size=val_bs,
+            shuffle=False,
+            num_workers=n_workers,
+            pin_memory=True,  # <--- AUMENTATO
         )
 
-        # Attenzione: Ho rimesso freeze_decoder=True come default per sicurezza
-        model = SonarSignModel(freeze_decoder=True).to(device)
+        # Attenzione: Ho rimesso freeze_decoder=False come default per sicurezza
+        model = SonarSignModel(freeze_decoder=False).to(device)
 
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = optim.AdamW(
@@ -368,6 +386,11 @@ def train(args):
                             )
                             val_loss += loss.item()
 
+                        tokenizer.src_lang = (
+                            "eng_Latn"  # O qualsiasi sia la source (dummy)
+                        )
+                        tokenizer.tgt_lang = args.lang  # <--- IMPORTANTE
+
                         gen_ids = model.generate(inputs, tokenizer, num_beams=5)
                         decoded = tokenizer.batch_decode(
                             gen_ids, skip_special_tokens=True
@@ -426,6 +449,7 @@ if __name__ == "__main__":
         default=None,
         help="Numero massimo di campioni training (debug)",
     )
+    parser.add_argument("--max_val_samples", type=int, default=None)
 
     args = parser.parse_args()
 
