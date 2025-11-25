@@ -19,6 +19,20 @@ import mlflow
 import shutil
 
 
+# !python train_sonar_slt.py \
+#   --train_features_dir "features/train" \
+#   --train_manifest "manifests/train.tsv" \
+#   --val_features_dir "features/val" \
+#   --val_manifest "manifests/val.tsv" \
+#   --output_dir "models/run_paper_params" \
+#   --lang "eng_Latn" \
+#   --batch_size 32 \
+#   --epochs 200 \
+#   --lr 1e-3 \
+#   --patience 8 \
+#   --random_seed 42
+
+
 # ==========================================
 # 0. SETUP
 # ==========================================
@@ -405,6 +419,12 @@ if __name__ == "__main__":
     parser.add_argument("--val_every", type=int, default=1)
     parser.add_argument("--patience", type=int, default=15)
     parser.add_argument("--random_seed", type=int, default=42)
+    parser.add_argument(
+        "--max_train_samples",
+        type=int,
+        default=None,
+        help="Limita il numero di campioni di training (utile per debug)",
+    )
     args = parser.parse_args()
 
     set_seed(args.random_seed)
