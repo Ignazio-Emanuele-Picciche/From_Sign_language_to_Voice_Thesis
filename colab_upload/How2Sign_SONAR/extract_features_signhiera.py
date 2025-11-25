@@ -203,46 +203,13 @@ class RealSignHiera(nn.Module):
 
 
 # =========================
-# Feature Extraction (Con RESUME)
+# Feature Extraction
 # =========================
 def extract_features(args):
     print("=" * 70)
-    print("🚀 SIGNHIERA EXTRACTION (RESUME MODE)")
-
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Pre-filtro: Identifichiamo quali video mancano
-    # Questo evita di caricare video pesanti se non servono
-    manifest_df = pd.read_csv(args.manifest, sep="\t")
-    all_ids = manifest_df["id"].astype(str).tolist()
-
-    missing_ids = []
-    for vid_id in all_ids:
-        # Pulisci l'ID da eventuali spazi
-        clean_id = vid_id.strip()
-        if not (out_dir / f"{clean_id}.npy").exists():
-            missing_ids.append(clean_id)
-
-    print(
-        f"📊 Stato Avanzamento: {len(all_ids) - len(missing_ids)} già fatti, {len(missing_ids)} da fare."
-    )
-
-    if len(missing_ids) == 0:
-        print("✅ Tutti i video sono già stati estratti! Esco.")
-        return
-
-    # Creiamo un manifest temporaneo solo con i mancanti per ottimizzare il Dataset
-    # Filtriamo il dataframe originale
-    manifest_df["id"] = manifest_df["id"].astype(str).str.strip()
-    filtered_manifest = manifest_df[manifest_df["id"].isin(missing_ids)]
-
-    # Salviamo un TSV temporaneo
-    temp_manifest_path = out_dir / "temp_resume_manifest.tsv"
-    filtered_manifest.to_csv(temp_manifest_path, sep="\t", index=False)
-
-    # 2. Setup Modello (Lo carichiamo solo se c'è lavoro da fare)
+    print("🚀 SIGNHIERA EXTRACTION (ADAPTIVE)")
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+
     try:
         model = RealSignHiera(pretrained_path=args.model_path).to(device)
         model.eval()
@@ -250,8 +217,7 @@ def extract_features(args):
         print(f"❌ Errore Setup Modello: {e}")
         return
 
-    # 3. Setup Dataset usando il manifest filtrato
-    dataset = VideoDataset(str(temp_manifest_path), args.video_dir, target_frames=128)
+    dataset = VideoDataset(args.manifest, args.video_dir, target_frames=128)
     dataloader = DataLoader(
         dataset,
         batch_size=1,
@@ -260,9 +226,10 @@ def extract_features(args):
         collate_fn=lambda x: x,
     )
 
-    num_processed = 0
-    print(f"▶️  Riavvio estrazione per i {len(missing_ids)} video mancanti...")
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
+    num_processed = 0
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Extracting"):
             sample = batch[0]
@@ -270,9 +237,6 @@ def extract_features(args):
             frames = sample["frames"]
 
             if not sample["valid"]:
-                # Se il video è corrotto, creiamo un npy di zeri o lo saltiamo?
-                # Meglio loggarlo come errore ma non bloccare
-                print(f"⚠️ Video non valido o non trovato: {video_id}")
                 continue
 
             frames = frames.to(device)
@@ -286,15 +250,13 @@ def extract_features(args):
                 num_processed += 1
             except Exception as e:
                 print(f"⚠️ Error {video_id}: {e}")
-                # Se è un errore di memoria, puliamo
-                if "memory" in str(e).lower():
-                    torch.cuda.empty_cache()
+                import traceback
 
-    # Pulizia file temporaneo
-    if temp_manifest_path.exists():
-        os.remove(temp_manifest_path)
+                traceback.print_exc()
+                if num_processed == 0:
+                    break
 
-    print(f"✅ Finito! Estratti {num_processed} nuovi video.")
+    print(f"✅ Finito! Salvati {num_processed} video in {out_dir}")
 
 
 # =====================
