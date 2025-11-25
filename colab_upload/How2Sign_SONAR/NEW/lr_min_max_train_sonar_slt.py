@@ -18,21 +18,6 @@ import mlflow
 import shutil
 
 
-# !python train_sonar_slt.py \
-#   --train_features_dir "features/train" \
-#   --train_manifest "manifests/train.tsv" \
-#   --val_features_dir "features/val" \
-#   --val_manifest "manifests/val.tsv" \
-#   --output_dir "models/run_paper_params" \
-#   --lang "eng_Latn" \
-#   --batch_size 32 \
-#   --epochs 200 \
-#   --lr 1e-3 \
-#   --patience 8 \
-#   --random_seed 42 \
-# --max_train_samples 5000
-
-
 # ==========================================
 # 0. SETUP
 # ==========================================
@@ -125,29 +110,44 @@ class SignTranslationDataset(Dataset):
 
 
 # ==========================================
-# 2. MODELLO (PAPER CONFIG)
+# 2. MODELLO (PAPER CONFIG + GRANULAR FREEZING)
 # ==========================================
 class SonarSignModel(nn.Module):
     def __init__(
         self,
         pretrained_model="facebook/nllb-200-distilled-600M",
         feature_dim=768,
-        freeze_decoder=True,
+        freeze_encoder=False,  # <--- NUOVO
+        freeze_decoder=False,  # <--- NUOVO
     ):
         super().__init__()
         print(f"🏗️  Init NLLB ({pretrained_model})...")
         self.nllb = AutoModelForSeq2SeqLM.from_pretrained(pretrained_model)
 
-        if freeze_decoder:
-            print("❄️  FREEZING ATTIVO (Training sicuro per High LR).")
-            for param in self.nllb.parameters():
+        # 1. Gestione ENCODER
+        if freeze_encoder:
+            print("❄️  FREEZING ENCODER (NLLB).")
+            for param in self.nllb.get_encoder().parameters():
                 param.requires_grad = False
+        else:
+            print("🔥  ENCODER TRAINABLE.")
+
+        # 2. Gestione DECODER
+        if freeze_decoder:
+            print("❄️  FREEZING DECODER (NLLB).")
+            for param in self.nllb.get_decoder().parameters():
+                param.requires_grad = False
+        else:
+            print("🔥  DECODER TRAINABLE.")
+
+        # Gradient Checkpointing (Se almeno una parte è trainabile)
+        if not (freeze_encoder and freeze_decoder):
             self.nllb.gradient_checkpointing_enable()
             print("🛡️  Gradient Checkpointing ATTIVO")
 
         hidden_dim = self.nllb.config.d_model
 
-        # PAPER: Dropout 0.3
+        # PAPER: Dropout 0.3 (L'adapter è SEMPRE trainabile)
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -242,6 +242,38 @@ def calculate_metrics(preds, refs):
     return results
 
 
+def log_predictions(preds, targets, video_ids, epoch, args):
+    """
+    Salva 5 campioni fissi (i primi 5) e 5 casuali in un file di testo.
+    """
+    log_path = Path(args.output_dir) / "validation_log.txt"
+    total_samples = len(preds)
+
+    # I primi 5 sono fissi perché validation ha shuffle=False
+    fixed_indices = list(range(min(5, total_samples)))
+
+    # Altri 5 casuali
+    remaining_indices = list(range(5, total_samples))
+    random_indices = []
+    if remaining_indices:
+        random_indices = random.sample(
+            remaining_indices, min(5, len(remaining_indices))
+        )
+
+    indices_to_log = fixed_indices + random_indices
+
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(f"\n{'='*20} EPOCH {epoch+1} {'='*20}\n")
+        for idx in indices_to_log:
+            is_fixed = "FIXED" if idx in fixed_indices else "RANDOM"
+            vid_id = video_ids[idx] if idx < len(video_ids) else "N/A"
+            f.write(f"[{is_fixed}] ID: {vid_id}\n")
+            f.write(f"GT  : {targets[idx]}\n")
+            f.write(f"PRED: {preds[idx]}\n")
+            f.write("-" * 40 + "\n")
+    print(f"📝 Esempi salvati in: {log_path}")
+
+
 class EarlyStopping:
     def __init__(self, patience=5, min_delta=0.0):
         self.patience = patience
@@ -315,10 +347,15 @@ def train(args):
             persistent_workers=True,
         )
 
-        # PAPER: Freeze=True è essenziale con LR=1e-2
-        model = SonarSignModel(freeze_decoder=False).to(device)
+        # --- MODELLO CON ARGOMENTI PER FREEZING ---
+        model = SonarSignModel(
+            freeze_encoder=args.freeze_encoder,
+            freeze_decoder=args.freeze_decoder,
+        ).to(device)
 
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"📉 Parametri trainabili: {num_params}")
 
         # PAPER: Weight Decay 1e-1, Betas (0.9, 0.95)
         optimizer = optim.AdamW(
@@ -404,10 +441,11 @@ def train(args):
                 model.eval()
                 val_loss = 0
                 all_preds, all_targets = [], []
+                all_video_ids = []  # <--- NUOVO: Raccolta ID
 
                 print("🔍 Validating...")
                 with torch.no_grad():
-                    for batch in tqdm(val_dl):
+                    for batch_idx, batch in enumerate(tqdm(val_dl)):
                         inputs = batch["input_features"].to(device)
                         labels = batch["labels"].to(device)
 
@@ -430,6 +468,12 @@ def train(args):
                         all_preds.extend(decoded)
                         all_targets.extend(batch["text"])
 
+                        # --- RECUPERO ID PER LOGGING ---
+                        start_idx = batch_idx * val_bs
+                        end_idx = start_idx + len(decoded)
+                        batch_ids = val_ds.ids[start_idx:end_idx]
+                        all_video_ids.extend(batch_ids)
+
                 avg_val_loss = val_loss / len(val_dl)
                 metrics = calculate_metrics(all_preds, all_targets)
 
@@ -439,8 +483,8 @@ def train(args):
                     print(f"   {k}: {v:.2f}")
                     mlflow.log_metric(k, v, step=epoch + 1)
 
-                if len(all_preds) > 0:
-                    print(f"Ex: {all_preds[0]}")
+                # --- CHIAMATA ALLA FUNZIONE LOG ---
+                log_predictions(all_preds, all_targets, all_video_ids, epoch, args)
 
                 if early_stopper(avg_val_loss):
                     save_checkpoint(
@@ -477,6 +521,18 @@ if __name__ == "__main__":
     parser.add_argument("--random_seed", type=int, default=42)
     parser.add_argument("--max_train_samples", type=int, default=None)
     parser.add_argument("--max_val_samples", type=int, default=None)
+
+    # --- NUOVI FLAG AGGIUNTI ---
+    parser.add_argument(
+        "--freeze_encoder",
+        action="store_true",
+        help="Congela i pesi dell'encoder NLLB (ma non l'adapter)",
+    )
+    parser.add_argument(
+        "--freeze_decoder",
+        action="store_true",
+        help="Congela i pesi del decoder NLLB",
+    )
 
     args = parser.parse_args()
 
