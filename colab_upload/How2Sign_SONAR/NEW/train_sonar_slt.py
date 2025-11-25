@@ -28,10 +28,24 @@ import mlflow
 #   --output_dir "models/run_english_final" \
 #   --lang "eng_Latn" \
 #   --batch_size 8 \
-#   --epochs 2 \
-#   --save_every 2 \
-#   --val_every 2 \
-#   --patience 5 \
+#   --epochs 300 \
+#   --val_every 5 \
+#   --patience 6 \ (Ogni 30 epoche di non miglioramento, si ferma)
+#   --random_seed 42
+
+
+# python train_sonar_slt.py \
+#   --train_features_dir "data/features/train" \
+#   --train_manifest "data/manifests/train.tsv" \
+#   --val_features_dir "data/features/val" \
+#   --val_manifest "data/manifests/val.tsv" \
+#   --output_dir "models/run_english_frozen" \
+#   --lr 1e-3 \
+#   --lang "eng_Latn" \
+#   --batch_size 8 \
+#   --epochs 300 \
+#   --val_every 5 \
+#   --patience 6 \
 #   --random_seed 42
 
 
@@ -147,17 +161,31 @@ class SignTranslationDataset(Dataset):
 # ==========================================
 class SonarSignModel(nn.Module):
     def __init__(
-        self, pretrained_model="facebook/nllb-200-distilled-600M", feature_dim=768
+        self,
+        pretrained_model="facebook/nllb-200-distilled-600M",
+        feature_dim=768,
+        freeze_decoder=True,
     ):
         super().__init__()
         print(f"🏗️  Inizializzazione SONAR/NLLB ({pretrained_model})...")
         self.nllb = AutoModelForSeq2SeqLM.from_pretrained(pretrained_model)
+
+        # --- FREEZING LOGIC (NUOVO) ---
+        if freeze_decoder:
+            print("❄️  Congelamento pesi NLLB (Training solo Adapter)...")
+            for param in self.nllb.parameters():
+                param.requires_grad = False
+        else:
+            print("🔥  Full Fine-Tuning attivo (Attenzione all'Overfitting!)")
+
         hidden_dim = self.nllb.config.d_model
 
+        # L'Adapter rimane sempre allenabile
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.3),  # Aumentiamo il dropout per sicurezza
             nn.Linear(hidden_dim, hidden_dim),
         )
 
@@ -335,8 +363,14 @@ def train(args):
             val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2
         )
 
-        model = SonarSignModel(pretrained_model=model_name).to(device)
-        optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+        model = SonarSignModel(pretrained_model=model_name, freeze_decoder=True).to(
+            device
+        )
+        optimizer = optim.AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=args.lr,
+            weight_decay=0.01,
+        )
         scaler = torch.amp.GradScaler("cuda")
 
         total_steps = len(train_loader) * args.epochs
