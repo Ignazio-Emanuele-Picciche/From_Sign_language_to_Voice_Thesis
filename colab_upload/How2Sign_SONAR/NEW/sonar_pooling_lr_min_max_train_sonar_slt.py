@@ -379,19 +379,20 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=96,
-            prefetch_factor=600,  # High Buffer
-            pin_memory=True,
-            persistent_workers=True,
+            num_workers=12,  # 8 è il massimo consigliato su Drive
+            prefetch_factor=4,  # Basso per non riempire i 167GB di RAM con dati in attesa
+            pin_memory=True,  # Velocizza il passaggio da RAM a GPU
+            persistent_workers=True,  # Mantiene i worker vivi tra le epoche (IMPORTANTE)
         )
 
+        # VALIDATION: Possiamo ottimizzarla (vedi trucco sotto)
         val_bs = max(1, args.batch_size // 2)
         val_dl = DataLoader(
             val_ds,
             batch_size=val_bs,
             shuffle=False,
-            num_workers=16,
-            prefetch_factor=200,
+            num_workers=8,
+            prefetch_factor=4,
             pin_memory=True,
             persistent_workers=True,
         )
