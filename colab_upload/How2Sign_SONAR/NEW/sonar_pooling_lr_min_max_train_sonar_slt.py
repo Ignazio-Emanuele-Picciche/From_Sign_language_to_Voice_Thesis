@@ -45,6 +45,7 @@ import evaluate
 import random
 import mlflow
 import shutil
+from transformers.modeling_outputs import BaseModelOutput
 
 
 # ==========================================
@@ -175,14 +176,13 @@ class SonarSignModel(nn.Module):
         else:
             print("🔥  DECODER TRAINABLE.")
 
-        # Gradient Checkpointing per risparmiare VRAM se qualcosa è trainabile
         if not (freeze_encoder and freeze_decoder):
             self.nllb.gradient_checkpointing_enable()
             print("🛡️  Gradient Checkpointing ATTIVO")
 
         hidden_dim = self.nllb.config.d_model
 
-        # Adapter (Sempre trainabile)
+        # Adapter
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -194,25 +194,28 @@ class SonarSignModel(nn.Module):
     def forward(self, input_features, labels=None):
         inputs_embeds = self.adapter(input_features)
 
-        # Encoding
+        # 1. Encoding Manuale
         encoder_outputs = self.nllb.model.encoder(
             inputs_embeds=inputs_embeds, return_dict=True
         )
         last_hidden_state = encoder_outputs.last_hidden_state
 
-        # Pooling logic
+        # 2. Pooling Logic (Vector-to-Text)
         if self.sonar_pooling:
-            # Mean Pooling: (Batch, Seq, Dim) -> (Batch, 1, Dim)
             pooled_state = torch.mean(last_hidden_state, dim=1, keepdim=True)
-            # Normalizzazione (utile per SONAR space)
-            encoder_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
+            custom_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
         else:
-            encoder_hidden_states = last_hidden_state
+            custom_hidden_states = last_hidden_state
 
-        # Decoding
+        # 3. IMPACCHETTAMENTO (FIX ERRORE)
+        # NLLB vuole un oggetto che sembri l'output di un encoder
+        wrapped_encoder_outputs = BaseModelOutput(
+            last_hidden_state=custom_hidden_states
+        )
+
+        # 4. Decoding
         outputs = self.nllb(
-            encoder_outputs=None,
-            encoder_hidden_states=encoder_hidden_states,
+            encoder_outputs=wrapped_encoder_outputs,  # <--- ORA È CORRETTO
             labels=labels,
             use_cache=False,
         )
@@ -221,22 +224,30 @@ class SonarSignModel(nn.Module):
     def generate(self, input_features, tokenizer, max_new_tokens=60, num_beams=5):
         inputs_embeds = self.adapter(input_features)
 
+        # Encoding
         encoder_outputs = self.nllb.model.encoder(
             inputs_embeds=inputs_embeds, return_dict=True
         )
         last_hidden_state = encoder_outputs.last_hidden_state
 
+        # Pooling
         if self.sonar_pooling:
             pooled_state = torch.mean(last_hidden_state, dim=1, keepdim=True)
-            encoder_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
+            custom_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
         else:
-            encoder_hidden_states = last_hidden_state
+            custom_hidden_states = last_hidden_state
 
         target_lang = getattr(tokenizer, "tgt_lang", "eng_Latn")
         forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)
 
+        # IMPACCHETTAMENTO ANCHE QUI
+        wrapped_encoder_outputs = BaseModelOutput(
+            last_hidden_state=custom_hidden_states
+        )
+
+        # Generation
         gen_ids = self.nllb.generate(
-            encoder_hidden_states=encoder_hidden_states,
+            encoder_outputs=wrapped_encoder_outputs,  # <--- CORRECT
             forced_bos_token_id=forced_bos_token_id,
             max_new_tokens=max_new_tokens,
             num_beams=num_beams,

@@ -9,13 +9,11 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-import math  # Aggiunto per calcolo radice quadrata
-
+import math
 import warnings
 
 warnings.filterwarnings("ignore")
 
-# --- Importiamo la versione VIDEO di Hiera ---
 try:
     from hiera import hiera_base_16x224
 except ImportError:
@@ -23,17 +21,15 @@ except ImportError:
 
 
 # ===========
-# Dataset (Invariato - 128 Frames)
+# Dataset (Accetta DataFrame filtrato)
 # ===========
 class VideoDataset(Dataset):
-    def __init__(
-        self, manifest_path, video_dir, target_size=(224, 224), target_frames=128
-    ):
+    def __init__(self, dataframe, video_dir, target_size=(224, 224), target_frames=128):
         self.video_dir = Path(video_dir)
         self.target_size = target_size
         self.target_frames = target_frames
-        self.manifest = pd.read_csv(manifest_path, sep="\t")
-        print(f"Loaded {len(self.manifest)} videos from manifest")
+        self.manifest = dataframe.reset_index(drop=True)
+        print(f"📋 Dataset initialized with {len(self.manifest)} videos to process.")
 
     def __len__(self):
         return len(self.manifest)
@@ -41,18 +37,25 @@ class VideoDataset(Dataset):
     def __getitem__(self, idx):
         row = self.manifest.iloc[idx]
         video_id = row["id"]
+        # Assumiamo estensione .mp4, modifica se necessario
         video_path = self.video_dir / f"{video_id}.mp4"
+
         frames = self._load_video(video_path)
+
         if frames is None:
-            frames = torch.zeros(self.target_frames, 3, *self.target_size)
-            valid = False
-        else:
-            valid = True
-        return {"video_id": video_id, "frames": frames, "valid": valid}
+            return None
+
+        return {"video_id": video_id, "frames": frames}
 
     def _load_video(self, video_path):
-        if not video_path.exists():
+        # --- FIX ROBUSTEZZA I/O (Drive) ---
+        try:
+            if not video_path.exists():
+                return None
+        except OSError:
+            print(f"⚠️ I/O Error checking path (skip): {video_path}")
             return None
+
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             return None
@@ -66,8 +69,10 @@ class VideoDataset(Dataset):
             frame = cv2.resize(frame, self.target_size)
             raw_frames.append(frame)
         cap.release()
+
         if len(raw_frames) == 0:
             return None
+
         raw_frames = np.stack(raw_frames)
 
         # Sampling 128 frames
@@ -82,134 +87,111 @@ class VideoDataset(Dataset):
         mean = np.array([0.485, 0.456, 0.406])
         std = np.array([0.229, 0.224, 0.225])
         frames = (frames - mean) / std
-        frames = np.transpose(frames, (0, 3, 1, 2))
+
+        # Output shape: (T, H, W, C) -> (C, T, H, W)
+        frames = np.transpose(frames, (3, 0, 1, 2))
         return torch.from_numpy(frames).float()
 
 
+def collate_fn_skip_none(batch):
+    batch = [x for x in batch if x is not None]
+    if len(batch) == 0:
+        return None
+    video_ids = [x["video_id"] for x in batch]
+    frames = torch.stack([x["frames"] for x in batch])  # (B, C, T, H, W)
+    return {"video_ids": video_ids, "frames": frames}
+
+
 # =========================
-# MODEL: REAL SignHiera (ADAPTIVE FORWARD)
+# MODEL: REAL SignHiera
 # =========================
 class RealSignHiera(nn.Module):
     def __init__(self, pretrained_path=None):
         super().__init__()
-        print(f"🏗️  Building SignHiera architecture...")
-
+        # print(f"🏗️  Building SignHiera architecture...") # Ridotto log
         self.backbone = hiera_base_16x224(pretrained=False)
         self.backbone.head = nn.Identity()
-        self.feature_dim = 768
 
-        # --- FIX: Allarghiamo i pesi TEMPORALI ---
-        # SignHiera usa 64 token temporali (per 128 frame input)
         expected_temp_pos = 64
         current_temp_pos = self.backbone.pos_embed_temporal.shape[1]
 
         if current_temp_pos != expected_temp_pos:
-            print(
-                f"🔧 Resizing temporal parameter from {current_temp_pos} to {expected_temp_pos}..."
-            )
             new_pos_embed = nn.Parameter(torch.zeros(1, expected_temp_pos, 96))
             self.backbone.pos_embed_temporal = new_pos_embed
             self.backbone.tokens_temporal = expected_temp_pos
 
-        # Caricamento Pesi
         if pretrained_path and os.path.exists(pretrained_path):
-            print(f"📂 Loading weights from {pretrained_path}")
             checkpoint = torch.load(pretrained_path, map_location="cpu")
             state_dict = (
                 checkpoint.get("model") or checkpoint.get("state_dict") or checkpoint
             )
             state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-
-            # Carichiamo tollerando i mismatch (perché pos_spatial potrebbe essere diverso dallo standard)
-            missing, unexpected = self.backbone.load_state_dict(
-                state_dict, strict=False
-            )
-
-            # DEBUG: Vediamo quanto è grande davvero pos_spatial dopo il caricamento
-            spatial_shape = self.backbone.pos_embed_spatial.shape
-            print(f"📊 DEBUG: Loaded Spatial Embed Shape: {spatial_shape}")
-            print("✅ Pesi SignHiera caricati!")
+            self.backbone.load_state_dict(state_dict, strict=False)
         else:
             raise ValueError(f"❌ Modello non trovato: {pretrained_path}")
 
     def forward(self, x):
-        # x: (T, C, H, W) -> (128, 3, 224, 224)
-        x = x.unsqueeze(0).permute(0, 2, 1, 3, 4)  # (1, 3, 128, 224, 224)
+        if x.dim() == 4:
+            x = x.unsqueeze(0)
 
-        # === MANUAL FORWARD PASS (ADAPTIVE) ===
-
-        # 1. Patch Embedding -> (B, 200704, 96)
         x = self.backbone.patch_embed(x)
-
-        # 2. Add Position Embeddings (ADAPTIVE LOGIC)
-        # Recuperiamo i pesi attuali dal modello
-        pos_spatial = (
-            self.backbone.pos_embed_spatial
-        )  # Shape incognita (o 1x49x96 o 1x3136x96)
-        pos_temporal = self.backbone.pos_embed_temporal  # Shape (1, 64, 96)
+        pos_spatial = self.backbone.pos_embed_spatial
+        pos_temporal = self.backbone.pos_embed_temporal
 
         B, L, C = x.shape
-        # L atteso = 200704 (64 * 56 * 56)
-
-        # --- GESTIONE SPAZIALE ---
-        num_spatial_tokens = pos_spatial.shape[1]  # es. 3136 o 49
-        side_dim = int(math.sqrt(num_spatial_tokens))  # es. 56 o 7
+        num_spatial_tokens = pos_spatial.shape[1]
+        side_dim = int(math.sqrt(num_spatial_tokens))
 
         if side_dim == 7:
-            # Caso Standard Hiera: i pesi sono piccoli, dobbiamo espanderli
             pos_spatial = pos_spatial.reshape(1, 1, 7, 7, C)
-            # Ripetiamo 8 volte per arrivare a 56x56
             pos_spatial = pos_spatial.repeat_interleave(8, dim=2).repeat_interleave(
                 8, dim=3
             )
         elif side_dim == 56:
-            # Caso SignHiera Checkpoint: i pesi sono GIÀ espansi
             pos_spatial = pos_spatial.reshape(1, 1, 56, 56, C)
-        else:
-            raise ValueError(
-                f"Dimensione spaziale imprevista nei pesi: {side_dim}x{side_dim}"
-            )
 
-        # Ora pos_spatial è sicuramente (1, 1, 56, 56, 96)
-
-        # --- GESTIONE TEMPORALE ---
-        # pos_temporal è (1, 64, 96) -> reshape a (1, 64, 1, 1, 96)
         pos_temporal = pos_temporal.reshape(1, 64, 1, 1, C)
-
-        # --- SOMMA BROADCASTING ---
-        # (1, 1, 56, 56, 96) + (1, 64, 1, 1, 96) = (1, 64, 56, 56, 96)
         pos_total = pos_spatial + pos_temporal
-
-        # Flatten finale: (1, 200704, 96)
         pos_total = pos_total.flatten(1, 3)
 
-        # Check sicurezza finale
-        if pos_total.shape[1] != x.shape[1]:
-            # Se capita questo, tronchiamo o paddiamo (fallback estremo)
-            # Ma matematicamente non dovrebbe succedere ora.
-            print(f"⚠️ Shape mismatch finale: Embed {pos_total.shape} vs X {x.shape}")
-
-        # Addizione
         x = x + pos_total
-
-        # 3. Passaggio nei Blocchi
         for block in self.backbone.blocks:
             x = block(x)
-
-        # 4. Normale finale
         x = self.backbone.norm(x)
-
         return x
 
 
 # =========================
-# Feature Extraction
+# Feature Extraction (WITH RESUME)
 # =========================
 def extract_features(args):
     print("=" * 70)
-    print("🚀 SIGNHIERA EXTRACTION (ADAPTIVE)")
-    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    print("🚀 SIGNHIERA EXTRACTION (BATCH + RESUME MODE)")
 
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Caricamento Manifest
+    full_manifest = pd.read_csv(args.manifest, sep="\t")
+    total_videos = len(full_manifest)
+
+    # 2. LOGICA RESUME: Controllo file esistenti
+    existing_files = {f.stem for f in out_dir.glob("*.npy")}
+
+    # Filtriamo il dataframe: teniamo solo ID che NON sono nei file esistenti
+    df_todo = full_manifest[~full_manifest["id"].isin(existing_files)].copy()
+
+    skipped_count = total_videos - len(df_todo)
+    print(
+        f"📊 Total: {total_videos} | Already Done: {skipped_count} | To Do: {len(df_todo)}"
+    )
+
+    if len(df_todo) == 0:
+        print("✅ Tutti i video sono già stati processati! Esco.")
+        return
+
+    # 3. Setup Modello
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     try:
         model = RealSignHiera(pretrained_path=args.model_path).to(device)
         model.eval()
@@ -217,49 +199,46 @@ def extract_features(args):
         print(f"❌ Errore Setup Modello: {e}")
         return
 
-    dataset = VideoDataset(args.manifest, args.video_dir, target_frames=128)
+    # 4. DataLoader
+    dataset = VideoDataset(df_todo, args.video_dir, target_frames=128)
     dataloader = DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=lambda x: x,
+        collate_fn=collate_fn_skip_none,
+        pin_memory=True if args.device == "cuda" else False,
     )
 
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
     num_processed = 0
-    with torch.no_grad():
-        for batch in tqdm(dataloader, desc="Extracting"):
-            sample = batch[0]
-            video_id = sample["video_id"]
-            frames = sample["frames"]
 
-            if not sample["valid"]:
+    with torch.no_grad():
+        # tqdm mostrerà solo i file rimanenti
+        for batch in tqdm(dataloader, desc="Extracting Missing"):
+            if batch is None:
                 continue
 
-            frames = frames.to(device)
+            video_ids = batch["video_ids"]
+            frames = batch["frames"].to(device, non_blocking=True)
+
             try:
-                features = model(frames)
-                features = features.cpu().numpy()
-                if features.shape[0] == 1:
-                    features = features.squeeze(0)
+                features_batch = model(frames)
+                features_batch = features_batch.cpu().numpy()
 
-                np.save(out_dir / f"{video_id}.npy", features)
-                num_processed += 1
+                for i, vid_id in enumerate(video_ids):
+                    feat = features_batch[i]
+                    if len(feat.shape) == 2 and feat.shape[0] == 1:
+                        feat = feat.squeeze(0)
+
+                    np.save(out_dir / f"{vid_id}.npy", feat)
+                    num_processed += 1
+
             except Exception as e:
-                print(f"⚠️ Error {video_id}: {e}")
-                import traceback
+                print(f"⚠️ Error processing batch: {e}")
 
-                traceback.print_exc()
-                if num_processed == 0:
-                    break
-
-    print(f"✅ Finito! Salvati {num_processed} video in {out_dir}")
+    print(f"✅ Finito! Processati {num_processed} nuovi video.")
 
 
-# =====================
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=str, required=True)
@@ -269,9 +248,12 @@ def main():
     )
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--max_frames", type=int, default=300)
+    # Parametri ottimizzazione
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--device", type=str, default="cuda")
     args = parser.parse_args()
+
     extract_features(args)
 
 
