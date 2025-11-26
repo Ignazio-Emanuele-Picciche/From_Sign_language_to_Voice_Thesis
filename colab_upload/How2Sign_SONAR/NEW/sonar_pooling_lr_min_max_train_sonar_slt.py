@@ -368,8 +368,8 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=8,
-            prefetch_factor=4,
+            num_workers=96,
+            prefetch_factor=600,  # High Buffer
             pin_memory=True,
             persistent_workers=True,
         )
@@ -379,8 +379,8 @@ def train(args):
             val_ds,
             batch_size=val_bs,
             shuffle=False,
-            num_workers=4,
-            prefetch_factor=4,
+            num_workers=16,
+            prefetch_factor=200,
             pin_memory=True,
             persistent_workers=True,
         )
