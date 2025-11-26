@@ -379,8 +379,8 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=12,  # 8 è il massimo consigliato su Drive
-            prefetch_factor=4,  # Basso per non riempire i 167GB di RAM con dati in attesa
+            num_workers=24,  # 8 è il massimo consigliato su Drive
+            prefetch_factor=8,  # Basso per non riempire i 167GB di RAM con dati in attesa
             pin_memory=True,  # Velocizza il passaggio da RAM a GPU
             persistent_workers=True,  # Mantiene i worker vivi tra le epoche (IMPORTANTE)
         )

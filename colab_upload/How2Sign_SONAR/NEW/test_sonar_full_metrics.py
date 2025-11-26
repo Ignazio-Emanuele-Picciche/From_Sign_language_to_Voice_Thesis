@@ -184,7 +184,9 @@ def run_test(args):
     if args.checkpoint and os.path.exists(args.checkpoint):
         print(f"♻️  Caricamento pesi da {args.checkpoint}...")
         try:
-            checkpoint = torch.load(args.checkpoint, map_location=device)
+            checkpoint = torch.load(
+                args.checkpoint, map_location=device, weights_only=False
+            )
             if "model" in checkpoint:
                 model.load_state_dict(checkpoint["model"])
             else:
