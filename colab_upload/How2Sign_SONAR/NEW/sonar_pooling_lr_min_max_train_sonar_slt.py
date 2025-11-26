@@ -63,7 +63,7 @@ def set_seed(seed):
 
 
 # ==========================================
-# 1. DATASET (INPUT SEMPRE .NPY)
+# 1. DATASET
 # ==========================================
 class SignTranslationDataset(Dataset):
     def __init__(
@@ -121,7 +121,6 @@ class SignTranslationDataset(Dataset):
         video_id = self.ids[idx]
         text = self.texts[idx]
 
-        # Carichiamo la sequenza video (es. 128x768 o 300x768)
         feat = np.load(self.features_dir / f"{video_id}.npy")
         video_tensor = torch.from_numpy(feat).float()
 
@@ -140,7 +139,7 @@ class SignTranslationDataset(Dataset):
 
 
 # ==========================================
-# 2. MODELLO (SONAR-LIKE POOLING)
+# 2. MODELLO (SONAR POOLING + 1.3B SUPPORT)
 # ==========================================
 class SonarSignModel(nn.Module):
     def __init__(
@@ -149,7 +148,7 @@ class SonarSignModel(nn.Module):
         feature_dim=768,
         freeze_encoder=False,
         freeze_decoder=False,
-        sonar_pooling=False,  # <--- SE TRUE, ACCENDE LA LOGICA "VETTORE UNICO"
+        sonar_pooling=False,
     ):
         super().__init__()
         print(f"🏗️  Init NLLB ({pretrained_model})")
@@ -160,30 +159,30 @@ class SonarSignModel(nn.Module):
         self.nllb = AutoModelForSeq2SeqLM.from_pretrained(pretrained_model)
         self.sonar_pooling = sonar_pooling
 
-        # 1. Gestione ENCODER
+        # 1. ENCODER FREEZING
         if freeze_encoder:
-            print("❄️  FREEZING ENCODER (NLLB).")
+            print("❄️  FREEZING ENCODER.")
             for param in self.nllb.get_encoder().parameters():
                 param.requires_grad = False
         else:
             print("🔥  ENCODER TRAINABLE.")
 
-        # 2. Gestione DECODER
+        # 2. DECODER FREEZING
         if freeze_decoder:
-            print("❄️  FREEZING DECODER (NLLB).")
+            print("❄️  FREEZING DECODER.")
             for param in self.nllb.get_decoder().parameters():
                 param.requires_grad = False
         else:
             print("🔥  DECODER TRAINABLE.")
 
-        # Gradient Checkpointing (Se almeno una parte è trainabile)
+        # Gradient Checkpointing per risparmiare VRAM se qualcosa è trainabile
         if not (freeze_encoder and freeze_decoder):
             self.nllb.gradient_checkpointing_enable()
             print("🛡️  Gradient Checkpointing ATTIVO")
 
         hidden_dim = self.nllb.config.d_model
 
-        # Adapter: Porta le feature video (768) alla dimensione di NLLB (1024)
+        # Adapter (Sempre trainabile)
         self.adapter = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -193,41 +192,6 @@ class SonarSignModel(nn.Module):
         )
 
     def forward(self, input_features, labels=None):
-        # 1. Adattamento Video -> Dimensione Modello
-        inputs_embeds = self.adapter(input_features)
-
-        # 2. Passaggio attraverso Encoder NLLB (che elabora la sequenza)
-        # Usiamo .encoder() direttamente per avere accesso agli hidden states
-        encoder_outputs = self.nllb.model.encoder(
-            inputs_embeds=inputs_embeds, return_dict=True
-        )
-        last_hidden_state = (
-            encoder_outputs.last_hidden_state
-        )  # Shape: (Batch, Time, Dim)
-
-        # 3. LOGICA SONAR: Comprimere la sequenza in un vettore
-        if self.sonar_pooling:
-            # Mean Pooling sulla dimensione temporale (dim=1)
-            # Trasforma (Batch, 300, 1024) -> (Batch, 1, 1024)
-            pooled_state = torch.mean(last_hidden_state, dim=1, keepdim=True)
-
-            # Normalizzazione (spesso aiuta la convergenza negli spazi di embedding)
-            encoder_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
-        else:
-            # Seq2Seq Classico: passiamo tutta la sequenza
-            encoder_hidden_states = last_hidden_state
-
-        # 4. Passaggio al Decoder
-        # Dobbiamo passare encoder_hidden_states manualmente
-        outputs = self.nllb(
-            encoder_outputs=None,  # Disabilitiamo il passaggio automatico
-            encoder_hidden_states=encoder_hidden_states,  # Usiamo il nostro stato (pooled o full)
-            labels=labels,
-            use_cache=False,
-        )
-        return outputs
-
-    def generate(self, input_features, tokenizer, max_new_tokens=60, num_beams=5):
         inputs_embeds = self.adapter(input_features)
 
         # Encoding
@@ -236,7 +200,32 @@ class SonarSignModel(nn.Module):
         )
         last_hidden_state = encoder_outputs.last_hidden_state
 
-        # Pooling per generazione
+        # Pooling logic
+        if self.sonar_pooling:
+            # Mean Pooling: (Batch, Seq, Dim) -> (Batch, 1, Dim)
+            pooled_state = torch.mean(last_hidden_state, dim=1, keepdim=True)
+            # Normalizzazione (utile per SONAR space)
+            encoder_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
+        else:
+            encoder_hidden_states = last_hidden_state
+
+        # Decoding
+        outputs = self.nllb(
+            encoder_outputs=None,
+            encoder_hidden_states=encoder_hidden_states,
+            labels=labels,
+            use_cache=False,
+        )
+        return outputs
+
+    def generate(self, input_features, tokenizer, max_new_tokens=60, num_beams=5):
+        inputs_embeds = self.adapter(input_features)
+
+        encoder_outputs = self.nllb.model.encoder(
+            inputs_embeds=inputs_embeds, return_dict=True
+        )
+        last_hidden_state = encoder_outputs.last_hidden_state
+
         if self.sonar_pooling:
             pooled_state = torch.mean(last_hidden_state, dim=1, keepdim=True)
             encoder_hidden_states = torch.nn.functional.normalize(pooled_state, dim=-1)
@@ -246,9 +235,8 @@ class SonarSignModel(nn.Module):
         target_lang = getattr(tokenizer, "tgt_lang", "eng_Latn")
         forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_lang)
 
-        # Generating
         gen_ids = self.nllb.generate(
-            encoder_hidden_states=encoder_hidden_states,  # <--- Cruciale
+            encoder_hidden_states=encoder_hidden_states,
             forced_bos_token_id=forced_bos_token_id,
             max_new_tokens=max_new_tokens,
             num_beams=num_beams,
@@ -284,14 +272,8 @@ def calculate_metrics(preds, refs):
     import evaluate
 
     sacrebleu_refs = [refs]
-
-    # BLEU 1-4
     b1 = BLEU(max_ngram_order=1)
     results["BLEU-1"] = b1.corpus_score(preds, sacrebleu_refs).score
-    b2 = BLEU(max_ngram_order=2)
-    results["BLEU-2"] = b2.corpus_score(preds, sacrebleu_refs).score
-    b3 = BLEU(max_ngram_order=3)
-    results["BLEU-3"] = b3.corpus_score(preds, sacrebleu_refs).score
     b4 = BLEU(max_ngram_order=4)
     results["BLEU-4"] = b4.corpus_score(preds, sacrebleu_refs).score
 
@@ -303,20 +285,12 @@ def calculate_metrics(preds, refs):
     except:
         results["ROUGE-L"] = 0.0
 
-    try:
-        bleurt = evaluate.load("bleurt", config_name="bleurt-tiny-128")
-        scores = bleurt.compute(predictions=preds, references=refs)["scores"]
-        results["BLEURT"] = np.mean(scores)
-    except:
-        pass
-
     return results
 
 
 def log_predictions(preds, targets, video_ids, epoch, args):
     log_path = Path(args.output_dir) / "validation_log.txt"
     total_samples = len(preds)
-
     fixed_indices = list(range(min(5, total_samples)))
     remaining_indices = list(range(5, total_samples))
     random_indices = []
@@ -368,10 +342,11 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"🚀 Device: {device}")
 
-    mlflow.set_experiment("SONAR_SLT_Pooling")
+    mlflow.set_experiment("SONAR_1.3B_Experiment")
     with mlflow.start_run():
         mlflow.log_params(vars(args))
 
+        print(f"📥 Loading Tokenizer: {args.model_name}")
         tokenizer = AutoTokenizer.from_pretrained(args.model_name)
 
         train_ds = SignTranslationDataset(
@@ -393,13 +368,13 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=8,  # 96 è eccessivo su molte macchine, riporto a 8/16 per sicurezza
+            num_workers=8,
             prefetch_factor=4,
             pin_memory=True,
             persistent_workers=True,
         )
 
-        val_bs = max(1, args.batch_size // 4)
+        val_bs = max(1, args.batch_size // 2)
         val_dl = DataLoader(
             val_ds,
             batch_size=val_bs,
@@ -410,12 +385,12 @@ def train(args):
             persistent_workers=True,
         )
 
-        # --- MODELLO INIZIALIZZATO CON POOLING ---
+        # Inizializzazione con il modello specificato negli argomenti
         model = SonarSignModel(
             pretrained_model=args.model_name,
             freeze_encoder=args.freeze_encoder,
             freeze_decoder=args.freeze_decoder,
-            sonar_pooling=args.sonar_pooling,  # <--- Passaggio del flag
+            sonar_pooling=args.sonar_pooling,
         ).to(device)
 
         trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -425,7 +400,6 @@ def train(args):
         optimizer = optim.AdamW(
             trainable_params, lr=args.lr, betas=(0.9, 0.95), weight_decay=0.1
         )
-
         scaler = torch.amp.GradScaler("cuda")
 
         num_steps = len(train_dl) * args.epochs
@@ -446,7 +420,7 @@ def train(args):
         loss_fct = nn.CrossEntropyLoss(label_smoothing=0.2, ignore_index=-100)
         early_stopper = EarlyStopping(patience=args.patience)
 
-        print(f"🔥 Start Training: {len(train_ds)} samples. Steps: {num_steps}")
+        print(f"🔥 Start Training: {len(train_ds)} samples.")
 
         for epoch in range(args.epochs):
             model.train()
@@ -484,8 +458,7 @@ def train(args):
             if (epoch + 1) % args.val_every == 0:
                 model.eval()
                 val_loss = 0
-                all_preds, all_targets = [], []
-                all_video_ids = []
+                all_preds, all_targets, all_video_ids = [], [], []
 
                 print("🔍 Validating...")
                 with torch.no_grad():
@@ -513,16 +486,16 @@ def train(args):
 
                         start_idx = batch_idx * val_bs
                         end_idx = start_idx + len(decoded)
-                        batch_ids = val_ds.ids[start_idx:end_idx]
-                        all_video_ids.extend(batch_ids)
+                        all_video_ids.extend(val_ds.ids[start_idx:end_idx])
 
                 avg_val_loss = val_loss / len(val_dl)
                 metrics = calculate_metrics(all_preds, all_targets)
 
-                print(f"📊 Report (Ep {epoch+1}): Val Loss: {avg_val_loss:.4f}")
+                print(
+                    f"📊 Report (Ep {epoch+1}): Val Loss: {avg_val_loss:.4f} | BLEU-4: {metrics['BLEU-4']:.2f}"
+                )
                 mlflow.log_metric("val_loss", avg_val_loss, step=epoch + 1)
                 for k, v in metrics.items():
-                    print(f"   {k}: {v:.2f}")
                     mlflow.log_metric(k, v, step=epoch + 1)
 
                 log_predictions(all_preds, all_targets, all_video_ids, epoch, args)
@@ -549,9 +522,18 @@ if __name__ == "__main__":
     parser.add_argument("--val_features_dir", type=str, required=True)
     parser.add_argument("--val_manifest", type=str, required=True)
     parser.add_argument("--output_dir", type=str, default="checkpoints")
+
+    # PARAMETRI PER 1.3B
+    parser.add_argument(
+        "--model_name",
+        type=str,
+        default="facebook/nllb-200-distilled-600M",
+        help="Modello HF",
+    )
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--lr", type=float, default=1e-2)
+    parser.add_argument("--lr", type=float, default=1e-3)
+
     parser.add_argument("--lang", type=str, default="eng_Latn")
     parser.add_argument("--resume_from", type=str, default=None)
     parser.add_argument("--val_every", type=int, default=1)
@@ -560,21 +542,10 @@ if __name__ == "__main__":
     parser.add_argument("--max_train_samples", type=int, default=None)
     parser.add_argument("--max_val_samples", type=int, default=None)
 
-    # --- FLAGS ---
+    # FLAGS CONFIGURAZIONE
     parser.add_argument("--freeze_encoder", action="store_true")
     parser.add_argument("--freeze_decoder", action="store_true")
-
-    # NEW: Attiva il pooling per simulare SONAR
-    parser.add_argument(
-        "--sonar_pooling", action="store_true", help="Usa mean pooling (Vector-to-Text)"
-    )
-
-    parser.add_argument(
-        "--model_name",
-        type=str,
-        default="facebook/nllb-200-distilled-600M",
-        help="Nome del modello HuggingFace",
-    )
+    parser.add_argument("--sonar_pooling", action="store_true")
 
     args = parser.parse_args()
 
