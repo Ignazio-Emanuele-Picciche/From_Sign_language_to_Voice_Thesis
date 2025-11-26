@@ -19,6 +19,8 @@ import mlflow
 import shutil
 
 
+# mlflow ui --backend-store-uri ./mlruns --port 5001
+
 # !python train_sonar_slt.py \
 #   --train_features_dir "features/train" \
 #   --train_manifest "manifests/train.tsv" \
@@ -352,8 +354,8 @@ def train(args):
             train_ds,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=8,  # Consiglio 8 per stabilità
-            prefetch_factor=4,
+            num_workers=96,  # Consiglio 8 per stabilità
+            prefetch_factor=600,
             pin_memory=True,
             persistent_workers=True,
         )
@@ -363,8 +365,8 @@ def train(args):
             val_ds,
             batch_size=val_bs,
             shuffle=False,  # IMPORTANTE: deve essere False per avere i fissi
-            num_workers=4,
-            prefetch_factor=4,
+            num_workers=16,
+            prefetch_factor=200,
             pin_memory=True,
             persistent_workers=True,
         )
