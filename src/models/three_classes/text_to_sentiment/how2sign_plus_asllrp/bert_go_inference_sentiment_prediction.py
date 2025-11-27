@@ -3,8 +3,6 @@
 PIPELINE DI VALIDAZIONE: VADER vs BERT-GO-EMOTION (28 Classes -> 3 Sentiment)
 ================================================================================
 
-AUTORE: [Tuo Nome]
-DATA: Novembre 2025
 CONTESTO: Text-to-Sentiment su dataset di Lingua dei Segni (How2Sign + ASLLRP)
 
 --------------------------------------------------------------------------------

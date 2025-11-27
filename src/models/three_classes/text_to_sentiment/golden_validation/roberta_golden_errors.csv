@@ -1,0 +1,64 @@
+video_name,caption,emotion,predicted_sentiment
+253715.mp4,Then they would ask the HIT group about the car and whether if the glass was broken.,Negative,NEUTRAL
+255438.mp4,Or they will ask another group SMASHED about the car and whether if the glass was broken.,Negative,NEUTRAL
+253816.mp4,Or ask the COLLIDED group about the car and if the glass was broken?,Negative,NEUTRAL
+253917.mp4,"Ask another group, the CRASHED group about the car and whether if the glass is broken.",Negative,NEUTRAL
+254829.mp4,"Why don't they use a word like ""identified"" as in ""I've identified this child deaf""? Now it does not seem bad at all.",Positive,NEGATIVE
+254931.mp4,"""Intervention"" implies the need of intervening such as an intervention for drug addicts, stopping something from happening, or when a kid is not behaving well.",Neutral,NEGATIVE
+255033.mp4,"The baby is just deaf. It's not their fault, they're doing perfectly fine.",Positive,NEUTRAL
+255844.mp4,That makes it to seem like an opportunity to do more than one.,Positive,NEUTRAL
+255946.mp4,The parents might will perceive this as something they should to be upset about.,Neutral,NEGATIVE
+26827616.mp4,"Cousin John's car broke down, do you remember?",Negative,NEUTRAL
+26827517.mp4,"It wasn't John whose car broke down, it was Mary.",Negative,NEUTRAL
+26827419.mp4,"John didn't get into an accident with a truck, he got into an accident with another car.",Negative,NEUTRAL
+36291796.mp4,No! I don't like pineapple cream cheese.,Neutral,NEGATIVE
+1540612.mp4,"""The book you read was really good."" ""No, it was lousy I didn't like it.""",Neutral,NEGATIVE
+17597185.mp4,I know that I should enter the haunted house at my own risk.,Negative,NEUTRAL
+17592194.mp4,Alcohol is not always good.,Neutral,NEGATIVE
+17588201.mp4,I analyzed and looked over the math problem.,Negative,NEUTRAL
+29019.mp4,"Last night, I played a close game of basketball with my friend. The score was 30-28 when it ended.",Positive,NEUTRAL
+84088.mp4,My friend goes out to a party.,Positive,NEUTRAL
+841111.mp4,My friend is currently planning a surprise event.,Positive,NEUTRAL
+841314.mp4,My friend is playing video games.,Positive,NEUTRAL
+841618.mp4,Is your friend`s party good?,Positive,NEUTRAL
+841821.mp4,Will Bob be surprised at his surprise party?,Positive,NEUTRAL
+843443.mp4,Why does your friend love travelling?,Positive,NEUTRAL
+844052.mp4,"If my friend goes out to a party, I will join them for sure.",Positive,NEUTRAL
+844153.mp4,"If my friend goes out to a party, my roommate and I will join.",Positive,NEUTRAL
+844356.mp4,"If my friend goes out fishing, I have to monitor the weather to make sure it`s fine for fishing.",Positive,NEUTRAL
+844457.mp4,"When my friend goes out fishing, the fish has to go in the bucket immediately so it will be fresh.",Positive,NEUTRAL
+844762.mp4,"If my friend goes travelling, I just have to join.",Positive,NEUTRAL
+845270.mp4,My friend is going out to a party.,Positive,NEUTRAL
+845676.mp4,My friend plays video games all day because he does nothing else.,Positive,NEUTRAL
+557229.mp4,My friend went out to a party.,Positive,NEUTRAL
+5572615.mp4,Mother has to clean the kitchen soon because a group of friends are coming over for the weekend.,Positive,NEUTRAL
+7343510.mp4,"If my friends go out, I will join them.",Positive,NEUTRAL
+7984743.mp4,Friends play frisbee.,Positive,NEUTRAL
+7983954.mp4,My friends crashed the party.,Positive,NEGATIVE
+7983658.mp4,Did Bob give the rose to his sweetheart?,Positive,NEUTRAL
+7982377.mp4,Is playing frisbee fun?,Positive,NEUTRAL
+7981589.mp4,Did my friend go ahead with crashing the party?,Positive,NEGATIVE
+7981194.mp4,The teacher must clean the classroom everyday so that when the students come to class it will be clean.,Positive,NEUTRAL
+7980898.mp4,I missed last months rent so now I have to pay double.,Neutral,NEGATIVE
+79797114.mp4,My friend wants to buy a plaid shrit because his friend invited him to a costume party.,Positive,NEUTRAL
+79792122.mp4,My friend just crashed a party because he recently finished his last exam.,Positive,NEGATIVE
+58733526.mp4,"If John did that to me, I won't be friends with him anymore.",Neutral,NEGATIVE
+173441.mp4,"No, John didn't break the truck, Mary broke the truck.",Negative,NEUTRAL
+173949.mp4,"If Mary's car broke down, John would have to take her to work.",Negative,NEUTRAL
+174050.mp4,"Since Mary's car broke, John has been taking her to work.",Negative,NEUTRAL
+8397838.mp4,"American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida.",Neutral,NEGATIVE
+8397050.mp4,Who fell in love with Bill?,Positive,NEUTRAL
+8396754.mp4,Why is father upset?,Neutral,NEGATIVE
+3382011.mp4,"If Mary gets home late, John will probably be upset.",Neutral,NEGATIVE
+3381715.mp4,"If you want to know, if John wins he will get a teddy bear.",Positive,NEUTRAL
+7321.mp4,"If the president is elected again, my father will be upset.",Neutral,NEGATIVE
+362.mp4,Why is the teacher upset?,Neutral,NEGATIVE
+1677.mp4,That dress is not my favorite.,Neutral,NEGATIVE
+24363254.mp4,The growth of signing went in one direction; the growth of speaking went in another.,Positive,NEUTRAL
+24480520.mp4,"Deaf people made progress with the growth of signing.  The progress could have been greater, but it wasn't permitted.",Positive,NEUTRAL
+65174582.mp4,"People who watch silent films can't hear it but can imagine a strong, heavy baritone voice from that swashbuckler character.",Positive,NEUTRAL
+31658341.mp4,My friend crashed the party last night.,Positive,NEGATIVE
+31657848.mp4,Is Mother sick?,Negative,NEUTRAL
+31655777.mp4,Is it fine if my friend crashes the party?,Positive,NEGATIVE
+31655186.mp4,I have to pay double the rent because I missed the last one.,Neutral,NEGATIVE
+35420258.mp4,"A student went on a quiz TV show, but he didn`t win.",Positive,NEGATIVE

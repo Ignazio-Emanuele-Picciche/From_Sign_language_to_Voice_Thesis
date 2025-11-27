@@ -1,0 +1,30 @@
+GOLDEN LABEL VALIDATION REPORT
+========================================
+Input File: golden_label_sentiment_with_neutral.csv
+Model: bhadresh-savani/bert-base-go-emotion (Mapped 28->3)
+Total Samples: 200
+
+PERFORMANCE METRICS:
+-----------------
+Accuracy:                   0.4150
+Balanced Accuracy:          0.4693
+Cohen's Kappa:              0.2326
+F1 Score (Weighted):        0.5169
+
+CONFUSION MATRIX (Rows=True, Cols=Pred):
+Labels: ['NEGATIVE', 'NEUTRAL', 'POSITIVE']
+[[28 53  2]
+ [ 4 10  2]
+ [ 0 56 45]]
+
+DETAILED REPORT:
+              precision    recall  f1-score   support
+
+    NEGATIVE       0.88      0.34      0.49        83
+     NEUTRAL       0.08      0.62      0.15        16
+    POSITIVE       0.92      0.45      0.60       101
+
+    accuracy                           0.41       200
+   macro avg       0.63      0.47      0.41       200
+weighted avg       0.83      0.41      0.52       200
+

@@ -42,8 +42,6 @@ Per il training, sarà necessario applicare tecniche di:
 GLOBAL SENTIMENT VALIDATION: VADER (Rule-Based) vs. RoBERTa (Transformer)
 ================================================================================
 
-AUTORE: [Tuo Nome]
-DATA: Novembre 2025
 CONTESTO: Analisi del sentiment su dataset di Lingua dei Segni (How2Sign + ASLLRP)
 
 DESCRIZIONE GENERALE:
