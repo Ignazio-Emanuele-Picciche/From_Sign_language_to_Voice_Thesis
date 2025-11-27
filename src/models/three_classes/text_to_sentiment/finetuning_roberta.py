@@ -37,6 +37,7 @@ from sklearn.metrics import (
 )
 import os
 import mlflow
+import torch.nn.functional as F
 
 # --- CONFIGURAZIONE ---
 MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
@@ -59,6 +60,44 @@ VAL_FILE = "data/val/video_sentiment_data_with_neutral_0.34.csv"
 # Mapping Label
 label2id = {"NEGATIVE": 0, "NEUTRAL": 1, "POSITIVE": 2}
 id2label = {0: "NEGATIVE", 1: "NEUTRAL", 2: "POSITIVE"}
+
+
+# ------------------------------------------------------------------------------
+# CLASS: FOCAL LOSS TRAINER (Advanced Imbalance Handling)
+# ------------------------------------------------------------------------------
+class FocalLossTrainer(Trainer):
+    def compute_loss(
+        self, model, inputs, return_outputs=False, num_items_in_batch=None
+    ):
+        labels = inputs.get("labels")
+        outputs = model(**inputs)
+        logits = outputs.get("logits")
+
+        # --- FIX MPS: Assicuriamo che i pesi siano sul device giusto ---
+        if self.class_weights.device != model.device:
+            self.class_weights = self.class_weights.to(model.device)
+
+        # 1. Calcoliamo la Cross Entropy standard SENZA riduzione (reduction='none')
+        #    Questo ci serve per avere la loss di ogni singolo esempio, non la media.
+        #    Manteniamo i class_weights per gestire l'Alpha balancing.
+        ce_loss = F.cross_entropy(
+            logits.view(-1, self.model.config.num_labels),
+            labels.view(-1),
+            weight=self.class_weights,
+            reduction="none",
+        )
+
+        # 2. Calcoliamo pt (probabilità che il modello assegna alla classe corretta)
+        pt = torch.exp(-ce_loss)
+
+        # 3. Parametro Gamma (Focusing Parameter)
+        #    Gamma = 2.0 è lo standard. Più è alto, più punisce gli errori "facili".
+        gamma = 2.0
+
+        # 4. Formula Focal Loss: (1 - pt)^gamma * CE
+        focal_loss = ((1 - pt) ** gamma * ce_loss).mean()
+
+        return (focal_loss, outputs) if return_outputs else focal_loss
 
 
 # ------------------------------------------------------------------------------
@@ -253,12 +292,22 @@ def main():
     )
 
     # Inizializzazione Trainer Personalizzato
-    trainer = WeightedTrainer(
+    # trainer = WeightedTrainer(
+    #     model=model,
+    #     args=training_args,
+    #     train_dataset=tokenized_datasets["train"],
+    #     eval_dataset=tokenized_datasets["validation"],
+    #     processing_class=tokenizer,  # Aggiornato da 'tokenizer' a 'processing_class'
+    #     data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
+    #     compute_metrics=compute_metrics,
+    # )
+
+    trainer = FocalLossTrainer(
         model=model,
         args=training_args,
         train_dataset=tokenized_datasets["train"],
         eval_dataset=tokenized_datasets["validation"],
-        processing_class=tokenizer,  # Aggiornato da 'tokenizer' a 'processing_class'
+        processing_class=tokenizer,
         data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
         compute_metrics=compute_metrics,
     )
