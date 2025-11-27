@@ -46,7 +46,7 @@ EXPERIMENT_NAME = "Sentiment_Roberta_Experiment_ValLoss"
 
 # Hyperparameters
 MAX_LENGTH = 128
-BATCH_SIZE = 256  # Ridotto a 16 per sicurezza su Mac/MPS
+BATCH_SIZE = 256
 EPOCHS = 10
 LEARNING_RATE = 1e-5
 
