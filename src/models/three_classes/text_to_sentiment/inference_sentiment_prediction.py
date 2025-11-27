@@ -86,6 +86,32 @@ NOTE TECNICHE:
 ================================================================================
 """
 
+
+# --------------------------------------------------------------------------
+# METRICA: COHEN'S KAPPA (Statistica di Accordo Inter-Annotatore)
+# --------------------------------------------------------------------------
+# DESCRIZIONE:
+# Il Cohen's Kappa misura l'affidabilità dell'accordo tra due valutatori
+# (in questo caso VADER e RoBERTa) escludendo la probabilità che siano
+# d'accordo puramente per caso.
+#
+# PERCHÉ È FONDAMENTALE QUI:
+# Il nostro dataset è fortemente sbilanciato verso la classe 'NEUTRAL' (60%+).
+# Se entrambi i modelli predicessero sempre 'NEUTRAL' a caso, avrebbero un'alta
+# "Accuracy" (60%) ma zero intelligenza. Il Kappa penalizza questo fenomeno.
+# Un Kappa basso ci rivela che, al di là dei casi ovvi, i due modelli hanno
+# logiche decisionali molto diverse (Lessicale vs Contestuale).
+#
+# SCALA DI INTERPRETAZIONE (Landis & Koch):
+# <= 0.00 : Nessun accordo (o peggio del caso)
+# 0.01 - 0.20 : Accordo Scarso
+# 0.21 - 0.40 : Accordo Discreto
+# 0.41 - 0.60 : Accordo Moderato (Tipico nel confronto Rule-based vs DL)
+# 0.61 - 0.80 : Accordo Sostanziale
+# 0.81 - 1.00 : Accordo Quasi Perfetto
+# --------------------------------------------------------------------------
+
+
 import pandas as pd
 import torch
 from transformers import pipeline
@@ -94,17 +120,17 @@ from sklearn.metrics import (
     f1_score,
     classification_report,
     balanced_accuracy_score,
+    confusion_matrix,  # <--- NUOVO
+    cohen_kappa_score,  # <--- NUOVO
 )
 from tqdm import tqdm
 import os
 
 """
 ================================================================================
-GLOBAL SENTIMENT VALIDATION (Unified Test Set)
+GLOBAL SENTIMENT VALIDATION: VADER (Rule-Based) vs. RoBERTa (Transformer)
 ================================================================================
-Questo script carica due dataset distinti (How2Sign e ASLLRP), li uniforma e li 
-fonde in un unico "Global Test Set". Successivamente confronta le etichette 
-VADER (Ground Truth) con le predizioni di RoBERTa per calcolare metriche globali.
+... (Mantieni pure la tua docstring aggiornata qui) ...
 """
 
 # --- CONFIGURAZIONE ---
@@ -193,21 +219,28 @@ def run_global_analysis():
     combined_df["Sentiment_Pred_RoBERTa"] = predictions
 
     # 3. SALVATAGGIO CSV UNICO
-    output_csv = (
-        "src/models/three_classes/text_to_sentiment/global_sentiment_comparison.csv"
-    )
+    output_dir = "src/models/three_classes/text_to_sentiment/"
+    # Creiamo la cartella se non esiste
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_csv = os.path.join(output_dir, "global_sentiment_comparison.csv")
     combined_df.to_csv(output_csv, index=False)
     print(f"✅ File confronto salvato: {output_csv}")
 
-    # 4. CALCOLO METRICHE GLOBALI
-    print("\n--- 3. Calcolo Metriche Globali ---")
+    # 4. CALCOLO METRICHE GLOBALI E COMPARAZIONE
+    print("\n--- 3. Calcolo Metriche Globali & Agreement ---")
     y_true = combined_df["Sentiment_GT"].str.upper()
     y_pred = combined_df["Sentiment_Pred_RoBERTa"]
 
+    # Metriche Standard
     acc = accuracy_score(y_true, y_pred)
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
     f1_weighted = f1_score(y_true, y_pred, average="weighted")
-    f1_macro = f1_score(y_true, y_pred, average="macro")
+
+    # Metriche Avanzate di Confronto
+    kappa = cohen_kappa_score(y_true, y_pred)
+    cm = confusion_matrix(y_true, y_pred, labels=["NEGATIVE", "NEUTRAL", "POSITIVE"])
+
     report = classification_report(
         y_true, y_pred, target_names=["NEGATIVE", "NEUTRAL", "POSITIVE"]
     )
@@ -223,23 +256,41 @@ def run_global_analysis():
         f"-----------------\n"
         f"Accuracy (Standard):        {acc:.4f}\n"
         f"Balanced Accuracy:          {balanced_acc:.4f}\n"
-        f"F1 Score (Weighted):        {f1_weighted:.4f}\n"
-        f"F1 Score (Macro):           {f1_macro:.4f}\n\n"
+        f"Cohen's Kappa (Agreement):  {kappa:.4f}\n"
+        f"F1 Score (Weighted):        {f1_weighted:.4f}\n\n"
+        f"CONFUSION MATRIX (Rows=VADER, Cols=RoBERTa):\n"
+        f"-----------------\n"
+        f"Labels: [NEGATIVE, NEUTRAL, POSITIVE]\n"
+        f"{cm}\n\n"
         f"DETAILED CLASS REPORT:\n"
         f"-----------------\n"
         f"{report}\n\n"
-        f"DATASET BREAKDOWN (Samples count):\n"
+        f"DATASET BREAKDOWN:\n"
         f"{combined_df['Source_Dataset'].value_counts().to_string()}\n"
     )
 
     # Salvataggio Metriche TXT
-    output_txt = "src/models/three_classes/text_to_sentiment/global_metrics.txt"
+    output_txt = os.path.join(output_dir, "global_metrics.txt")
     with open(output_txt, "w") as f:
         f.write(metrics_text)
 
     print(f"✅ Report metriche globali salvato: {output_txt}")
     print("-" * 30)
     print(metrics_text)
+
+    # 5. SALVATAGGIO DEI DISACCORDI (Nuova Sezione)
+    print("\n--- 4. Estrazione Disaccordi ---")
+    disagreements = combined_df[
+        combined_df["Sentiment_GT"].str.upper() != combined_df["Sentiment_Pred_RoBERTa"]
+    ]
+
+    output_disagreements = os.path.join(
+        output_dir, "global_sentiment_disagreements.csv"
+    )
+    disagreements.to_csv(output_disagreements, index=False)
+    print(
+        f"✅ File disaccordi salvato ({len(disagreements)} righe): {output_disagreements}"
+    )
 
 
 if __name__ == "__main__":

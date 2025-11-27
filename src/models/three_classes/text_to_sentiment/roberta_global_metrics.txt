@@ -8,8 +8,15 @@ GLOBAL PERFORMANCE:
 -----------------
 Accuracy (Standard):        0.6835
 Balanced Accuracy:          0.6378
+Cohen's Kappa (Agreement):  0.3719
 F1 Score (Weighted):        0.6722
-F1 Score (Macro):           0.5916
+
+CONFUSION MATRIX (Rows=VADER, Cols=RoBERTa):
+-----------------
+Labels: [NEGATIVE, NEUTRAL, POSITIVE]
+[[ 241  100    1]
+ [ 333 2309  138]
+ [  67  780  515]]
 
 DETAILED CLASS REPORT:
 -----------------
@@ -24,7 +31,7 @@ DETAILED CLASS REPORT:
 weighted avg       0.72      0.68      0.67      4484
 
 
-DATASET BREAKDOWN (Samples count):
+DATASET BREAKDOWN:
 Source_Dataset
 How2Sign    2357
 ASLLRP      2127
