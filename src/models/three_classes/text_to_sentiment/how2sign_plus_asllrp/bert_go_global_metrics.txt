@@ -1,0 +1,29 @@
+GLOBAL METRICS REPORT (Unified Test Set)
+========================================
+Model: bhadresh-savani/bert-base-go-emotion (Mapped from 28 emotions)
+Benchmark: VADER
+Total Samples: 4484
+
+KEY METRICS:
+-----------------
+Accuracy:                   0.6661
+Balanced Accuracy:          0.4818
+Cohen's Kappa:              0.2593
+F1 Score (Weighted):        0.6306
+
+CONFUSION MATRIX (Rows=VADER, Cols=BERT-GoEmotion):
+[[  84  242   16]
+ [ 131 2488  161]
+ [  24  923  415]]
+
+DETAILED REPORT:
+              precision    recall  f1-score   support
+
+    NEGATIVE       0.35      0.25      0.29       342
+     NEUTRAL       0.68      0.89      0.77      2780
+    POSITIVE       0.70      0.30      0.42      1362
+
+    accuracy                           0.67      4484
+   macro avg       0.58      0.48      0.50      4484
+weighted avg       0.66      0.67      0.63      4484
+
