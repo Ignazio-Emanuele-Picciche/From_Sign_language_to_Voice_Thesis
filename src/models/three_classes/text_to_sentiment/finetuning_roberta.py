@@ -40,21 +40,21 @@ import mlflow
 
 # --- CONFIGURAZIONE ---
 MODEL_NAME = "cardiffnlp/twitter-roberta-base-sentiment-latest"
-OUTPUT_DIR = "src/models/three_classes/text_to_sentiment/models/finetuned_roberta_sentiment_mlflow"
+OUTPUT_DIR = "models/finetuned_roberta_sentiment_mlflow"
 EXPERIMENT_NAME = "Sentiment_Roberta_Experiment_ValLoss"
 
 # Hyperparameters
 MAX_LENGTH = 128
-BATCH_SIZE = 128  # Ridotto a 16 per sicurezza su Mac/MPS
+BATCH_SIZE = 256  # Ridotto a 16 per sicurezza su Mac/MPS
 EPOCHS = 10
 LEARNING_RATE = 1e-5
 
 # File Paths
 TRAIN_FILE_1 = (
-    "data/processed/asllrp_video_sentiment_data_with_neutral_0.34_without_golden.csv"
+    "data/train/asllrp_video_sentiment_data_with_neutral_0.34_without_golden.csv"
 )
-TRAIN_FILE_2 = "data/processed/train/video_sentiment_data_with_neutral_0.34.csv"
-VAL_FILE = "data/processed/val/video_sentiment_data_with_neutral_0.34.csv"
+TRAIN_FILE_2 = "data/train/video_sentiment_data_with_neutral_0.34.csv"
+VAL_FILE = "data/val/video_sentiment_data_with_neutral_0.34.csv"
 
 # Mapping Label
 label2id = {"NEGATIVE": 0, "NEUTRAL": 1, "POSITIVE": 2}
