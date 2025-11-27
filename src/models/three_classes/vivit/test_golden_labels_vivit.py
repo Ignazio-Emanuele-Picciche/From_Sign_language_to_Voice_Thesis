@@ -274,7 +274,7 @@ def main(args):
         BASE_DIR, "data", "raw", "ASLLRP", "batch_utterance_video_v3_1"
     )
     annotations_file = os.path.join(
-        BASE_DIR, "data", "processed", "golden_label_sentiment_with_neutral.csv"
+        BASE_DIR, "data", "processed", "golden_test_set.csv"
     )
 
     logger.info(f"Video directory: {video_dir}")
@@ -382,7 +382,7 @@ def main(args):
         output_file = os.path.join(
             BASE_DIR,
             "results",
-            "vivit_golden_labels_test_results_3_classes_with_neutral.csv",
+            "vivit_golden_labels_test_results_3_classes.csv",
         )
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
         results_df.to_csv(output_file, index=False)
@@ -441,7 +441,7 @@ def main(args):
         metrics_file = os.path.join(
             BASE_DIR,
             "results",
-            "vivit_golden_labels_metrics_summary_3_classes_with_neutral.csv",
+            "vivit_golden_labels_metrics_summary_3_classes.csv",
         )
         metrics_df.to_csv(metrics_file, index=False)
         logger.info(f"Metriche aggregate salvate in: {metrics_file}")
