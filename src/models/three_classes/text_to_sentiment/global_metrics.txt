@@ -1,0 +1,30 @@
+GLOBAL METRICS REPORT (Unified Test Set)
+========================================
+Model: cardiffnlp/twitter-roberta-base-sentiment-latest
+Sources Included: How2Sign + ASLLRP
+Total Samples: 4484
+
+GLOBAL PERFORMANCE:
+-----------------
+Accuracy (Standard):        0.6835
+Balanced Accuracy:          0.6378
+F1 Score (Weighted):        0.6722
+F1 Score (Macro):           0.5916
+
+DETAILED CLASS REPORT:
+-----------------
+              precision    recall  f1-score   support
+
+    NEGATIVE       0.38      0.70      0.49       342
+     NEUTRAL       0.72      0.83      0.77      2780
+    POSITIVE       0.79      0.38      0.51      1362
+
+    accuracy                           0.68      4484
+   macro avg       0.63      0.64      0.59      4484
+weighted avg       0.72      0.68      0.67      4484
+
+
+DATASET BREAKDOWN (Samples count):
+Source_Dataset
+How2Sign    2357
+ASLLRP      2127
