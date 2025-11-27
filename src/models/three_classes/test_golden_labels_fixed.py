@@ -12,6 +12,7 @@
 #  NON PREDICE NEUTRAL
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/768135501161829821/models/m-780c208c5059486583a51a77a288cdb3/artifacts --batch_size 32 --save_results
 
+#  experiment id cdadbf4c393f487aae9d08521611e805
 #  PREDITE TUTTE LE CLASSI
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/816580482732370733/models/m-0f27528663e84dfe91e0b2c7f4a15495/artifacts --batch_size 32 --save_results
 #
@@ -273,9 +274,7 @@ def main(args):
     landmarks_dir = os.path.join(
         BASE_DIR, "data", "raw", "ASLLRP", "mediapipe_output_golden_label", "json"
     )
-    processed_file = os.path.join(
-        BASE_DIR, "data", "processed", "golden_label_sentiment_with_neutral.csv"
-    )
+    processed_file = os.path.join(BASE_DIR, "data", "processed", "golden_test_set.csv")
 
     print(f"Landmarks directory: {landmarks_dir}")
     print(f"Processed file: {processed_file}")

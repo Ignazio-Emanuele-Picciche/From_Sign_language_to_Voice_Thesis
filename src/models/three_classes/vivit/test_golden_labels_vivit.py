@@ -12,6 +12,7 @@
 #   --save_results
 #
 
+# experiment id 1b7a995b714b40d79a61184391f65a9e
 # python src/models/three_classes/vivit/test_golden_labels_vivit.py \
 #   --model_uri mlartifacts/697363764579443849/models/m-b9a16703c0fc4378acbae40eecab4f6e/artifacts \
 #   --batch_size 1 \
