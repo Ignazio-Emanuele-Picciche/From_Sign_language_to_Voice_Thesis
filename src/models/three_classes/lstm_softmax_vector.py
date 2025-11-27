@@ -29,6 +29,7 @@ import src.models.three_classes.lstm_model as lstm_model_module
 sys.modules["src.models.three_classes.lstm_model"] = lstm_model_module
 
 # --- CONFIGURAZIONE DATASET ---
+# Nota: I percorsi sono relativi a BASE_DIR
 TRAIN_FILE_1 = (
     "data/processed/asllrp_video_sentiment_data_with_neutral_0.34_without_golden.csv"
 )
@@ -44,6 +45,18 @@ def load_and_combine_data():
     """Carica e unisce i due CSV di training."""
     path1 = os.path.join(BASE_DIR, TRAIN_FILE_1)
     path2 = os.path.join(BASE_DIR, TRAIN_FILE_2)
+
+    # Verifica esistenza file per evitare crash brutali
+    if not os.path.exists(path1):
+        # Fallback: prova a cercarli in data/processed se non sono in data/train
+        path1 = path1.replace("/train/", "/processed/")
+        if not os.path.exists(path1):
+            print(f"⚠️ ATTENZIONE: File non trovato: {path1}")
+
+    if not os.path.exists(path2):
+        path2 = path2.replace("/train/", "/processed/")
+        if not os.path.exists(path2):
+            print(f"⚠️ ATTENZIONE: File non trovato: {path2}")
 
     print(f"1. Caricamento file: {path1}")
     df1 = pd.read_csv(path1)
@@ -64,15 +77,11 @@ def load_and_combine_data():
 def extract_softmax_vectors(model, dataloader, device, labels_map):
     """
     Esegue l'inferenza pura e raccoglie solo i vettori softmax.
-    Nessun calcolo di metriche o accuracy.
     """
     model.eval()
 
     # Dizionario per raccogliere i dati
-    results = {
-        "true_label": []
-        # video_name verrà aggiunto dopo per sicurezza
-    }
+    results = {"true_label": []}
     # Inizializza liste per le probabilità (es. lstm_prob_negative, etc.)
     for label in labels_map:
         results[f"lstm_prob_{label.lower()}"] = []
@@ -81,7 +90,7 @@ def extract_softmax_vectors(model, dataloader, device, labels_map):
 
     with torch.no_grad():
         for i, (batch_data, batch_labels) in enumerate(dataloader):
-            if i % 100 == 0:
+            if i % 20 == 0:  # Feedback più frequente
                 print(f"  Processando batch {i}/{len(dataloader)}...")
 
             # Preparazione input
@@ -91,14 +100,13 @@ def extract_softmax_vectors(model, dataloader, device, labels_map):
             outputs = model(inputs)
 
             # --- ESTRAZIONE PROBABILITÀ (SOFTMAX) ---
-            # Questo è il cuore dell'estrazione features
             probs = torch.softmax(outputs, dim=1)
 
             # Spostiamo su CPU per salvare
             current_probs = probs.cpu().numpy()
             current_labels = batch_labels.numpy()
 
-            # Raccogliamo le label reali (come stringhe)
+            # Raccogliamo le label reali
             results["true_label"].extend([labels_map[l] for l in current_labels])
 
             # Raccogliamo le probabilità colonna per colonna
@@ -123,23 +131,32 @@ def main(args):
     print(f"Dispositivo: {device}")
 
     # 2. Preparazione Dati (Concatenazione)
-    temp_csv_path = load_and_combine_data()
+    try:
+        temp_csv_path = load_and_combine_data()
+    except FileNotFoundError as e:
+        print(
+            f"❌ ERRORE: File di dati non trovato. Controlla i percorsi in alto nello script."
+        )
+        return
 
-    # Usiamo FixedGoldenLabelDataset per garantire la stessa normalizzazione usata nel test
+    # Usiamo FixedGoldenLabelDataset
     print("\nInizializzazione Dataset...")
+
+    # --- CORREZIONE QUI SOTTO: Argomenti posizionali invece di keyword ---
     dataset = FixedGoldenLabelDataset(
-        json_dir=args.landmarks_dir,
-        csv_file=temp_csv_path,
-        train_mean=159.878159,  # IMPORTANTE: Stesse statistiche del training originale
+        args.landmarks_dir,  # 1° Argomento: directory json
+        temp_csv_path,  # 2° Argomento: file csv
+        train_mean=159.878159,
         train_std=256.977173,
     )
+    # ---------------------------------------------------------------------
 
     # IMPORTANTE: shuffle=False per mantenere l'ordine esatto dei video_name
     dataloader = DataLoader(
         dataset, batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    # Recuperiamo i video names direttamente dal dataset (garantito stesso ordine del loader)
+    # Recuperiamo i video names
     video_names = dataset.processed["video_name"].tolist()
 
     # 3. Caricamento Modello MLflow
@@ -155,6 +172,8 @@ def main(args):
         print(
             "❌ ERRORE CRITICO: Il numero di video non corrisponde al numero di predizioni!"
         )
+        print(f"  Video nel dataset: {len(video_names)}")
+        print(f"  Predizioni effettuate: {len(results_dict['true_label'])}")
         return
 
     # Aggiungiamo la chiave primaria
@@ -163,7 +182,7 @@ def main(args):
     # 5. Creazione DataFrame Finale
     df_results = pd.DataFrame(results_dict)
 
-    # Riordiniamo le colonne: Video -> Label -> Probabilità
+    # Riordiniamo le colonne
     cols = ["video_name", "true_label"] + [c for c in df_results.columns if "prob" in c]
     df_results = df_results[cols]
 
@@ -174,7 +193,7 @@ def main(args):
     df_results.to_csv(output_path, index=False)
 
     print("\n" + "=" * 60)
-    print(f"✅ ESTARAZIONE COMPLETATA")
+    print(f"✅ ESTRAZIONE COMPLETATA")
     print(f"📄 File salvato in: {output_path}")
     print(f"📊 Shape del dataset: {df_results.shape}")
     print("=" * 60)
