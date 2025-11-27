@@ -1,0 +1,129 @@
+video_name,caption,emotion,predicted_emotion_raw,predicted_sentiment
+83664512.mp4,"I was like, “Oh, wow, that`s fine.” He wanted to transfer to Rochester because he wanted to work at RIT too.",Positive,surprise,NEUTRAL
+25328.mp4,There are so many things that are wrong with the system.,Negative,neutral,NEUTRAL
+253715.mp4,Then they would ask the HIT group about the car and whether if the glass was broken.,Negative,neutral,NEUTRAL
+255438.mp4,Or they will ask another group SMASHED about the car and whether if the glass was broken.,Negative,neutral,NEUTRAL
+253816.mp4,Or ask the COLLIDED group about the car and if the glass was broken?,Negative,curiosity,NEUTRAL
+253917.mp4,"Ask another group, the CRASHED group about the car and whether if the glass is broken.",Negative,neutral,NEUTRAL
+254728.mp4,"It is very intimidating. There will be seven professionals informing the two parents that their child seem to be sick or have the ""cancer"".",Negative,neutral,NEUTRAL
+257368.mp4,"They often use the word ""diagnosis"" It's very negative and it's used for more negative references, such as sickness or cancer. Or maybe terminal illness.",Negative,neutral,NEUTRAL
+254829.mp4,"Why don't they use a word like ""identified"" as in ""I've identified this child deaf""? Now it does not seem bad at all.",Positive,confusion,NEUTRAL
+254931.mp4,"""Intervention"" implies the need of intervening such as an intervention for drug addicts, stopping something from happening, or when a kid is not behaving well.",Negative,neutral,NEUTRAL
+255033.mp4,"The baby is just deaf. It's not their fault, they're doing perfectly fine.",Positive,neutral,NEUTRAL
+255946.mp4,The parents might will perceive this as something they should to be upset about.,Negative,neutral,NEUTRAL
+256351.mp4,A Deaf role model who has been trained can show the parents that he/she is perfectly fine.,Negative,neutral,NEUTRAL
+256352.mp4,He/she can read and write. He/she can communicate. He/she can work. He/she has an education. There's a long list of that and he/she is perfectly fine.,Positive,neutral,NEUTRAL
+2682838.mp4,The car broke down.,Negative,neutral,NEUTRAL
+26827616.mp4,"Cousin John's car broke down, do you remember?",Negative,neutral,NEUTRAL
+26827517.mp4,"It wasn't John whose car broke down, it was Mary.",Negative,neutral,NEUTRAL
+26827419.mp4,"John didn't get into an accident with a truck, he got into an accident with another car.",Negative,neutral,NEUTRAL
+36298782.mp4,The weather is lousy today.,Negative,neutral,NEUTRAL
+36294790.mp4,The weather isn't beautiful today.,Negative,admiration,POSITIVE
+36292794.mp4,"Yes, I like pineapple cream cheese.",Positive,neutral,NEUTRAL
+36288803.mp4,Dad is like me. He likes chocolate cereal.,Positive,neutral,NEUTRAL
+5596228.mp4,Why is dad upset? I have no idea...,Negative,curiosity,NEUTRAL
+154108.mp4,"""Today I went out and the weather was lousy."" ""No, it's beautiful and warm outside. It's perfect.""",Negative,admiration,POSITIVE
+1540613.mp4,"""Texas has a good football team."" ""No they have a lousy team and they are losing. They haven't won a game yet.""",Positive,neutral,NEUTRAL
+1540021.mp4,"""Mc Donalds is a snobby restaurant right?"" ""No, Mcdonalds is a cheap restaurant. They serve hamburgers.""",Negative,neutral,NEUTRAL
+1539625.mp4,"""Your mom will love the surprise party."" ""No, my mom hates surprises.""",Negative,surprise,NEUTRAL
+17597185.mp4,I know that I should enter the haunted house at my own risk.,Negative,neutral,NEUTRAL
+17588201.mp4,I analyzed and looked over the math problem.,Negative,neutral,NEUTRAL
+29019.mp4,"Last night, I played a close game of basketball with my friend. The score was 30-28 when it ended.",Positive,neutral,NEUTRAL
+29931.mp4,"Honestly, if I fail this class, my mom will lose it.",Negative,optimism,POSITIVE
+84088.mp4,My friend goes out to a party.,Negative,neutral,NEUTRAL
+841111.mp4,My friend is currently planning a surprise event.,Positive,surprise,NEUTRAL
+841314.mp4,My friend is playing video games.,Positive,neutral,NEUTRAL
+841618.mp4,Is your friend`s party good?,Negative,curiosity,NEUTRAL
+841720.mp4,"Is it fun going fishing with your friends? (starts out signing ""fishing"" but repairs to ""friend"")",Positive,curiosity,NEUTRAL
+841821.mp4,Will Bob be surprised at his surprise party?,Positive,surprise,NEUTRAL
+842226.mp4,Does your friend really love surfing the internet?,Negative,love,POSITIVE
+842327.mp4,Does your friend love surfing the Internet?,Positive,curiosity,NEUTRAL
+843443.mp4,Why does your friend love travelling?,Positive,curiosity,NEUTRAL
+844052.mp4,"If my friend goes out to a party, I will join them for sure.",Positive,neutral,NEUTRAL
+844153.mp4,"If my friend goes out to a party, my roommate and I will join.",Positive,neutral,NEUTRAL
+844255.mp4,"If my boss summons me, everyone will know I`m in trouble.",Negative,neutral,NEUTRAL
+844356.mp4,"If my friend goes out fishing, I have to monitor the weather to make sure it`s fine for fishing.",Negative,approval,POSITIVE
+844457.mp4,"When my friend goes out fishing, the fish has to go in the bucket immediately so it will be fresh.",Positive,neutral,NEUTRAL
+844458.mp4,"If Bob is surprised at his surprise party, it is commendable because it is difficult to surprise Bob.",Negative,surprise,NEUTRAL
+844762.mp4,"If my friend goes travelling, I just have to join.",Negative,neutral,NEUTRAL
+844864.mp4,"Once my friend starts playing video games, he is hooked to it all night until his eyes pop out.",Negative,neutral,NEUTRAL
+845270.mp4,My friend is going out to a party.,Positive,neutral,NEUTRAL
+845473.mp4,My friend is planning to surprise Bob because he's turning 21.,Positive,surprise,NEUTRAL
+845574.mp4,I arrived school late because I was in a bike accident.,Negative,neutral,NEUTRAL
+845676.mp4,My friend plays video games all day because he does nothing else.,Negative,neutral,NEUTRAL
+557229.mp4,My friend went out to a party.,Positive,neutral,NEUTRAL
+5572615.mp4,Mother has to clean the kitchen soon because a group of friends are coming over for the weekend.,Negative,neutral,NEUTRAL
+5572717.mp4,My friend is an expert at making bonfires because he was a Boy Scout growing up.,Positive,neutral,NEUTRAL
+7343510.mp4,"If my friends go out, I will join them.",Positive,neutral,NEUTRAL
+7343915.mp4,My mother tends to be in a bad mood if Father arrives home late.,Negative,neutral,NEUTRAL
+7987410.mp4,"If I fail a test, my mom will blow her top.",Negative,neutral,NEUTRAL
+7986324.mp4,Bob frequently gives his sweetheart roses.,Positive,neutral,NEUTRAL
+7986027.mp4,Mom is sick.,Negative,neutral,NEUTRAL
+7984743.mp4,Friends play frisbee.,Positive,neutral,NEUTRAL
+7984644.mp4,I invited my friends to a barbeque party.,Positive,neutral,NEUTRAL
+7983954.mp4,My friends crashed the party.,Negative,neutral,NEUTRAL
+7983658.mp4,Did Bob give the rose to his sweetheart?,Negative,curiosity,NEUTRAL
+7983461.mp4,Is mom sick?,Negative,curiosity,NEUTRAL
+7983165.mp4,Is bad weather coming to Boston?,Negative,curiosity,NEUTRAL
+7982377.mp4,Is playing frisbee fun?,Neutral,amusement,POSITIVE
+7981687.mp4,Was I passed out drunk last night?,Negative,curiosity,NEUTRAL
+7981589.mp4,Did my friend go ahead with crashing the party?,Negative,curiosity,NEUTRAL
+7981194.mp4,The teacher must clean the classroom everyday so that when the students come to class it will be clean.,Negative,neutral,NEUTRAL
+79797114.mp4,My friend wants to buy a plaid shrit because his friend invited him to a costume party.,Positive,neutral,NEUTRAL
+79792122.mp4,My friend just crashed a party because he recently finished his last exam.,Positive,neutral,NEUTRAL
+5873528.mp4,There's always a pop quiz when I neglect my studying.,Negative,neutral,NEUTRAL
+58734811.mp4,"When I don't study, I am guaranteed to fail.",Negative,neutral,NEUTRAL
+58734712.mp4,"If I don't study, I am guaranteed to fail.",Negative,neutral,NEUTRAL
+58734613.mp4,"If I don't study, I am guaranteed to fail.",Negative,neutral,NEUTRAL
+58734317.mp4,"If there's an emergency, where will you go?",Negative,neutral,NEUTRAL
+58734020.mp4,"If you spell even one word wrong, he will take away points for it!",Negative,neutral,NEUTRAL
+58733526.mp4,"If John did that to me, I won't be friends with him anymore.",Negative,neutral,NEUTRAL
+17077.mp4,The weather is lousy today.,Negative,neutral,NEUTRAL
+171820.mp4,"My dad likes pineapple cream cheese, like me.",Negative,neutral,NEUTRAL
+172630.mp4,"No no no, I hate chocolate cereal.",Neutral,anger,NEGATIVE
+172732.mp4,I can't believe the car broke!,Negative,surprise,NEUTRAL
+173340.mp4,"Our cousin, John, broke the truck.",Negative,neutral,NEUTRAL
+173441.mp4,"No, John didn't break the truck, Mary broke the truck.",Negative,neutral,NEUTRAL
+173543.mp4,"John didn't break the truck, he actually destroyed the car.",Negative,neutral,NEUTRAL
+173745.mp4,The car broke down.,Negative,neutral,NEUTRAL
+173949.mp4,"If Mary's car broke down, John would have to take her to work.",Negative,neutral,NEUTRAL
+174050.mp4,"Since Mary's car broke, John has been taking her to work.",Negative,neutral,NEUTRAL
+8398627.mp4,"No, no one has found the umbrella, it's still missing.",Negative,neutral,NEUTRAL
+8398331.mp4,"What? No, right now we're in an economic crisis.",Negative,neutral,NEUTRAL
+8397936.mp4,Pete loves computers; he has three set up one next to the other at home!,Negative,love,POSITIVE
+8397838.mp4,"American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida.",Negative,neutral,NEUTRAL
+8397050.mp4,Who fell in love with Bill?,Positive,curiosity,NEUTRAL
+8396754.mp4,Why is father upset?,Negative,curiosity,NEUTRAL
+8395966.mp4,"The man who broke into a house in Newton is probably the same person who broke into a house in Brookline,",Negative,neutral,NEUTRAL
+8395670.mp4,That student who was on the quiz show didn't win.,Negative,neutral,NEUTRAL
+8395473.mp4,Jim threatened to sue the man who punched him.,Negative,neutral,NEUTRAL
+338228.mp4,If John stays home it probably means he's sick.,Negative,neutral,NEUTRAL
+3382011.mp4,"If Mary gets home late, John will probably be upset.",Negative,neutral,NEUTRAL
+3381715.mp4,"If you want to know, if John wins he will get a teddy bear.",Positive,neutral,NEUTRAL
+3380826.mp4,"If my sister neglects her homework, she won't succeed in school.",Negative,neutral,NEUTRAL
+3380727.mp4,"If my sister neglects her homework, she won't succeed in school.",Negative,neutral,NEUTRAL
+3380433.mp4,"If John eats spinach, he will get sick.",Negative,neutral,NEUTRAL
+3380334.mp4,"If John eats spinach, he will get nauseous and sick.",Negative,neutral,NEUTRAL
+3379053.mp4,"If the student wins an award, he will get a $100 gift card.",Positive,neutral,NEUTRAL
+3378954.mp4,The student who won the award will get a $100 voucher.,Positive,neutral,NEUTRAL
+8436.mp4,"When he struggled a lot in school, he became depressed.",Negative,neutral,NEUTRAL
+9956.mp4,Which vegetable do the kids love?,Positive,curiosity,NEUTRAL
+362.mp4,Why is the teacher upset?,Negative,curiosity,NEUTRAL
+1677.mp4,That dress is not my favorite.,Negative,love,POSITIVE
+2590.mp4,My friend is thrilled because he won the lottery.,Positive,neutral,NEUTRAL
+32100.mp4,Wow! That watch costs three thousand dollars!,Negative,surprise,NEUTRAL
+24363254.mp4,The growth of signing went in one direction; the growth of speaking went in another.,Positive,neutral,NEUTRAL
+24480520.mp4,"Deaf people made progress with the growth of signing.  The progress could have been greater, but it wasn't permitted.",Negative,neutral,NEUTRAL
+29052074.mp4,"Often because judgments come from the audio-oral perspective, the sensory politics results in judgments of broken sounds and harsh noises, This needs to be improved.",Negative,neutral,NEUTRAL
+64778101.mp4,"When on the phone the person may perceive who they're talking to as being tall, smart, good looking and nice. They agree to meet the person the next day near the train and hang up",Positive,neutral,NEUTRAL
+65086412.mp4,John's voice was a good match to the character he played. His character in the movie was that of a swashbuckler.,Negative,admiration,POSITIVE
+65174582.mp4,"People who watch silent films can't hear it but can imagine a strong, heavy baritone voice from that swashbuckler character.",Negative,neutral,NEUTRAL
+31660612.mp4,Mother is now ill.,Negative,neutral,NEUTRAL
+31658341.mp4,My friend crashed the party last night.,Negative,neutral,NEUTRAL
+31657848.mp4,Is Mother sick?,Negative,curiosity,NEUTRAL
+31657453.mp4,Is there bad weather in Boston now?,Negative,curiosity,NEUTRAL
+31655777.mp4,Is it fine if my friend crashes the party?,Positive,curiosity,NEUTRAL
+31655186.mp4,I have to pay double the rent because I missed the last one.,Negative,neutral,NEUTRAL
+31655087.mp4,Bad weather is in Boston because the ocean is near.,Negative,neutral,NEUTRAL
+1470684.mp4,The cat the neighbors found is really hungry. Wow.,Negative,surprise,NEUTRAL
+35420258.mp4,"A student went on a quiz TV show, but he didn`t win.",Negative,neutral,NEUTRAL

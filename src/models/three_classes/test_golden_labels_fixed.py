@@ -10,6 +10,7 @@
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/505616919019850588/models/m-c8c87c699cf14e4a91b1b9765feb9943/artifacts --batch_size 32 --save_results
 
 #  NON PREDICE NEUTRAL
+# experiment id 0146690ad2f342cfb42ab867c89db6c8
 # python src/models/three_classes/test_golden_labels_fixed.py --model_uri mlartifacts/768135501161829821/models/m-780c208c5059486583a51a77a288cdb3/artifacts --batch_size 32 --save_results
 
 #  experiment id cdadbf4c393f487aae9d08521611e805

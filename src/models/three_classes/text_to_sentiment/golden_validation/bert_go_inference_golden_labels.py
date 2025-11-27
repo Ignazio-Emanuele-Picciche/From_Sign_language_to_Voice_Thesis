@@ -39,7 +39,7 @@ BATCH_SIZE = 16
 DEVICE = 0 if torch.cuda.is_available() else -1
 
 # Percorsi
-INPUT_FILE = "data/processed/golden_label_sentiment_with_neutral.csv"
+INPUT_FILE = "data/processed/golden_test_set.csv"
 OUTPUT_DIR = "src/models/three_classes/text_to_sentiment/golden_validation/"
 
 print(f"Using device: {'GPU' if DEVICE == 0 else 'CPU'}")

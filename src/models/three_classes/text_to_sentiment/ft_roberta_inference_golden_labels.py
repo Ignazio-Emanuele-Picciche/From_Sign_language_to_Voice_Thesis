@@ -49,7 +49,7 @@ else:
     print("Using device: CPU")
 
 # Percorsi File
-INPUT_FILE = "data/test/how2sign_sentiment_analyzed.csv"
+INPUT_FILE = "data/test/golden_test_set.csv"
 OUTPUT_DIR = "golden_validation_finetuned/"
 
 
@@ -110,7 +110,7 @@ def run_golden_validation_finetuned():
 
     # Verifica colonne minime
     # required_cols = {"video_name", "caption", "emotion"}  # golden label mapping
-    required_cols = {"sentence_name", "sentence", "sentiment"}  # how2sign mapping
+    required_cols = {"video_name", "caption", "emotion"}  # how2sign mapping
     if not required_cols.issubset(df.columns):
         print(f"❌ Errore: Il CSV deve contenere le colonne: {required_cols}")
         return
@@ -126,7 +126,7 @@ def run_golden_validation_finetuned():
         print(f"Errore caricamento modello: {e}")
         return
 
-    texts = df["sentence"].astype(str).tolist()
+    texts = df["caption"].astype(str).tolist()
     predictions = []
 
     # Inferenza in batch
@@ -156,7 +156,7 @@ def run_golden_validation_finetuned():
     print("\n--- 3. Calcolo Performance ---")
 
     # Normalizzazione Ground Truth (Rimuove spazi e mette in uppercase)
-    y_true = df["sentiment"].astype(str).str.upper().str.strip()
+    y_true = df["emotion"].astype(str).str.upper().str.strip()
     y_pred = df["predicted_sentiment"]
     labels_order = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 
