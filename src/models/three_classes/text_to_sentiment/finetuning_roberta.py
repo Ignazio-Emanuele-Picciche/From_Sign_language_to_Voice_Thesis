@@ -1,18 +1,16 @@
 """
 ================================================================================
-FINE-TUNING ROBERTA: MLFLOW, WEIGHTED METRICS & VAL LOSS MONITORING
+FINE-TUNING ROBERTA: MLFLOW, WEIGHTED METRICS & VAL LOSS MONITORING (MPS FIX)
 ================================================================================
 
 MODELS: cardiffnlp/twitter-roberta-base-sentiment-latest
 LOGGING: MLflow
 
-DESCRIZIONE:
-Training pipeline completa che include:
-1.  Merge dei dataset di training (ASLLRP + Train base).
-2.  Validazione su dataset esplicito (Val).
-3.  Loss Pesata (Weighted Loss) per gestire il forte sbilanciamento (Neutro >> Negativo).
-4.  Calcolo metriche avanzate (Balanced Accuracy, Weighted F1).
-5.  Salvataggio del miglior checkpoint basato sulla VALIDATION LOSS minima.
+CORREZIONI RISPETTO ALLA VERSIONE PRECEDENTE:
+1. Fix per 'Placeholder storage... on MPS device': I pesi della loss vengono
+   spostati dinamicamente sul device del modello.
+2. Gestione corretta del device (CUDA vs MPS vs CPU).
+3. Aggiornamento argomenti Trainer (processing_class al posto di tokenizer).
 
 ================================================================================
 """
@@ -47,7 +45,7 @@ EXPERIMENT_NAME = "Sentiment_Roberta_Experiment_ValLoss"
 
 # Hyperparameters
 MAX_LENGTH = 128
-BATCH_SIZE = 32
+BATCH_SIZE = 16  # Ridotto a 16 per sicurezza su Mac/MPS
 EPOCHS = 10
 LEARNING_RATE = 1e-5
 
@@ -64,7 +62,7 @@ id2label = {0: "NEGATIVE", 1: "NEUTRAL", 2: "POSITIVE"}
 
 
 # ------------------------------------------------------------------------------
-# CLASS: CUSTOM TRAINER (Weighted Loss)
+# CLASS: CUSTOM TRAINER (Weighted Loss - MPS Safe)
 # ------------------------------------------------------------------------------
 class WeightedTrainer(Trainer):
     def compute_loss(
@@ -74,7 +72,12 @@ class WeightedTrainer(Trainer):
         outputs = model(**inputs)
         logits = outputs.get("logits")
 
-        # Loss pesata: penalizza di più gli errori sulle classi rare (Negative)
+        # --- FIX CRITICO PER MPS (Mac) ---
+        # Ci assicuriamo che i pesi delle classi siano sullo stesso device del modello
+        if self.class_weights.device != model.device:
+            self.class_weights = self.class_weights.to(model.device)
+
+        # Loss pesata
         loss_fct = nn.CrossEntropyLoss(weight=self.class_weights)
         loss = loss_fct(logits.view(-1, self.model.config.num_labels), labels.view(-1))
 
@@ -138,19 +141,11 @@ def load_datasets():
 # METRICHE ESTESE
 # ------------------------------------------------------------------------------
 def compute_metrics(eval_pred):
-    """
-    Calcola un set completo di metriche per MLflow.
-    """
     logits, labels = eval_pred
     predictions = np.argmax(logits, axis=-1)
 
-    # 1. Standard Accuracy
     acc = accuracy_score(labels, predictions)
-
-    # 2. Balanced Accuracy (Media delle recall per classe -> Cruciale per dataset sbilanciati)
     balanced_acc = balanced_accuracy_score(labels, predictions)
-
-    # 3. Weighted Metrics (Tengono conto del supporto delle classi)
     f1_weighted = f1_score(labels, predictions, average="weighted")
     precision_weighted = precision_score(
         labels, predictions, average="weighted", zero_division=0
@@ -158,8 +153,6 @@ def compute_metrics(eval_pred):
     recall_weighted = recall_score(
         labels, predictions, average="weighted", zero_division=0
     )
-
-    # 4. Macro Metrics (Media aritmetica senza pesi, penalizza se fallisce sulle classi piccole)
     f1_macro = f1_score(labels, predictions, average="macro")
 
     return {
@@ -179,10 +172,19 @@ def main():
     # Setup MLflow
     mlflow.set_experiment(EXPERIMENT_NAME)
 
+    # Rilevamento Device Corretto (Include MPS per Mac)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+
+    print(f"Using device: {device}")
+
     # Caricamento Dati
     train_df, val_df = load_datasets()
 
-    # Conversione in Dataset Hugging Face
     dataset = DatasetDict(
         {
             "train": Dataset.from_pandas(train_df),
@@ -204,7 +206,6 @@ def main():
 
     tokenized_datasets = dataset.map(tokenize_function, batched=True)
 
-    # Pulizia colonne
     cols_to_remove = ["video_name", "caption", "emotion"]
     if "__index_level_0__" in tokenized_datasets["train"].column_names:
         cols_to_remove.append("__index_level_0__")
@@ -213,15 +214,15 @@ def main():
     tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
     tokenized_datasets.set_format("torch")
 
-    # Calcolo Pesi (Solo sul Training Set)
+    # Calcolo Pesi
     print("\n--- 3. Calcolo Pesi Classi (Weighted Loss) ---")
     class_weights = compute_class_weight(
         class_weight="balanced",
         classes=np.unique(train_df["label"]),
         y=train_df["label"],
     )
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    class_weights_tensor = torch.tensor(class_weights, dtype=torch.float).to(device)
+    # Inizializziamo il tensore (verrà spostato sul device corretto nel trainer)
+    class_weights_tensor = torch.tensor(class_weights, dtype=torch.float)
     print(f"Pesi applicati (Neg, Neu, Pos): {class_weights}")
 
     # Modello
@@ -233,22 +234,22 @@ def main():
     # Configurazione Training
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
-        evaluation_strategy="epoch",  # Valuta ogni epoca
-        save_strategy="epoch",  # Salva checkpoint ogni epoca
+        eval_strategy="epoch",
+        save_strategy="epoch",
         learning_rate=LEARNING_RATE,
         per_device_train_batch_size=BATCH_SIZE,
         per_device_eval_batch_size=BATCH_SIZE,
         num_train_epochs=EPOCHS,
         weight_decay=0.01,
-        # --- BEST MODEL STRATEGY (Val Loss) ---
-        load_best_model_at_end=True,  # Ricarica il migliore alla fine
-        metric_for_best_model="eval_loss",  # La metrica da monitorare è la Loss di validazione
-        greater_is_better=False,  # Vogliamo minimizzare la Loss (False)
-        save_total_limit=2,  # Risparmia spazio su disco
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+        greater_is_better=False,
+        save_total_limit=2,
         logging_dir=f"{OUTPUT_DIR}/logs",
         logging_steps=50,
-        report_to="mlflow",  # Abilita MLflow logging
-        run_name=f"run_valloss_weighted",  # Nome della run in MLflow
+        report_to="mlflow",
+        run_name=f"run_valloss_weighted",
+        dataloader_pin_memory=False,  # Disabilita pin_memory per evitare warning su MPS
     )
 
     # Inizializzazione Trainer Personalizzato
@@ -257,7 +258,7 @@ def main():
         args=training_args,
         train_dataset=tokenized_datasets["train"],
         eval_dataset=tokenized_datasets["validation"],
-        tokenizer=tokenizer,
+        processing_class=tokenizer,  # Aggiornato da 'tokenizer' a 'processing_class'
         data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
         compute_metrics=compute_metrics,
     )
@@ -274,7 +275,6 @@ def main():
     trainer.save_model(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
 
-    # Log metriche finali
     metrics = trainer.evaluate()
     print("Metriche finali (Best Model):", metrics)
     mlflow.end_run()
