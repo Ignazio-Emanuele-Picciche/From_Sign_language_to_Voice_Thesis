@@ -1,5 +1,5 @@
 ============================================================
-TRAINING GRID SEARCH CON VALIDATION SET ESPLICITO
+TRAINING GRID SEARCH + VALIDATION SET ESPLICITO
 ============================================================
 --- Caricamento TRAIN SET ---
 ✅ TRAIN SET caricato. Shape: (4065, 10)
@@ -14,6 +14,14 @@ Fitting 5 folds for each of 30 candidates, totalling 150 fits
    ✅ Migliori parametri: {'criterion': 'gini', 'max_depth': 4, 'min_samples_leaf': 5}
    ✅ Miglior Score CV (Train): 0.7728
 
+📊 Analisi Pesi/Importanza per Decision Tree:
+   roberta_prob_negative         : 0.6363
+   roberta_prob_positive         : 0.2858
+   roberta_prob_neutral          : 0.0653
+   lstm_prob_negative            : 0.0054
+   lstm_prob_neutral             : 0.0050
+   lstm_prob_positive            : 0.0021
+
 --- Valutazione Decision Tree su VALIDATION SET ---
   Accuracy:              0.7499
   Weighted F1-Score:     0.7496
@@ -22,6 +30,15 @@ Fitting 5 folds for each of 30 candidates, totalling 150 fits
 Fitting 5 folds for each of 10 candidates, totalling 50 fits
    ✅ Migliori parametri: {'C': 100, 'solver': 'liblinear'}
    ✅ Miglior Score CV (Train): 0.7759
+
+📊 Analisi Pesi/Importanza per Logistic Regression:
+   (Media assoluta dei coefficienti su tutte le classi)
+   roberta_prob_neutral          : 6.1737
+   roberta_prob_positive         : 3.7342
+   roberta_prob_negative         : 2.5678
+   lstm_prob_neutral             : 1.3567
+   lstm_prob_positive            : 0.9304
+   lstm_prob_negative            : 0.8400
 
 --- Valutazione Logistic Regression su VALIDATION SET ---
   Accuracy:              0.7539
@@ -32,6 +49,14 @@ Fitting 5 folds for each of 72 candidates, totalling 360 fits
    ✅ Migliori parametri: {'max_depth': 6, 'max_features': 'sqrt', 'min_samples_leaf': 2, 'n_estimators': 200}
    ✅ Miglior Score CV (Train): 0.7766
 
+📊 Analisi Pesi/Importanza per Random Forest:
+   roberta_prob_positive         : 0.4011
+   roberta_prob_negative         : 0.3136
+   roberta_prob_neutral          : 0.2391
+   lstm_prob_negative            : 0.0178
+   lstm_prob_positive            : 0.0150
+   lstm_prob_neutral             : 0.0134
+
 --- Valutazione Random Forest su VALIDATION SET ---
   Accuracy:              0.7499
   Weighted F1-Score:     0.7514
@@ -40,6 +65,9 @@ Fitting 5 folds for each of 72 candidates, totalling 360 fits
 Fitting 5 folds for each of 32 candidates, totalling 160 fits
    ✅ Migliori parametri: {'C': 10, 'gamma': 'scale', 'kernel': 'rbf'}
    ✅ Miglior Score CV (Train): 0.7591
+
+📊 Analisi Pesi/Importanza per SVM:
+   ⚠️  Pesi diretti non disponibili (es. Kernel non lineare).
 
 --- Valutazione SVM su VALIDATION SET ---
   Accuracy:              0.7343

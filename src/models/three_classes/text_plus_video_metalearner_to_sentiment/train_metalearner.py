@@ -89,7 +89,6 @@ def load_and_merge(lstm_path, roberta_path, dataset_name="Dataset"):
         df_lstm, df_roberta, on="video_name", suffixes=("_lstm", "_roberta")
     )
 
-    # Gestione etichette
     if "true_label_lstm" in merged_df.columns:
         merged_df["label"] = merged_df["true_label_lstm"]
     elif "true_label" in merged_df.columns:
@@ -101,7 +100,6 @@ def load_and_merge(lstm_path, roberta_path, dataset_name="Dataset"):
 
 def run_grid_search(model, param_grid, X_train, y_train, model_name):
     print(f"\n🔍 Tuning {model_name} (5-Fold CV su Train)...")
-    # GridSearchCV userà internamente la Cross Validation sul Training set
     grid = GridSearchCV(
         model, param_grid, cv=5, scoring="f1_weighted", n_jobs=-1, verbose=1
     )
@@ -111,6 +109,36 @@ def run_grid_search(model, param_grid, X_train, y_train, model_name):
     print(f"   ✅ Miglior Score CV (Train): {grid.best_score_:.4f}")
 
     return grid.best_estimator_
+
+
+def log_feature_importance(model, feature_names, model_name):
+    """
+    Estrae e stampa l'importanza delle feature o i coefficienti per la tesi.
+    """
+    print(f"\n📊 Analisi Pesi/Importanza per {model_name}:")
+
+    # 1. Modelli basati su alberi (Decision Tree, Random Forest)
+    if hasattr(model, "feature_importances_"):
+        importances = model.feature_importances_
+        # Ordiniamo per importanza decrescente per leggibilità
+        indices = np.argsort(importances)[::-1]
+
+        for i in indices:
+            print(f"   {feature_names[i]:<30}: {importances[i]:.4f}")
+
+    # 2. Modelli lineari (Logistic Regression, SVM Lineare)
+    elif hasattr(model, "coef_"):
+        # coef_ è (n_classes, n_features). Facciamo la media assoluta per l'impatto globale.
+        avg_coefs = np.mean(np.abs(model.coef_), axis=0)
+        indices = np.argsort(avg_coefs)[::-1]
+
+        print("   (Media assoluta dei coefficienti su tutte le classi)")
+        for i in indices:
+            print(f"   {feature_names[i]:<30}: {avg_coefs[i]:.4f}")
+
+    # 3. Altri (es. SVM RBF)
+    else:
+        print("   ⚠️  Pesi diretti non disponibili (es. Kernel non lineare).")
 
 
 def evaluate_model(model, X_val, y_val, model_name, class_names):
@@ -123,9 +151,6 @@ def evaluate_model(model, X_val, y_val, model_name, class_names):
     print(f"  Accuracy:              {acc:.4f}")
     print(f"  Weighted F1-Score:     {f1_w:.4f}")
 
-    # Optional: Classification Report
-    # print(classification_report(y_val, y_pred, target_names=class_names))
-
     return f1_w
 
 
@@ -134,16 +159,14 @@ def main():
     sys.stdout = Logger(OUTPUT_LOG_FILE)
 
     print("=" * 60)
-    print("TRAINING GRID SEARCH CON VALIDATION SET ESPLICITO")
+    print("TRAINING GRID SEARCH + VALIDATION SET ESPLICITO")
     print("=" * 60)
 
-    # 1. Caricamento Dati TRAIN
+    # 1. Caricamento Dati
     df_train = load_and_merge(LSTM_TRAIN_PATH, ROBERTA_TRAIN_PATH, "TRAIN SET")
-
-    # 2. Caricamento Dati VALIDATION
     df_val = load_and_merge(LSTM_VAL_PATH, ROBERTA_VAL_PATH, "VAL SET")
 
-    # 3. Preparazione X, y
+    # 2. Preparazione X, y
     feature_cols = [
         c for c in df_train.columns if "lstm_prob" in c or "roberta_prob" in c
     ]
@@ -155,48 +178,33 @@ def main():
     X_val = df_val[feature_cols]
     y_val_raw = df_val["label"]
 
-    # Encoding Labels (Fit su train, Transform su entrambi)
     le = LabelEncoder()
     y_train = le.fit_transform(y_train_raw)
-    y_val = le.transform(
-        y_val_raw
-    )  # Attenzione: se in val ci sono classi nuove crasha, ma qui è ok.
+    y_val = le.transform(y_val_raw)
 
     class_names = list(le.classes_)
     print(f"Classi codificate: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
-    # --------------------------------------------------------
-    # DEFINIZIONE GRIGLIE PARAMETRI
-    # --------------------------------------------------------
-
-    # A. Decision Tree
+    # 3. Definizione Griglie
     dt_params = {
         "max_depth": [3, 4, 5, 6, 8],
         "min_samples_leaf": [1, 5, 10],
         "criterion": ["gini", "entropy"],
     }
-
-    # B. Logistic Regression
     lr_params = {"C": [0.01, 0.1, 1, 10, 100], "solver": ["lbfgs", "liblinear"]}
-
-    # C. Random Forest
     rf_params = {
         "n_estimators": [50, 100, 200],
-        "max_depth": [3, 4, 5, 6],  # Basso per evitare overfitting
+        "max_depth": [3, 4, 5, 6],
         "min_samples_leaf": [2, 5, 10],
         "max_features": ["sqrt", "log2"],
     }
-
-    # D. SVM
     svm_params = {
         "C": [0.1, 1, 10, 100],
         "gamma": ["scale", "auto", 0.1, 0.01],
         "kernel": ["rbf", "linear"],
     }
 
-    # --------------------------------------------------------
-    # ESECUZIONE
-    # --------------------------------------------------------
+    # 4. Esecuzione
     models_config = [
         (
             "Decision Tree",
@@ -224,17 +232,18 @@ def main():
     best_estimators = {}
 
     for name, model, params in models_config:
-        # 1. Tuning su TRAIN (con Cross Validation)
+        # Tuning
         best_model = run_grid_search(model, params, X_train, y_train, name)
         best_estimators[name] = best_model
 
-        # 2. Valutazione su VALIDATION ESPLICITO
+        # LOGGING PESI (NUOVO)
+        log_feature_importance(best_model, feature_cols, name)
+
+        # Valutazione
         score = evaluate_model(best_model, X_val, y_val, name, class_names)
         results[name] = score
 
-    # --------------------------------------------------------
-    # SELEZIONE VINCITORE
-    # --------------------------------------------------------
+    # 5. Selezione Vincitore
     print("\n" + "=" * 60)
     print("CONFRONTO FINALE (Basato su Validation Set)")
     for name, score in results.items():
