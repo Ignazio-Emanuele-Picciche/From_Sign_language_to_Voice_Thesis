@@ -1,5 +1,6 @@
 ============================================================
-LOG ATTIVATO: Tutto l'output verrà salvato in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt
+LOG ATTIVATO: Output salvato in:
+src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt
 ============================================================
 --- 1. Caricamento e Merge dei Dati ---
 ✅ Merge completato. Shape finale: (4065, 10)
@@ -7,12 +8,7 @@ LOG ATTIVATO: Tutto l'output verrà salvato in: src/models/three_classes/text_pl
 Feature utilizzate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_positive', 'roberta_prob_negative', 'roberta_prob_neutral', 'roberta_prob_positive']
 Classi codificate: {'Negative': 0, 'Neutral': 1, 'Positive': 2}
 
-  > [Decision Tree] Feature Importance:
-    lstm_prob_negative: 0.0128
-    lstm_prob_neutral: 0.0102
-    roberta_prob_negative: 0.6227
-    roberta_prob_neutral: 0.0730
-    roberta_prob_positive: 0.2768
+Training Decision Tree...
 
 --- Valutazione Modello: Decision Tree ---
   Accuracy Standard:     0.7712
@@ -31,15 +27,9 @@ Classi codificate: {'Negative': 0, 'Neutral': 1, 'Positive': 2}
    macro avg       0.69      0.82      0.74       813
 weighted avg       0.80      0.77      0.78       813
 
-    📊 Matrice di confusione salvata in: reports/figures/metalearner/confusion_matrix_decision_tree.png
+    📊 Matrice di confusione salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/confusion_matrix_decision_tree.png
 
-  > [Logistic Regression] Pesi (Influenza media):
-    lstm_prob_negative: 0.3251
-    lstm_prob_neutral: 0.2561
-    lstm_prob_positive: 0.4526
-    roberta_prob_negative: 2.3568
-    roberta_prob_neutral: 2.4292
-    roberta_prob_positive: 2.2010
+Training Logistic Regression...
 
 --- Valutazione Modello: Logistic Regression ---
   Accuracy Standard:     0.7454
@@ -58,13 +48,59 @@ weighted avg       0.80      0.77      0.78       813
    macro avg       0.66      0.83      0.69       813
 weighted avg       0.80      0.75      0.76       813
 
-    📊 Matrice di confusione salvata in: reports/figures/metalearner/confusion_matrix_logistic_regression.png
+    📊 Matrice di confusione salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/confusion_matrix_logistic_regression.png
+
+Training Random Forest...
+
+--- Valutazione Modello: Random Forest ---
+  Accuracy Standard:     0.7995
+  Balanced Accuracy:     0.8096
+  Weighted F1-Score:     0.8030
+  Cohen's Kappa:         0.6136
+
+  > Classification Report Detagliato:
+              precision    recall  f1-score   support
+
+    Negative       0.58      0.84      0.68        50
+     Neutral       0.88      0.80      0.84       527
+    Positive       0.72      0.79      0.75       236
+
+    accuracy                           0.80       813
+   macro avg       0.72      0.81      0.76       813
+weighted avg       0.81      0.80      0.80       813
+
+    📊 Matrice di confusione salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/confusion_matrix_random_forest.png
+
+Training SVM (Support Vector Machine)...
+
+--- Valutazione Modello: SVM ---
+  Accuracy Standard:     0.7614
+  Balanced Accuracy:     0.8348
+  Weighted F1-Score:     0.7705
+  Cohen's Kappa:         0.5734
+
+  > Classification Report Detagliato:
+              precision    recall  f1-score   support
+
+    Negative       0.43      0.96      0.59        50
+     Neutral       0.91      0.71      0.80       527
+    Positive       0.68      0.83      0.75       236
+
+    accuracy                           0.76       813
+   macro avg       0.67      0.83      0.71       813
+weighted avg       0.81      0.76      0.77       813
+
+    📊 Matrice di confusione salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/confusion_matrix_svm.png
 
 ============================================================
 CONFRONTO FINALE (Metric: Weighted F1)
-Decision Tree:       0.7765
-Logistic Regression: 0.7566
-🏆 VINCITORE: Decision Tree
+Decision Tree            : 0.7765
+Logistic Regression      : 0.7566
+Random Forest            : 0.8030
+Svm                      : 0.7705
+------------------------------------------------------------
+🏆 VINCITORE: Random Forest (F1: 0.8030)
 ============================================================
 
-✅ Modello salvato in: models/metalearner/metalearner_decision_tree.joblib
+✅ Modello salvato in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_random_forest.joblib
+✅ Encoder salvato in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/label_encoder.joblib

@@ -44,11 +44,11 @@ from sklearn.metrics import (
 
 # --- PERCORSI FILE (Assoluti e Sicuri) ---
 # Input: Features estratte dal Test Set
-LSTM_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/lstm_features_train_set.csv"
-ROBERTA_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/roberta_features_train_set.csv"
+LSTM_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/test/lstm_features_test_set.csv"
+ROBERTA_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/test/roberta_features_test_set.csv"
 
 # Input: Modello e Encoder addestrati
-MODEL_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_decision_tree.joblib"
+MODEL_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_random_forest.joblib"
 ENCODER_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/label_encoder.joblib"
 OUTPUT_PLOT = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png"
 

@@ -4,8 +4,9 @@ TRAINING DEL MULTI-LEARNER (LATE FUSION / STACKING STRATEGY)
 ================================================================================================================
 
 DESCRIZIONE:
-Questo script allena il Meta-Learner che fonde le probabilità di LSTM (Video) e RoBERTa (Testo).
-Tutto l'output della console viene salvato automaticamente in un file di log.
+Questo script allena 4 diversi Meta-Learner (Decision Tree, Logistic Regression, Random Forest, SVM)
+sulle probabilità fornite da LSTM e RoBERTa.
+Confronta le prestazioni (Weighted F1) e salva solo il modello migliore.
 
 PERCORSI FILE:
 - Input Features: src/models/three_classes/text_plus_video_metalearner_to_sentiment/
@@ -21,8 +22,13 @@ import sys
 import joblib
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+
+# Importiamo i nuovi modelli
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+
 from sklearn.metrics import (
     classification_report,
     accuracy_score,
@@ -35,7 +41,6 @@ from sklearn.metrics import (
 from sklearn.preprocessing import LabelEncoder
 
 # --- SETUP BASE_DIR ---
-# Calcola la root del progetto risalendo di 3 livelli da questo file (src/models/metalearner/)
 BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
@@ -45,9 +50,9 @@ sys.path.insert(0, BASE_DIR)
 # Usiamo os.path.join per essere sicuri che i percorsi siano sempre corretti,
 # indipendentemente da dove lanci lo script.
 
-LSTM_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/lstm_features_train_set.csv"
+LSTM_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/lstm_features_train_set.csv"
 
-ROBERTA_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/roberta_features_train_set.csv"
+ROBERTA_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/roberta_features_train_set.csv"
 
 OUTPUT_MODEL_DIR = os.path.join(
     BASE_DIR,
@@ -58,16 +63,9 @@ OUTPUT_MODEL_DIR = os.path.join(
     "metalearner",
 )
 
-OUTPUT_PLOTS_DIR = os.path.join(BASE_DIR, "reports", "figures", "metalearner")
+OUTPUT_PLOTS_DIR = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner"
 
-OUTPUT_LOG_FILE = os.path.join(
-    BASE_DIR,
-    "src",
-    "models",
-    "three_classes",
-    "text_plus_video_metalearner_to_sentiment",
-    "metalearner_training_log.txt",
-)
+OUTPUT_LOG_FILE = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt"
 
 
 # --- CLASSE LOGGER ---
@@ -86,16 +84,12 @@ class Logger(object):
 
 
 def save_confusion_matrix(y_true, y_pred, classes, model_name):
-    """Genera e salva la matrice di confusione come immagine."""
     os.makedirs(OUTPUT_PLOTS_DIR, exist_ok=True)
-
     cm = confusion_matrix(y_true, y_pred)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
-
     fig, ax = plt.subplots(figsize=(8, 6))
     disp.plot(cmap="Blues", ax=ax, values_format="d")
     plt.title(f"Confusion Matrix - {model_name}")
-
     filename = f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"
     save_path = os.path.join(OUTPUT_PLOTS_DIR, filename)
     plt.savefig(save_path)
@@ -105,7 +99,6 @@ def save_confusion_matrix(y_true, y_pred, classes, model_name):
 
 def evaluate_model(model, X_test, y_test, model_name, class_names):
     print(f"\n--- Valutazione Modello: {model_name} ---")
-
     y_pred = model.predict(X_test)
 
     acc = accuracy_score(y_test, y_pred)
@@ -120,7 +113,6 @@ def evaluate_model(model, X_test, y_test, model_name, class_names):
 
     print("\n  > Classification Report Detagliato:")
     print(classification_report(y_test, y_pred, target_names=class_names))
-
     save_confusion_matrix(y_test, y_pred, class_names, model_name)
 
     return acc, bal_acc, f1_w, kappa
@@ -128,10 +120,6 @@ def evaluate_model(model, X_test, y_test, model_name, class_names):
 
 def load_and_merge_data():
     print("--- 1. Caricamento e Merge dei Dati ---")
-    print(
-        f"  Cercando features in:\n   - {LSTM_FEATURES_PATH}\n   - {ROBERTA_FEATURES_PATH}"
-    )
-
     if not os.path.exists(LSTM_FEATURES_PATH):
         raise FileNotFoundError(f"❌ File non trovato: {LSTM_FEATURES_PATH}")
     if not os.path.exists(ROBERTA_FEATURES_PATH):
@@ -145,7 +133,6 @@ def load_and_merge_data():
         df_lstm, df_roberta, on="video_name", suffixes=("_lstm", "_roberta")
     )
 
-    # Label Normalization
     if "true_label_lstm" in merged_df.columns:
         merged_df["label"] = merged_df["true_label_lstm"]
     elif "true_label" in merged_df.columns:
@@ -153,6 +140,43 @@ def load_and_merge_data():
 
     print(f"✅ Merge completato. Shape finale: {merged_df.shape}")
     return merged_df
+
+
+# --- FUNZIONI DI TRAINING ---
+
+
+def train_decision_tree(X_train, y_train):
+    print("\nTraining Decision Tree...")
+    clf = DecisionTreeClassifier(max_depth=5, random_state=42, class_weight="balanced")
+    clf.fit(X_train, y_train)
+    return clf
+
+
+def train_logistic_regression(X_train, y_train):
+    print("\nTraining Logistic Regression...")
+    clf = LogisticRegression(random_state=42, max_iter=1000, class_weight="balanced")
+    clf.fit(X_train, y_train)
+    return clf
+
+
+def train_random_forest(X_train, y_train):
+    print("\nTraining Random Forest...")
+    # n_estimators=100 è un buon default. Max depth limita l'overfitting.
+    clf = RandomForestClassifier(
+        n_estimators=100, max_depth=8, random_state=42, class_weight="balanced"
+    )
+    clf.fit(X_train, y_train)
+    return clf
+
+
+def train_svm(X_train, y_train):
+    print("\nTraining SVM (Support Vector Machine)...")
+    # Kernel RBF è standard per dati non lineari. probability=True serve se volessimo le prob in output.
+    clf = SVC(
+        kernel="rbf", C=1.0, probability=True, class_weight="balanced", random_state=42
+    )
+    clf.fit(X_train, y_train)
+    return clf
 
 
 def main():
@@ -186,62 +210,58 @@ def main():
         X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
     )
 
-    # ---------------------------------------------------------
-    # MODELLO A: Decision Tree
-    # ---------------------------------------------------------
-    tree_clf = DecisionTreeClassifier(
-        max_depth=5, random_state=42, class_weight="balanced"
+    # 2. Addestramento e Valutazione dei 4 Modelli
+    models_results = {}
+    trained_models = {}
+
+    # --- MODELLO A: Decision Tree ---
+    model_dt = train_decision_tree(X_train, y_train)
+    _, _, f1_dt, _ = evaluate_model(
+        model_dt, X_val, y_val, "Decision Tree", class_names
     )
-    tree_clf.fit(X_train, y_train)
+    models_results["decision_tree"] = f1_dt
+    trained_models["decision_tree"] = model_dt
 
-    print("\n  > [Decision Tree] Feature Importance:")
-    for name, imp in zip(feature_cols, tree_clf.feature_importances_):
-        if imp > 0.01:
-            print(f"    {name}: {imp:.4f}")
-
-    metrics_tree = evaluate_model(tree_clf, X_val, y_val, "Decision Tree", class_names)
-
-    # ---------------------------------------------------------
-    # MODELLO B: Logistic Regression
-    # ---------------------------------------------------------
-    log_clf = LogisticRegression(
-        random_state=42, max_iter=1000, class_weight="balanced"
+    # --- MODELLO B: Logistic Regression ---
+    model_lr = train_logistic_regression(X_train, y_train)
+    _, _, f1_lr, _ = evaluate_model(
+        model_lr, X_val, y_val, "Logistic Regression", class_names
     )
-    log_clf.fit(X_train, y_train)
+    models_results["logistic_regression"] = f1_lr
+    trained_models["logistic_regression"] = model_lr
 
-    print("\n  > [Logistic Regression] Pesi (Influenza media):")
-    avg_coefs = np.mean(np.abs(log_clf.coef_), axis=0)
-    for name, coef in zip(feature_cols, avg_coefs):
-        print(f"    {name}: {coef:.4f}")
-
-    metrics_log = evaluate_model(
-        log_clf, X_val, y_val, "Logistic Regression", class_names
+    # --- MODELLO C: Random Forest ---
+    model_rf = train_random_forest(X_train, y_train)
+    _, _, f1_rf, _ = evaluate_model(
+        model_rf, X_val, y_val, "Random Forest", class_names
     )
+    models_results["random_forest"] = f1_rf
+    trained_models["random_forest"] = model_rf
 
-    # ---------------------------------------------------------
-    # SELEZIONE VINCITORE
-    # ---------------------------------------------------------
-    t_f1 = metrics_tree[2]
-    l_f1 = metrics_log[2]
+    # --- MODELLO D: SVM ---
+    model_svm = train_svm(X_train, y_train)
+    _, _, f1_svm, _ = evaluate_model(model_svm, X_val, y_val, "SVM", class_names)
+    models_results["svm"] = f1_svm
+    trained_models["svm"] = model_svm
 
-    os.makedirs(OUTPUT_MODEL_DIR, exist_ok=True)
-
+    # 3. Selezione Vincitore
     print("\n" + "=" * 60)
     print("CONFRONTO FINALE (Metric: Weighted F1)")
-    print(f"Decision Tree:       {t_f1:.4f}")
-    print(f"Logistic Regression: {l_f1:.4f}")
+    for name, score in models_results.items():
+        print(f"{name.replace('_', ' ').title():<25}: {score:.4f}")
 
-    if l_f1 >= t_f1:
-        print(f"🏆 VINCITORE: Logistic Regression")
-        best_model = log_clf
-        best_name = "logistic_regression"
-    else:
-        print(f"🏆 VINCITORE: Decision Tree")
-        best_model = tree_clf
-        best_name = "decision_tree"
+    # Trova la chiave col valore massimo
+    best_name = max(models_results, key=models_results.get)
+    best_score = models_results[best_name]
+    best_model = trained_models[best_name]
+
+    print("-" * 60)
+    print(f"🏆 VINCITORE: {best_name.replace('_', ' ').title()} (F1: {best_score:.4f})")
     print("=" * 60)
 
-    # Salvataggio con percorso ASSOLUTO
+    # 4. Salvataggio
+    os.makedirs(OUTPUT_MODEL_DIR, exist_ok=True)
+
     model_path = os.path.join(OUTPUT_MODEL_DIR, f"metalearner_{best_name}.joblib")
     encoder_path = os.path.join(OUTPUT_MODEL_DIR, "label_encoder.joblib")
 
