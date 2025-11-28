@@ -1,0 +1,75 @@
+============================================================
+LOG ATTIVATO: Output salvato in:
+/Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt
+============================================================
+--- 1. Caricamento e Merge dei Dati ---
+  Cercando features in:
+   - src/models/three_classes/text_plus_video_metalearner_to_sentiment/lstm_features_train_set.csv
+   - src/models/three_classes/text_plus_video_metalearner_to_sentiment/roberta_features_train_set.csv
+✅ Merge completato. Shape finale: (4065, 10)
+
+Feature utilizzate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_positive', 'roberta_prob_negative', 'roberta_prob_neutral', 'roberta_prob_positive']
+Classi codificate: {'Negative': 0, 'Neutral': 1, 'Positive': 2}
+
+  > [Decision Tree] Feature Importance:
+    lstm_prob_negative: 0.0128
+    lstm_prob_neutral: 0.0102
+    roberta_prob_negative: 0.6227
+    roberta_prob_neutral: 0.0730
+    roberta_prob_positive: 0.2768
+
+--- Valutazione Modello: Decision Tree ---
+  Accuracy Standard:     0.7712
+  Balanced Accuracy:     0.8192
+  Weighted F1-Score:     0.7765
+  Cohen's Kappa:         0.5736
+
+  > Classification Report Detagliato:
+              precision    recall  f1-score   support
+
+    Negative       0.53      0.92      0.67        50
+     Neutral       0.88      0.75      0.81       527
+    Positive       0.67      0.79      0.73       236
+
+    accuracy                           0.77       813
+   macro avg       0.69      0.82      0.74       813
+weighted avg       0.80      0.77      0.78       813
+
+    📊 Matrice di confusione salvata in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/reports/figures/metalearner/confusion_matrix_decision_tree.png
+
+  > [Logistic Regression] Pesi (Influenza media):
+    lstm_prob_negative: 0.3251
+    lstm_prob_neutral: 0.2561
+    lstm_prob_positive: 0.4526
+    roberta_prob_negative: 2.3568
+    roberta_prob_neutral: 2.4292
+    roberta_prob_positive: 2.2010
+
+--- Valutazione Modello: Logistic Regression ---
+  Accuracy Standard:     0.7454
+  Balanced Accuracy:     0.8264
+  Weighted F1-Score:     0.7566
+  Cohen's Kappa:         0.5475
+
+  > Classification Report Detagliato:
+              precision    recall  f1-score   support
+
+    Negative       0.39      0.98      0.56        50
+     Neutral       0.89      0.70      0.78       527
+    Positive       0.69      0.80      0.74       236
+
+    accuracy                           0.75       813
+   macro avg       0.66      0.83      0.69       813
+weighted avg       0.80      0.75      0.76       813
+
+    📊 Matrice di confusione salvata in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/reports/figures/metalearner/confusion_matrix_logistic_regression.png
+
+============================================================
+CONFRONTO FINALE (Metric: Weighted F1)
+Decision Tree:       0.7765
+Logistic Regression: 0.7566
+🏆 VINCITORE: Decision Tree
+============================================================
+
+✅ Modello salvato in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_decision_tree.joblib
+✅ Encoder salvato in: /Users/ignazioemanuelepicciche/Documents/TESI Magistrale UCBM/Improved_EmoSign_Thesis/src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/label_encoder.joblib

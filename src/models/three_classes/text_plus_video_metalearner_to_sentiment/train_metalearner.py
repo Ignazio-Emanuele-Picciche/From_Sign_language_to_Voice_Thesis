@@ -5,19 +5,12 @@ TRAINING DEL MULTI-LEARNER (LATE FUSION / STACKING STRATEGY)
 
 DESCRIZIONE:
 Questo script allena il Meta-Learner che fonde le probabilità di LSTM (Video) e RoBERTa (Testo).
+Tutto l'output della console viene salvato automaticamente in un file di log.
 
-METRICHE CALCOLATE:
-1.  Accuracy Standard
-2.  Balanced Accuracy (Weighted Accuracy)
-3.  Weighted F1-Score (Metrica decisiva)
-4.  Cohen's Kappa (Affidabilità statistica)
-5.  Classification Report (Precision/Recall per classe)
-6.  Matrice di Confusione (Salvata come PNG)
-
-OUTPUT:
-- Modello migliore (.joblib)
-- Label Encoder (.joblib)
-- Grafici Matrici di Confusione (.png)
+PERCORSI FILE:
+- Input Features: src/models/three_classes/text_plus_video_metalearner_to_sentiment/
+- Output Modello: models/metalearner/
+- Output Log: src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt
 ================================================================================================================
 """
 
@@ -41,17 +34,55 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import LabelEncoder
 
-# --- SETUP ---
+# --- SETUP BASE_DIR ---
+# Calcola la root del progetto risalendo di 3 livelli da questo file (src/models/metalearner/)
 BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 sys.path.insert(0, BASE_DIR)
 
-# Percorsi
+# --- CONFIGURAZIONE PERCORSI BLINDATA ---
+# Usiamo os.path.join per essere sicuri che i percorsi siano sempre corretti,
+# indipendentemente da dove lanci lo script.
+
 LSTM_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/lstm_features_train_set.csv"
+
 ROBERTA_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/roberta_features_train_set.csv"
-OUTPUT_MODEL_DIR = "models/metalearner"
-OUTPUT_PLOTS_DIR = "reports/figures/metalearner"
+
+OUTPUT_MODEL_DIR = os.path.join(
+    BASE_DIR,
+    "models",
+    "three_classes",
+    "text_plus_video_metalearner_to_sentiment",
+    "models",
+    "metalearner",
+)
+
+OUTPUT_PLOTS_DIR = os.path.join(BASE_DIR, "reports", "figures", "metalearner")
+
+OUTPUT_LOG_FILE = os.path.join(
+    BASE_DIR,
+    "src",
+    "models",
+    "three_classes",
+    "text_plus_video_metalearner_to_sentiment",
+    "metalearner_training_log.txt",
+)
+
+
+# --- CLASSE LOGGER ---
+class Logger(object):
+    def __init__(self, filename):
+        self.terminal = sys.stdout
+        self.log = open(filename, "w")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
 
 
 def save_confusion_matrix(y_true, y_pred, classes, model_name):
@@ -73,16 +104,12 @@ def save_confusion_matrix(y_true, y_pred, classes, model_name):
 
 
 def evaluate_model(model, X_test, y_test, model_name, class_names):
-    """
-    Esegue predizioni e calcola tutte le metriche.
-    """
     print(f"\n--- Valutazione Modello: {model_name} ---")
 
     y_pred = model.predict(X_test)
 
-    # Metriche Scalari
     acc = accuracy_score(y_test, y_pred)
-    bal_acc = balanced_accuracy_score(y_test, y_pred)  # Weighted Accuracy
+    bal_acc = balanced_accuracy_score(y_test, y_pred)
     f1_w = f1_score(y_test, y_pred, average="weighted")
     kappa = cohen_kappa_score(y_test, y_pred)
 
@@ -94,7 +121,6 @@ def evaluate_model(model, X_test, y_test, model_name, class_names):
     print("\n  > Classification Report Detagliato:")
     print(classification_report(y_test, y_pred, target_names=class_names))
 
-    # Plot
     save_confusion_matrix(y_test, y_pred, class_names, model_name)
 
     return acc, bal_acc, f1_w, kappa
@@ -102,12 +128,14 @@ def evaluate_model(model, X_test, y_test, model_name, class_names):
 
 def load_and_merge_data():
     print("--- 1. Caricamento e Merge dei Dati ---")
-    if not os.path.exists(LSTM_FEATURES_PATH) or not os.path.exists(
-        ROBERTA_FEATURES_PATH
-    ):
-        raise FileNotFoundError(
-            "❌ Mancano i file delle features! Esegui prima gli script di estrazione."
-        )
+    print(
+        f"  Cercando features in:\n   - {LSTM_FEATURES_PATH}\n   - {ROBERTA_FEATURES_PATH}"
+    )
+
+    if not os.path.exists(LSTM_FEATURES_PATH):
+        raise FileNotFoundError(f"❌ File non trovato: {LSTM_FEATURES_PATH}")
+    if not os.path.exists(ROBERTA_FEATURES_PATH):
+        raise FileNotFoundError(f"❌ File non trovato: {ROBERTA_FEATURES_PATH}")
 
     df_lstm = pd.read_csv(LSTM_FEATURES_PATH)
     df_roberta = pd.read_csv(ROBERTA_FEATURES_PATH)
@@ -128,8 +156,20 @@ def load_and_merge_data():
 
 
 def main():
+    # --- SETUP LOGGING ---
+    os.makedirs(os.path.dirname(OUTPUT_LOG_FILE), exist_ok=True)
+    sys.stdout = Logger(OUTPUT_LOG_FILE)
+
+    print("=" * 60)
+    print(f"LOG ATTIVATO: Output salvato in:\n{OUTPUT_LOG_FILE}")
+    print("=" * 60)
+
     # 1. Preparazione Dati
-    df = load_and_merge_data()
+    try:
+        df = load_and_merge_data()
+    except FileNotFoundError as e:
+        print(e)
+        return
 
     feature_cols = [c for c in df.columns if "lstm_prob" in c or "roberta_prob" in c]
     print(f"\nFeature utilizzate ({len(feature_cols)}): {feature_cols}")
@@ -137,13 +177,11 @@ def main():
     X = df[feature_cols]
     y = df["label"]
 
-    # Encoding Label
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
     class_names = list(le.classes_)
     print(f"Classi codificate: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
-    # Split Train/Val (Stratified è cruciale per mantenere le proporzioni delle classi)
     X_train, X_val, y_train, y_val = train_test_split(
         X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
     )
@@ -156,7 +194,6 @@ def main():
     )
     tree_clf.fit(X_train, y_train)
 
-    # Feature Importance (Tree)
     print("\n  > [Decision Tree] Feature Importance:")
     for name, imp in zip(feature_cols, tree_clf.feature_importances_):
         if imp > 0.01:
@@ -172,7 +209,6 @@ def main():
     )
     log_clf.fit(X_train, y_train)
 
-    # Analisi Pesi (Logistic)
     print("\n  > [Logistic Regression] Pesi (Influenza media):")
     avg_coefs = np.mean(np.abs(log_clf.coef_), axis=0)
     for name, coef in zip(feature_cols, avg_coefs):
@@ -183,7 +219,7 @@ def main():
     )
 
     # ---------------------------------------------------------
-    # SELEZIONE VINCITORE (Basata su Weighted F1)
+    # SELEZIONE VINCITORE
     # ---------------------------------------------------------
     t_f1 = metrics_tree[2]
     l_f1 = metrics_log[2]
@@ -205,12 +241,15 @@ def main():
         best_name = "decision_tree"
     print("=" * 60)
 
-    # Salvataggio
+    # Salvataggio con percorso ASSOLUTO
     model_path = os.path.join(OUTPUT_MODEL_DIR, f"metalearner_{best_name}.joblib")
+    encoder_path = os.path.join(OUTPUT_MODEL_DIR, "label_encoder.joblib")
+
     joblib.dump(best_model, model_path)
-    joblib.dump(le, os.path.join(OUTPUT_MODEL_DIR, "label_encoder.joblib"))
+    joblib.dump(le, encoder_path)
 
     print(f"\n✅ Modello salvato in: {model_path}")
+    print(f"✅ Encoder salvato in: {encoder_path}")
 
 
 if __name__ == "__main__":
