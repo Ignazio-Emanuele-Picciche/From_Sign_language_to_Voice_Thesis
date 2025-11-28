@@ -2,8 +2,8 @@
 === TEST FINALE MULTI-LEARNER (LATE FUSION) ===
 Log salvato in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_final_test_log.txt
 ============================================================
-Modello usato: src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_decision_tree.joblib
-✅ Dati uniti. Campioni di test trovati: 4065
+Modello usato: src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_logistic_regression_tuned.joblib
+✅ Dati uniti. Campioni di test trovati: 200
 Features usate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_positive', 'roberta_prob_negative', 'roberta_prob_neutral', 'roberta_prob_positive']
 
 Esecuzione predizione...
@@ -11,21 +11,21 @@ Esecuzione predizione...
 ========================================
 🏆 RISULTATI FINALI SUL TEST SET
 ========================================
-  Accuracy Standard:     0.7729
-  Balanced Accuracy:     0.8253 (Weighted Accuracy)
-  Weighted F1-Score:     0.7776
-  Cohen's Kappa:         0.5749
+  Accuracy Standard:     0.7750
+  Balanced Accuracy:     0.5395 (Weighted Accuracy)
+  Weighted F1-Score:     0.8091
+  Cohen's Kappa:         0.5948
 
 --- Classification Report ---
               precision    recall  f1-score   support
 
-    Negative       0.58      0.94      0.72       251
-     Neutral       0.88      0.75      0.81      2636
-    Positive       0.65      0.78      0.71      1178
+    Negative       0.96      0.71      0.82       121
+     Neutral       0.00      0.00      0.00         3
+    Positive       0.77      0.91      0.83        76
 
-    accuracy                           0.77      4065
-   macro avg       0.70      0.83      0.75      4065
-weighted avg       0.80      0.77      0.78      4065
+    accuracy                           0.78       200
+   macro avg       0.57      0.54      0.55       200
+weighted avg       0.87      0.78      0.81       200
 
 
 📊 Matrice salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png
