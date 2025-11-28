@@ -1,17 +1,19 @@
 """
 ================================================================================================================
-TRAINING DEL MULTI-LEARNER (LATE FUSION / STACKING STRATEGY)
+TRAINING DEL MULTI-LEARNER CON GRID SEARCH (OTTIMIZZAZIONE PARAMETRI)
 ================================================================================================================
 
 DESCRIZIONE:
-Questo script allena 4 diversi Meta-Learner (Decision Tree, Logistic Regression, Random Forest, SVM)
-sulle probabilità fornite da LSTM e RoBERTa.
-Confronta le prestazioni (Weighted F1) e salva solo il modello migliore.
+Questo script allena 4 Meta-Learner (DT, LR, RF, SVM) ma invece di usare parametri fissi,
+cerca la combinazione migliore per ognuno usando GridSearchCV.
 
-PERCORSI FILE:
-- Input Features: src/models/three_classes/text_plus_video_metalearner_to_sentiment/
-- Output Modello: models/metalearner/
-- Output Log: src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt
+PERCHÉ LO FACCIAMO:
+La Random Forest andava in overfitting (troppo complessa). Cercando i parametri ottimali
+(es. riducendo max_depth) possiamo renderla più stabile e potente sul Test Set.
+
+OUTPUT:
+- Stampa i migliori parametri per ogni modello.
+- Salva il modello vincitore assoluto ottimizzato.
 ================================================================================================================
 """
 
@@ -21,9 +23,7 @@ import os
 import sys
 import joblib
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-
-# Importiamo i nuovi modelli
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -51,20 +51,9 @@ sys.path.insert(0, BASE_DIR)
 # indipendentemente da dove lanci lo script.
 
 LSTM_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/lstm_features_train_set.csv"
-
 ROBERTA_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/roberta_features_train_set.csv"
-
-OUTPUT_MODEL_DIR = os.path.join(
-    BASE_DIR,
-    "models",
-    "three_classes",
-    "text_plus_video_metalearner_to_sentiment",
-    "models",
-    "metalearner",
-)
-
+OUTPUT_MODEL_DIR = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner"
 OUTPUT_PLOTS_DIR = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner"
-
 OUTPUT_LOG_FILE = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt"
 
 
@@ -83,52 +72,16 @@ class Logger(object):
         self.log.flush()
 
 
-def save_confusion_matrix(y_true, y_pred, classes, model_name):
-    os.makedirs(OUTPUT_PLOTS_DIR, exist_ok=True)
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=classes)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    disp.plot(cmap="Blues", ax=ax, values_format="d")
-    plt.title(f"Confusion Matrix - {model_name}")
-    filename = f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"
-    save_path = os.path.join(OUTPUT_PLOTS_DIR, filename)
-    plt.savefig(save_path)
-    plt.close()
-    print(f"    📊 Matrice di confusione salvata in: {save_path}")
-
-
-def evaluate_model(model, X_test, y_test, model_name, class_names):
-    print(f"\n--- Valutazione Modello: {model_name} ---")
-    y_pred = model.predict(X_test)
-
-    acc = accuracy_score(y_test, y_pred)
-    bal_acc = balanced_accuracy_score(y_test, y_pred)
-    f1_w = f1_score(y_test, y_pred, average="weighted")
-    kappa = cohen_kappa_score(y_test, y_pred)
-
-    print(f"  Accuracy Standard:     {acc:.4f}")
-    print(f"  Balanced Accuracy:     {bal_acc:.4f}")
-    print(f"  Weighted F1-Score:     {f1_w:.4f}")
-    print(f"  Cohen's Kappa:         {kappa:.4f}")
-
-    print("\n  > Classification Report Detagliato:")
-    print(classification_report(y_test, y_pred, target_names=class_names))
-    save_confusion_matrix(y_test, y_pred, class_names, model_name)
-
-    return acc, bal_acc, f1_w, kappa
-
-
 def load_and_merge_data():
     print("--- 1. Caricamento e Merge dei Dati ---")
-    if not os.path.exists(LSTM_FEATURES_PATH):
-        raise FileNotFoundError(f"❌ File non trovato: {LSTM_FEATURES_PATH}")
-    if not os.path.exists(ROBERTA_FEATURES_PATH):
-        raise FileNotFoundError(f"❌ File non trovato: {ROBERTA_FEATURES_PATH}")
+    if not os.path.exists(LSTM_FEATURES_PATH) or not os.path.exists(
+        ROBERTA_FEATURES_PATH
+    ):
+        raise FileNotFoundError("❌ File features non trovati!")
 
     df_lstm = pd.read_csv(LSTM_FEATURES_PATH)
     df_roberta = pd.read_csv(ROBERTA_FEATURES_PATH)
 
-    # Merge Inner su video_name
     merged_df = pd.merge(
         df_lstm, df_roberta, on="video_name", suffixes=("_lstm", "_roberta")
     )
@@ -138,138 +91,154 @@ def load_and_merge_data():
     elif "true_label" in merged_df.columns:
         merged_df["label"] = merged_df["true_label"]
 
-    print(f"✅ Merge completato. Shape finale: {merged_df.shape}")
+    print(f"✅ Merge completato. Shape: {merged_df.shape}")
     return merged_df
 
 
-# --- FUNZIONI DI TRAINING ---
-
-
-def train_decision_tree(X_train, y_train):
-    print("\nTraining Decision Tree...")
-    clf = DecisionTreeClassifier(max_depth=5, random_state=42, class_weight="balanced")
-    clf.fit(X_train, y_train)
-    return clf
-
-
-def train_logistic_regression(X_train, y_train):
-    print("\nTraining Logistic Regression...")
-    clf = LogisticRegression(random_state=42, max_iter=1000, class_weight="balanced")
-    clf.fit(X_train, y_train)
-    return clf
-
-
-def train_random_forest(X_train, y_train):
-    print("\nTraining Random Forest...")
-    # n_estimators=100 è un buon default. Max depth limita l'overfitting.
-    clf = RandomForestClassifier(
-        n_estimators=100, max_depth=8, random_state=42, class_weight="balanced"
+def run_grid_search(model, param_grid, X_train, y_train, model_name):
+    print(f"\n🔍 Tuning {model_name}...")
+    # cv=5 significa 5-Fold Cross Validation (molto robusto)
+    # scoring='f1_weighted' ottimizza direttamente la metrica che ci interessa
+    grid = GridSearchCV(
+        model, param_grid, cv=5, scoring="f1_weighted", n_jobs=-1, verbose=1
     )
-    clf.fit(X_train, y_train)
-    return clf
+    grid.fit(X_train, y_train)
+
+    print(f"   ✅ Migliori parametri: {grid.best_params_}")
+    print(f"   ✅ Miglior Score CV (F1): {grid.best_score_:.4f}")
+
+    return grid.best_estimator_
 
 
-def train_svm(X_train, y_train):
-    print("\nTraining SVM (Support Vector Machine)...")
-    # Kernel RBF è standard per dati non lineari. probability=True serve se volessimo le prob in output.
-    clf = SVC(
-        kernel="rbf", C=1.0, probability=True, class_weight="balanced", random_state=42
-    )
-    clf.fit(X_train, y_train)
-    return clf
+def evaluate_model(model, X_test, y_test, model_name, class_names):
+    print(f"\n--- Valutazione Finale {model_name} (sul Validation Set) ---")
+    y_pred = model.predict(X_test)
+
+    f1_w = f1_score(y_test, y_pred, average="weighted")
+    print(f"  Weighted F1-Score:     {f1_w:.4f}")
+
+    return f1_w
 
 
 def main():
-    # --- SETUP LOGGING ---
     os.makedirs(os.path.dirname(OUTPUT_LOG_FILE), exist_ok=True)
     sys.stdout = Logger(OUTPUT_LOG_FILE)
 
     print("=" * 60)
-    print(f"LOG ATTIVATO: Output salvato in:\n{OUTPUT_LOG_FILE}")
+    print("TRAINING CON GRID SEARCH (HYPERPARAMETER TUNING)")
     print("=" * 60)
 
-    # 1. Preparazione Dati
-    try:
-        df = load_and_merge_data()
-    except FileNotFoundError as e:
-        print(e)
-        return
-
+    # 1. Dati
+    df = load_and_merge_data()
     feature_cols = [c for c in df.columns if "lstm_prob" in c or "roberta_prob" in c]
-    print(f"\nFeature utilizzate ({len(feature_cols)}): {feature_cols}")
-
     X = df[feature_cols]
     y = df["label"]
 
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
     class_names = list(le.classes_)
-    print(f"Classi codificate: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
+    # Split
     X_train, X_val, y_train, y_val = train_test_split(
         X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
     )
 
-    # 2. Addestramento e Valutazione dei 4 Modelli
-    models_results = {}
-    trained_models = {}
+    # 2. Definizione Griglie di Ricerca
+    # Qui definiamo quali parametri provare per ogni modello
 
-    # --- MODELLO A: Decision Tree ---
-    model_dt = train_decision_tree(X_train, y_train)
-    _, _, f1_dt, _ = evaluate_model(
-        model_dt, X_val, y_val, "Decision Tree", class_names
-    )
-    models_results["decision_tree"] = f1_dt
-    trained_models["decision_tree"] = model_dt
+    # A. Decision Tree
+    dt_params = {
+        "max_depth": [3, 4, 5, 6, 8],
+        "min_samples_leaf": [1, 5, 10],  # Evita regole troppo specifiche
+        "criterion": ["gini", "entropy"],
+    }
 
-    # --- MODELLO B: Logistic Regression ---
-    model_lr = train_logistic_regression(X_train, y_train)
-    _, _, f1_lr, _ = evaluate_model(
-        model_lr, X_val, y_val, "Logistic Regression", class_names
-    )
-    models_results["logistic_regression"] = f1_lr
-    trained_models["logistic_regression"] = model_lr
+    # B. Logistic Regression
+    lr_params = {
+        "C": [0.01, 0.1, 1, 10, 100],  # Regolarizzazione (C basso = più semplice)
+        "solver": ["lbfgs", "liblinear"],
+    }
 
-    # --- MODELLO C: Random Forest ---
-    model_rf = train_random_forest(X_train, y_train)
-    _, _, f1_rf, _ = evaluate_model(
-        model_rf, X_val, y_val, "Random Forest", class_names
-    )
-    models_results["random_forest"] = f1_rf
-    trained_models["random_forest"] = model_rf
+    # C. Random Forest (Focus su ridurre overfitting)
+    rf_params = {
+        "n_estimators": [50, 100, 200],
+        "max_depth": [3, 4, 5, 6],  # Teniamolo basso! Prima era 8 o None
+        "min_samples_leaf": [2, 5, 10],  # Più alto = meno overfitting
+        "max_features": ["sqrt", "log2"],
+    }
 
-    # --- MODELLO D: SVM ---
-    model_svm = train_svm(X_train, y_train)
-    _, _, f1_svm, _ = evaluate_model(model_svm, X_val, y_val, "SVM", class_names)
-    models_results["svm"] = f1_svm
-    trained_models["svm"] = model_svm
+    # D. SVM
+    svm_params = {
+        "C": [0.1, 1, 10, 100],
+        "gamma": ["scale", "auto", 0.1, 0.01],
+        "kernel": ["rbf", "linear"],
+    }
 
-    # 3. Selezione Vincitore
+    # 3. Esecuzione Grid Search
+    models_config = [
+        (
+            "Decision Tree",
+            DecisionTreeClassifier(class_weight="balanced", random_state=42),
+            dt_params,
+        ),
+        (
+            "Logistic Regression",
+            LogisticRegression(class_weight="balanced", random_state=42, max_iter=1000),
+            lr_params,
+        ),
+        (
+            "Random Forest",
+            RandomForestClassifier(class_weight="balanced", random_state=42),
+            rf_params,
+        ),
+        (
+            "SVM",
+            SVC(class_weight="balanced", probability=True, random_state=42),
+            svm_params,
+        ),
+    ]
+
+    results = {}
+    best_estimators = {}
+
+    for name, model, params in models_config:
+        # Trova il modello migliore
+        best_model = run_grid_search(model, params, X_train, y_train, name)
+        best_estimators[name] = best_model
+
+        # Valuta sul validation set tenuto da parte
+        score = evaluate_model(best_model, X_val, y_val, name, class_names)
+        results[name] = score
+
+    # 4. Selezione Vincitore
     print("\n" + "=" * 60)
-    print("CONFRONTO FINALE (Metric: Weighted F1)")
-    for name, score in models_results.items():
-        print(f"{name.replace('_', ' ').title():<25}: {score:.4f}")
+    print("CONFRONTO FINALE (Post-Tuning)")
+    for name, score in results.items():
+        print(f"{name:<25}: {score:.4f}")
 
-    # Trova la chiave col valore massimo
-    best_name = max(models_results, key=models_results.get)
-    best_score = models_results[best_name]
-    best_model = trained_models[best_name]
+    best_name = max(results, key=results.get)
+    best_score = results[best_name]
+    best_model_final = best_estimators[best_name]
 
     print("-" * 60)
-    print(f"🏆 VINCITORE: {best_name.replace('_', ' ').title()} (F1: {best_score:.4f})")
+    print(f"🏆 VINCITORE: {best_name} (F1: {best_score:.4f})")
     print("=" * 60)
 
-    # 4. Salvataggio
+    # 5. Salvataggio
     os.makedirs(OUTPUT_MODEL_DIR, exist_ok=True)
-
-    model_path = os.path.join(OUTPUT_MODEL_DIR, f"metalearner_{best_name}.joblib")
+    # Salviamo con un nome generico o specifico? Usiamo specifico per chiarezza.
+    # Ma per lo script di test finale, dovrai aggiornare il path se cambia il vincitore.
+    model_filename = f"metalearner_{best_name.lower().replace(' ', '_')}_tuned.joblib"
+    model_path = os.path.join(OUTPUT_MODEL_DIR, model_filename)
     encoder_path = os.path.join(OUTPUT_MODEL_DIR, "label_encoder.joblib")
 
-    joblib.dump(best_model, model_path)
+    joblib.dump(best_model_final, model_path)
     joblib.dump(le, encoder_path)
 
-    print(f"\n✅ Modello salvato in: {model_path}")
-    print(f"✅ Encoder salvato in: {encoder_path}")
+    print(f"\n✅ Modello OTTIMIZZATO salvato in: {model_path}")
+    print(
+        f"⚠️  RICORDA: Aggiorna MODEL_PATH in 'test_metalearner_final.py' con questo nuovo file!"
+    )
 
 
 if __name__ == "__main__":
