@@ -45,7 +45,7 @@ Fitting 5 folds for each of 10 candidates, totalling 50 fits
   Weighted F1-Score:     0.7546
 
 🔍 Tuning Random Forest (5-Fold CV su Train)...
-Fitting 5 folds for each of 72 candidates, totalling 360 fits
+Fitting 5 folds for each of 120 candidates, totalling 600 fits
    ✅ Migliori parametri: {'max_depth': 8, 'max_features': 'sqrt', 'min_samples_leaf': 4, 'n_estimators': 100}
    ✅ Miglior Score CV (Train): 0.7825
 
