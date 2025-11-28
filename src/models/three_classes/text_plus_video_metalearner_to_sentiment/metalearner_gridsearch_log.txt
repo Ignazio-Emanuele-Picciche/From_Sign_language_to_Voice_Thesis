@@ -10,7 +10,7 @@ Feature utilizzate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_p
 Classi codificate: {'Negative': 0, 'Neutral': 1, 'Positive': 2}
 
 🔍 Tuning Decision Tree (5-Fold CV su Train)...
-Fitting 5 folds for each of 30 candidates, totalling 150 fits
+Fitting 5 folds for each of 32 candidates, totalling 160 fits
    ✅ Migliori parametri: {'criterion': 'gini', 'max_depth': 4, 'min_samples_leaf': 5}
    ✅ Miglior Score CV (Train): 0.7728
 
@@ -46,20 +46,20 @@ Fitting 5 folds for each of 10 candidates, totalling 50 fits
 
 🔍 Tuning Random Forest (5-Fold CV su Train)...
 Fitting 5 folds for each of 72 candidates, totalling 360 fits
-   ✅ Migliori parametri: {'max_depth': 6, 'max_features': 'sqrt', 'min_samples_leaf': 2, 'n_estimators': 200}
-   ✅ Miglior Score CV (Train): 0.7766
+   ✅ Migliori parametri: {'max_depth': 8, 'max_features': 'sqrt', 'min_samples_leaf': 4, 'n_estimators': 100}
+   ✅ Miglior Score CV (Train): 0.7825
 
 📊 Analisi Pesi/Importanza per Random Forest:
-   roberta_prob_positive         : 0.4011
-   roberta_prob_negative         : 0.3136
-   roberta_prob_neutral          : 0.2391
-   lstm_prob_negative            : 0.0178
-   lstm_prob_positive            : 0.0150
-   lstm_prob_neutral             : 0.0134
+   roberta_prob_positive         : 0.3894
+   roberta_prob_negative         : 0.3170
+   roberta_prob_neutral          : 0.2193
+   lstm_prob_negative            : 0.0274
+   lstm_prob_positive            : 0.0238
+   lstm_prob_neutral             : 0.0231
 
 --- Valutazione Random Forest su VALIDATION SET ---
-  Accuracy:              0.7499
-  Weighted F1-Score:     0.7514
+  Accuracy:              0.7533
+  Weighted F1-Score:     0.7542
 
 🔍 Tuning SVM (5-Fold CV su Train)...
 Fitting 5 folds for each of 32 candidates, totalling 160 fits
@@ -77,7 +77,7 @@ Fitting 5 folds for each of 32 candidates, totalling 160 fits
 CONFRONTO FINALE (Basato su Validation Set)
 Decision Tree            : 0.7496
 Logistic Regression      : 0.7546
-Random Forest            : 0.7514
+Random Forest            : 0.7542
 SVM                      : 0.7393
 ------------------------------------------------------------
 🏆 VINCITORE: Logistic Regression (F1 Val: 0.7546)

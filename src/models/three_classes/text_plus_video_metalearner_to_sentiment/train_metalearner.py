@@ -185,23 +185,42 @@ def main():
     class_names = list(le.classes_)
     print(f"Classi codificate: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
-    # 3. Definizione Griglie
+    # --------------------------------------------------------
+    # DEFINIZIONE GRIGLIE PARAMETRI (AGGIORNATE)
+    # --------------------------------------------------------
+
+    # A. Decision Tree (Va bene così, forse stringiamo un po' per precisione)
     dt_params = {
-        "max_depth": [3, 4, 5, 6, 8],
-        "min_samples_leaf": [1, 5, 10],
+        "max_depth": [3, 4, 5, 6],  # Tolto 8 visto che ha scelto 4
+        "min_samples_leaf": [1, 3, 5, 10],  # Aggiunto 3 per granularità
         "criterion": ["gini", "entropy"],
     }
-    lr_params = {"C": [0.01, 0.1, 1, 10, 100], "solver": ["lbfgs", "liblinear"]}
+
+    # B. Logistic Regression (Allarghiamo C verso l'alto)
+    lr_params = {
+        "C": [
+            1,
+            10,
+            100,
+            200,
+            500,
+        ],  # Tolti i valori piccolissimi (0.01), aggiunti alti
+        "solver": ["lbfgs", "liblinear"],
+    }
+
+    # C. Random Forest (Diamo un po' più di libertà ma non troppa)
     rf_params = {
-        "n_estimators": [50, 100, 200],
-        "max_depth": [3, 4, 5, 6],
-        "min_samples_leaf": [2, 5, 10],
+        "n_estimators": [100, 200, 300],  # Aumentiamo leggermente
+        "max_depth": [2, 4, 6, 8, 10],  # Spingiamo fino a 10 (prima si fermava a 6)
+        "min_samples_leaf": [2, 4, 8, 10],
         "max_features": ["sqrt", "log2"],
     }
+
+    # D. SVM (Allarghiamo C)
     svm_params = {
-        "C": [0.1, 1, 10, 100],
+        "C": [1, 10, 100, 200],  # Tolto 0.1
         "gamma": ["scale", "auto", 0.1, 0.01],
-        "kernel": ["rbf", "linear"],
+        "kernel": ["rbf", "linear"],  # RBF vince quasi sempre sui dati non lineari
     }
 
     # 4. Esecuzione
