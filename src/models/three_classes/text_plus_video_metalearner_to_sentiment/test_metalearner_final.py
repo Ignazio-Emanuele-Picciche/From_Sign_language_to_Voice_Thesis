@@ -1,3 +1,32 @@
+"""
+================================================================================================================
+TEST FINALE DEL MULTI-LEARNER (INFERENZA SU GOLDEN SET)
+================================================================================================================
+
+DESCRIZIONE:
+Questo script rappresenta l'ultimo passo della pipeline di ricerca. Valuta le prestazioni del "Meta-Learner"
+(il modello di fusione addestrato nello step precedente) sui dati di TEST reali (Golden Set), che il modello
+non ha mai visto durante il training.
+
+FLUSSO DI LAVORO:
+1.  Carica le feature (probabilità Softmax) estratte precedentemente dal Test Set:
+    - Video (LSTM): results/lstm_probs_for_fusion_test.csv
+    - Testo (RoBERTa): results/roberta_features_test_set.csv
+2.  Esegue il MERGE dei due dataset basandosi sulla chiave univoca 'video_name'.
+3.  Carica il modello di fusione addestrato (es. Decision Tree) e l'encoder delle etichette.
+4.  Genera le predizioni finali combinando le informazioni video e testo.
+5.  Calcola le metriche definitive (Accuracy, Classification Report, Matrice di Confusione).
+
+INPUT RICHIESTI:
+- I due file CSV di features del test set (generati dagli script di estrazione).
+- Il modello salvato in 'models/metalearner/metalearner_decision_tree.joblib'.
+
+OUTPUT:
+- Report testuale delle performance a video.
+- Immagine della Matrice di Confusione finale salvata in 'reports/figures/metalearner/'.
+================================================================================================================
+"""
+
 import pandas as pd
 import os
 import sys
@@ -11,8 +40,8 @@ from sklearn.metrics import (
 )
 
 # --- PERCORSI (Assoluti) ---
-LSTM_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/results/lstm_probs_for_fusion_test.csv"
-ROBERTA_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/results/roberta_features_test_set.csv"
+LSTM_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/lstm_features_train_set.csv"
+ROBERTA_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/roberta_features_train_set.csv"
 MODEL_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_decision_tree.joblib"
 ENCODER_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/label_encoder.joblib"
 OUTPUT_PLOT = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png"
