@@ -1,19 +1,20 @@
 """
 ================================================================================================================
-TRAINING DEL MULTI-LEARNER CON GRID SEARCH (OTTIMIZZAZIONE PARAMETRI)
+TRAINING DEL MULTI-LEARNER CON GRID SEARCH + VALIDATION SET ESPLICITO
 ================================================================================================================
 
 DESCRIZIONE:
-Questo script allena 4 Meta-Learner (DT, LR, RF, SVM) ma invece di usare parametri fissi,
-cerca la combinazione migliore per ognuno usando GridSearchCV.
+Questo script allena 4 Meta-Learner usando GridSearchCV per trovare i migliori iperparametri.
+Invece di splittare il training set, usa un VALIDATION SET dedicato per la valutazione finale.
 
-PERCHÉ LO FACCIAMO:
-La Random Forest andava in overfitting (troppo complessa). Cercando i parametri ottimali
-(es. riducendo max_depth) possiamo renderla più stabile e potente sul Test Set.
+FLUSSO:
+1. Carica TRAIN SET (LSTM + RoBERTa) -> Usa 5-Fold CV per il Tuning.
+2. Carica VALIDATION SET (LSTM + RoBERTa) -> Usa questo per decretare il vincitore.
+3. Salva il modello migliore.
 
-OUTPUT:
-- Stampa i migliori parametri per ogni modello.
-- Salva il modello vincitore assoluto ottimizzato.
+PERCORSI FILE:
+- Train: data/train/...
+- Val:   data/val/...
 ================================================================================================================
 """
 
@@ -23,7 +24,7 @@ import os
 import sys
 import joblib
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -40,24 +41,26 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import LabelEncoder
 
-# --- SETUP BASE_DIR ---
-BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+# --- PERCORSI ---
+PATH_PREFIX = "src/models/three_classes/text_plus_video_metalearner_to_sentiment"
+
+# TRAIN PATHS
+LSTM_TRAIN_PATH = os.path.join(PATH_PREFIX, "data/train/lstm_features_train_set.csv")
+ROBERTA_TRAIN_PATH = os.path.join(
+    PATH_PREFIX, "data/train/roberta_features_train_set.csv"
 )
-sys.path.insert(0, BASE_DIR)
 
-# --- CONFIGURAZIONE PERCORSI BLINDATA ---
-# Usiamo os.path.join per essere sicuri che i percorsi siano sempre corretti,
-# indipendentemente da dove lanci lo script.
+# VAL PATHS (Nuovi)
+LSTM_VAL_PATH = os.path.join(PATH_PREFIX, "data/val/lstm_features_val_set.csv")
+ROBERTA_VAL_PATH = os.path.join(PATH_PREFIX, "data/val/roberta_features_val_set.csv")
 
-LSTM_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/lstm_features_train_set.csv"
-ROBERTA_FEATURES_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/train/roberta_features_train_set.csv"
-OUTPUT_MODEL_DIR = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner"
-OUTPUT_PLOTS_DIR = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner"
-OUTPUT_LOG_FILE = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_training_log.txt"
+# OUTPUTS
+OUTPUT_MODEL_DIR = os.path.join(PATH_PREFIX, "models", "metalearner")
+OUTPUT_PLOTS_DIR = os.path.join(PATH_PREFIX, "reports", "figures", "metalearner_tuning")
+OUTPUT_LOG_FILE = os.path.join(PATH_PREFIX, "metalearner_gridsearch_log.txt")
 
 
-# --- CLASSE LOGGER ---
+# --- LOGGER ---
 class Logger(object):
     def __init__(self, filename):
         self.terminal = sys.stdout
@@ -72,50 +75,56 @@ class Logger(object):
         self.log.flush()
 
 
-def load_and_merge_data():
-    print("--- 1. Caricamento e Merge dei Dati ---")
-    if not os.path.exists(LSTM_FEATURES_PATH) or not os.path.exists(
-        ROBERTA_FEATURES_PATH
-    ):
-        raise FileNotFoundError("❌ File features non trovati!")
+def load_and_merge(lstm_path, roberta_path, dataset_name="Dataset"):
+    print(f"--- Caricamento {dataset_name} ---")
+    if not os.path.exists(lstm_path) or not os.path.exists(roberta_path):
+        raise FileNotFoundError(
+            f"❌ File non trovati per {dataset_name}:\n {lstm_path}\n {roberta_path}"
+        )
 
-    df_lstm = pd.read_csv(LSTM_FEATURES_PATH)
-    df_roberta = pd.read_csv(ROBERTA_FEATURES_PATH)
+    df_lstm = pd.read_csv(lstm_path)
+    df_roberta = pd.read_csv(roberta_path)
 
     merged_df = pd.merge(
         df_lstm, df_roberta, on="video_name", suffixes=("_lstm", "_roberta")
     )
 
+    # Gestione etichette
     if "true_label_lstm" in merged_df.columns:
         merged_df["label"] = merged_df["true_label_lstm"]
     elif "true_label" in merged_df.columns:
         merged_df["label"] = merged_df["true_label"]
 
-    print(f"✅ Merge completato. Shape: {merged_df.shape}")
+    print(f"✅ {dataset_name} caricato. Shape: {merged_df.shape}")
     return merged_df
 
 
 def run_grid_search(model, param_grid, X_train, y_train, model_name):
-    print(f"\n🔍 Tuning {model_name}...")
-    # cv=5 significa 5-Fold Cross Validation (molto robusto)
-    # scoring='f1_weighted' ottimizza direttamente la metrica che ci interessa
+    print(f"\n🔍 Tuning {model_name} (5-Fold CV su Train)...")
+    # GridSearchCV userà internamente la Cross Validation sul Training set
     grid = GridSearchCV(
         model, param_grid, cv=5, scoring="f1_weighted", n_jobs=-1, verbose=1
     )
     grid.fit(X_train, y_train)
 
     print(f"   ✅ Migliori parametri: {grid.best_params_}")
-    print(f"   ✅ Miglior Score CV (F1): {grid.best_score_:.4f}")
+    print(f"   ✅ Miglior Score CV (Train): {grid.best_score_:.4f}")
 
     return grid.best_estimator_
 
 
-def evaluate_model(model, X_test, y_test, model_name, class_names):
-    print(f"\n--- Valutazione Finale {model_name} (sul Validation Set) ---")
-    y_pred = model.predict(X_test)
+def evaluate_model(model, X_val, y_val, model_name, class_names):
+    print(f"\n--- Valutazione {model_name} su VALIDATION SET ---")
+    y_pred = model.predict(X_val)
 
-    f1_w = f1_score(y_test, y_pred, average="weighted")
+    acc = accuracy_score(y_val, y_pred)
+    f1_w = f1_score(y_val, y_pred, average="weighted")
+
+    print(f"  Accuracy:              {acc:.4f}")
     print(f"  Weighted F1-Score:     {f1_w:.4f}")
+
+    # Optional: Classification Report
+    # print(classification_report(y_val, y_pred, target_names=class_names))
 
     return f1_w
 
@@ -125,45 +134,56 @@ def main():
     sys.stdout = Logger(OUTPUT_LOG_FILE)
 
     print("=" * 60)
-    print("TRAINING CON GRID SEARCH (HYPERPARAMETER TUNING)")
+    print("TRAINING GRID SEARCH CON VALIDATION SET ESPLICITO")
     print("=" * 60)
 
-    # 1. Dati
-    df = load_and_merge_data()
-    feature_cols = [c for c in df.columns if "lstm_prob" in c or "roberta_prob" in c]
-    X = df[feature_cols]
-    y = df["label"]
+    # 1. Caricamento Dati TRAIN
+    df_train = load_and_merge(LSTM_TRAIN_PATH, ROBERTA_TRAIN_PATH, "TRAIN SET")
 
+    # 2. Caricamento Dati VALIDATION
+    df_val = load_and_merge(LSTM_VAL_PATH, ROBERTA_VAL_PATH, "VAL SET")
+
+    # 3. Preparazione X, y
+    feature_cols = [
+        c for c in df_train.columns if "lstm_prob" in c or "roberta_prob" in c
+    ]
+    print(f"\nFeature utilizzate ({len(feature_cols)}): {feature_cols}")
+
+    X_train = df_train[feature_cols]
+    y_train_raw = df_train["label"]
+
+    X_val = df_val[feature_cols]
+    y_val_raw = df_val["label"]
+
+    # Encoding Labels (Fit su train, Transform su entrambi)
     le = LabelEncoder()
-    y_encoded = le.fit_transform(y)
+    y_train = le.fit_transform(y_train_raw)
+    y_val = le.transform(
+        y_val_raw
+    )  # Attenzione: se in val ci sono classi nuove crasha, ma qui è ok.
+
     class_names = list(le.classes_)
+    print(f"Classi codificate: {dict(zip(le.classes_, le.transform(le.classes_)))}")
 
-    # Split
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
-    )
-
-    # 2. Definizione Griglie di Ricerca
-    # Qui definiamo quali parametri provare per ogni modello
+    # --------------------------------------------------------
+    # DEFINIZIONE GRIGLIE PARAMETRI
+    # --------------------------------------------------------
 
     # A. Decision Tree
     dt_params = {
         "max_depth": [3, 4, 5, 6, 8],
-        "min_samples_leaf": [1, 5, 10],  # Evita regole troppo specifiche
+        "min_samples_leaf": [1, 5, 10],
         "criterion": ["gini", "entropy"],
     }
 
     # B. Logistic Regression
-    lr_params = {
-        "C": [0.01, 0.1, 1, 10, 100],  # Regolarizzazione (C basso = più semplice)
-        "solver": ["lbfgs", "liblinear"],
-    }
+    lr_params = {"C": [0.01, 0.1, 1, 10, 100], "solver": ["lbfgs", "liblinear"]}
 
-    # C. Random Forest (Focus su ridurre overfitting)
+    # C. Random Forest
     rf_params = {
         "n_estimators": [50, 100, 200],
-        "max_depth": [3, 4, 5, 6],  # Teniamolo basso! Prima era 8 o None
-        "min_samples_leaf": [2, 5, 10],  # Più alto = meno overfitting
+        "max_depth": [3, 4, 5, 6],  # Basso per evitare overfitting
+        "min_samples_leaf": [2, 5, 10],
         "max_features": ["sqrt", "log2"],
     }
 
@@ -174,7 +194,9 @@ def main():
         "kernel": ["rbf", "linear"],
     }
 
-    # 3. Esecuzione Grid Search
+    # --------------------------------------------------------
+    # ESECUZIONE
+    # --------------------------------------------------------
     models_config = [
         (
             "Decision Tree",
@@ -202,17 +224,19 @@ def main():
     best_estimators = {}
 
     for name, model, params in models_config:
-        # Trova il modello migliore
+        # 1. Tuning su TRAIN (con Cross Validation)
         best_model = run_grid_search(model, params, X_train, y_train, name)
         best_estimators[name] = best_model
 
-        # Valuta sul validation set tenuto da parte
+        # 2. Valutazione su VALIDATION ESPLICITO
         score = evaluate_model(best_model, X_val, y_val, name, class_names)
         results[name] = score
 
-    # 4. Selezione Vincitore
+    # --------------------------------------------------------
+    # SELEZIONE VINCITORE
+    # --------------------------------------------------------
     print("\n" + "=" * 60)
-    print("CONFRONTO FINALE (Post-Tuning)")
+    print("CONFRONTO FINALE (Basato su Validation Set)")
     for name, score in results.items():
         print(f"{name:<25}: {score:.4f}")
 
@@ -221,13 +245,11 @@ def main():
     best_model_final = best_estimators[best_name]
 
     print("-" * 60)
-    print(f"🏆 VINCITORE: {best_name} (F1: {best_score:.4f})")
+    print(f"🏆 VINCITORE: {best_name} (F1 Val: {best_score:.4f})")
     print("=" * 60)
 
-    # 5. Salvataggio
+    # Salvataggio
     os.makedirs(OUTPUT_MODEL_DIR, exist_ok=True)
-    # Salviamo con un nome generico o specifico? Usiamo specifico per chiarezza.
-    # Ma per lo script di test finale, dovrai aggiornare il path se cambia il vincitore.
     model_filename = f"metalearner_{best_name.lower().replace(' ', '_')}_tuned.joblib"
     model_path = os.path.join(OUTPUT_MODEL_DIR, model_filename)
     encoder_path = os.path.join(OUTPUT_MODEL_DIR, "label_encoder.joblib")

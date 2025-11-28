@@ -48,7 +48,7 @@ LSTM_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/d
 ROBERTA_TEST = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/data/test/roberta_features_test_set.csv"
 
 # Input: Modello e Encoder addestrati
-MODEL_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_random_forest.joblib"
+MODEL_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_logistic_regression_tuned.joblib"
 ENCODER_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/label_encoder.joblib"
 OUTPUT_PLOT = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png"
 

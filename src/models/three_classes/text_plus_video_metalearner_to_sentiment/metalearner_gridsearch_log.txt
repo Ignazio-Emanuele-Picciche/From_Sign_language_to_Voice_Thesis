@@ -1,0 +1,59 @@
+============================================================
+TRAINING GRID SEARCH CON VALIDATION SET ESPLICITO
+============================================================
+--- Caricamento TRAIN SET ---
+✅ TRAIN SET caricato. Shape: (4065, 10)
+--- Caricamento VAL SET ---
+✅ VAL SET caricato. Shape: (1739, 10)
+
+Feature utilizzate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_positive', 'roberta_prob_negative', 'roberta_prob_neutral', 'roberta_prob_positive']
+Classi codificate: {'Negative': 0, 'Neutral': 1, 'Positive': 2}
+
+🔍 Tuning Decision Tree (5-Fold CV su Train)...
+Fitting 5 folds for each of 30 candidates, totalling 150 fits
+   ✅ Migliori parametri: {'criterion': 'gini', 'max_depth': 4, 'min_samples_leaf': 5}
+   ✅ Miglior Score CV (Train): 0.7728
+
+--- Valutazione Decision Tree su VALIDATION SET ---
+  Accuracy:              0.7499
+  Weighted F1-Score:     0.7496
+
+🔍 Tuning Logistic Regression (5-Fold CV su Train)...
+Fitting 5 folds for each of 10 candidates, totalling 50 fits
+   ✅ Migliori parametri: {'C': 100, 'solver': 'liblinear'}
+   ✅ Miglior Score CV (Train): 0.7759
+
+--- Valutazione Logistic Regression su VALIDATION SET ---
+  Accuracy:              0.7539
+  Weighted F1-Score:     0.7546
+
+🔍 Tuning Random Forest (5-Fold CV su Train)...
+Fitting 5 folds for each of 72 candidates, totalling 360 fits
+   ✅ Migliori parametri: {'max_depth': 6, 'max_features': 'sqrt', 'min_samples_leaf': 2, 'n_estimators': 200}
+   ✅ Miglior Score CV (Train): 0.7766
+
+--- Valutazione Random Forest su VALIDATION SET ---
+  Accuracy:              0.7499
+  Weighted F1-Score:     0.7514
+
+🔍 Tuning SVM (5-Fold CV su Train)...
+Fitting 5 folds for each of 32 candidates, totalling 160 fits
+   ✅ Migliori parametri: {'C': 10, 'gamma': 'scale', 'kernel': 'rbf'}
+   ✅ Miglior Score CV (Train): 0.7591
+
+--- Valutazione SVM su VALIDATION SET ---
+  Accuracy:              0.7343
+  Weighted F1-Score:     0.7393
+
+============================================================
+CONFRONTO FINALE (Basato su Validation Set)
+Decision Tree            : 0.7496
+Logistic Regression      : 0.7546
+Random Forest            : 0.7514
+SVM                      : 0.7393
+------------------------------------------------------------
+🏆 VINCITORE: Logistic Regression (F1 Val: 0.7546)
+============================================================
+
+✅ Modello OTTIMIZZATO salvato in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_logistic_regression_tuned.joblib
+⚠️  RICORDA: Aggiorna MODEL_PATH in 'test_metalearner_final.py' con questo nuovo file!
