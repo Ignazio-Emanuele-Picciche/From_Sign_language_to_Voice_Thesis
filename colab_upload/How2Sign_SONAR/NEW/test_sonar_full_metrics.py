@@ -9,6 +9,7 @@ from tqdm import tqdm
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from transformers.modeling_outputs import BaseModelOutput
 import os
+import random
 
 # Librerie per le metriche
 try:
@@ -19,6 +20,14 @@ except ImportError:
         "⚠️  Librerie mancanti. Installa: pip install sacrebleu evaluate rouge_score bleurt"
     )
     exit()
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 # ==========================================
@@ -280,7 +289,11 @@ if __name__ == "__main__":
     parser.add_argument("--lang", type=str, default="eng_Latn")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--sonar_pooling", action="store_true")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
 
     args = parser.parse_args()
+    set_seed(args.seed)
     Path(args.output_dir).mkdir(exist_ok=True, parents=True)
     run_test(args)
