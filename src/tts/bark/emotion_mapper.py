@@ -49,12 +49,13 @@ EMOTIONAL_TAGS = {
     "Negative": {
         "primary": "[sighs]",
         "alternatives": ["[sad]", "[gasps]", "... -"],
-        # SOGLIA ALZATA A 0.92
-        "high_confidence": "[sighs]",
-        # Fascia 0.75 - 0.92
-        "medium_confidence": "...",
-        # Sotto 0.75: Esitazione
-        "low_confidence": "[clears throat]",
+        # SOGLIA RICALIBRATA SUI TUOI DATI (Max osservato ~0.71)
+        # Abbassiamo drasticamente per "forzare" l'espressività sui migliori negativi che hai
+        "high_confidence": "[sighs]",  # > 0.65 (Invece di 0.92)
+        # Fascia media
+        "medium_confidence": "[gasps]",  # 0.55 - 0.65
+        # Sotto 0.55 è davvero incerto
+        "low_confidence": "...",
     },
     "Neutral": {
         "primary": "",
@@ -92,15 +93,22 @@ def get_emotional_tag(
     if confidence is not None:
         conf = confidence if confidence <= 1.0 else confidence / 100.0
 
-        # SOGLIE CALIBRATE SULL'ISTOGRAMMA
-        if conf >= 0.92:  # Top tier (Picco estremo)
-            return tags_config.get("high_confidence", "")
-        elif conf >= 0.75:  # Fascia media solida
-            return tags_config.get("medium_confidence", "")
-        else:  # Coda bassa e incerta
-            return tags_config.get("low_confidence", "")
+        # Soglie dinamiche in base all'emozione
+        if emotion == "Negative":
+            # Il modello è debole sui negativi (max 0.71), siamo più permissivi
+            thresh_high = 0.65
+            thresh_med = 0.55
+        else:
+            # Il modello è fortissimo sui positivi (max 0.97), siamo severi
+            thresh_high = 0.90
+            thresh_med = 0.70
 
-    return tags_config.get("primary", "")
+        if conf >= thresh_high:
+            return tags_config.get("high_confidence", "")
+        elif conf >= thresh_med:
+            return tags_config.get("medium_confidence", "")
+        else:
+            return tags_config.get("low_confidence", "")
 
 
 def get_bark_speaker(emotion: str, video_name: str = None) -> str:
