@@ -56,13 +56,19 @@
 """
 
 import os
+import gc
+import torch
+
+# --- 1. CONFIGURAZIONE ANTI-CRASH (Essenziale) ---
+os.environ["SUNO_USE_SMALL_MODELS"] = "True"  # Modelli ottimizzati
+os.environ["SUNO_OFFLOAD_CPU"] = "True"  # Libera VRAM
+
 import pandas as pd
 import numpy as np
 import warnings
-from typing import Optional
 from tqdm import tqdm
 
-# Applica patch per compatibilità PyTorch 2.9+
+# Patch e Import Bark
 try:
     from . import pytorch_patch
 except ImportError:
@@ -71,7 +77,6 @@ except ImportError:
     except ImportError:
         pass
 
-# Bark imports
 try:
     from bark import SAMPLE_RATE, generate_audio, preload_models
     from scipy.io.wavfile import write as write_wav
@@ -79,8 +84,9 @@ try:
     BARK_AVAILABLE = True
 except ImportError:
     BARK_AVAILABLE = False
-    warnings.warn("Bark non installato. Audio non verrà generato.")
+    warnings.warn("Bark non installato.")
 
+# Import Moduli Interni
 try:
     from .emotion_mapper import (
         map_emotion_to_bark_prompt,
@@ -96,14 +102,14 @@ except ImportError:
     )
     from emotion_tag_optimizer import optimize_emotional_text
 
-# Importa text_templates dal modulo parent
+# Import Template Utilità
 import sys
 from pathlib import Path
 
 parent_dir = str(Path(__file__).parent.parent)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
-from text_templates import get_tts_text, get_baseline_text
+from text_templates import get_tts_text
 
 # --- CONFIGURAZIONE PATH ---
 BASE_DIR = os.path.abspath(
@@ -119,39 +125,38 @@ PREDICTIONS_FILE = os.path.join(
     "final_metalearner_predictions_for_tts.csv",
 )
 OUTPUT_AUDIO_DIR = os.path.join(BASE_DIR, "src", "tts", "bark", "output_audio")
-GOLDEN_TEST_FILE = os.path.join(
-    BASE_DIR, "data", "processed", "golden_test_set.csv"
-)  # Backup per le caption
+GOLDEN_TEST_FILE = os.path.join(BASE_DIR, "data", "processed", "golden_test_set.csv")
 
-# Flag per pre-caricare i modelli
 MODELS_PRELOADED = False
 
 
 def preload_bark_models():
-    """Pre-carica i modelli Bark in memoria (10GB RAM richiesta)."""
     global MODELS_PRELOADED
     if not BARK_AVAILABLE:
         return
     if not MODELS_PRELOADED:
-        print("📥 Caricamento modelli Bark in memoria...")
+        print("📥 Caricamento modelli Bark (SMALL)...")
         preload_models()
         MODELS_PRELOADED = True
-        print("✅ Modelli Bark pronti!")
+
+
+def clean_memory():
+    """Pulisce la memoria dopo ogni generazione."""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 
 def load_predictions_data():
-    """Carica le predizioni del Meta-Learner e fa il merge con le caption se mancano."""
     if not os.path.exists(PREDICTIONS_FILE):
-        raise FileNotFoundError(f"❌ File predizioni non trovato: {PREDICTIONS_FILE}")
+        raise FileNotFoundError(f"❌ File non trovato: {PREDICTIONS_FILE}")
 
     df = pd.read_csv(PREDICTIONS_FILE)
 
-    # Se la colonna caption è vuota o manca, proviamo a recuperarla dal golden set originale
     if "caption" not in df.columns or df["caption"].isnull().all():
-        print("⚠️  Caption mancanti nel file predizioni. Recupero dal Golden Set...")
+        print("⚠️  Recupero caption dal Golden Set...")
         if os.path.exists(GOLDEN_TEST_FILE):
             df_golden = pd.read_csv(GOLDEN_TEST_FILE)
-            # Merge per recuperare la caption usando video_name
             df = pd.merge(
                 df,
                 df_golden[["video_name", "caption"]],
@@ -159,15 +164,10 @@ def load_predictions_data():
                 how="left",
                 suffixes=("", "_golden"),
             )
-            # Se c'era una colonna caption vuota, riempila
             if "caption" in df.columns:
                 df["caption"] = df["caption"].fillna(df["caption_golden"])
             else:
                 df["caption"] = df["caption_golden"]
-            print(f"✅ Caption recuperate per {df['caption'].notnull().sum()} video.")
-        else:
-            print("❌ File Golden Set non trovato. Useremo template generici.")
-
     return df
 
 
@@ -177,44 +177,34 @@ def generate_emotional_audio(
     video_name: str,
     output_dir: str,
     caption: str = None,
-    use_emotional_tags: bool = True,
-    optimize_tag_placement: bool = True,
 ) -> str:
-    """
-    Genera un singolo file audio basato sui parametri passati.
-    """
+    """Genera audio singolo con logica avanzata."""
     if not BARK_AVAILABLE:
         return None
 
-    # 1. Configurazione Bark (Speaker & Temperature)
-    bark_config = map_emotion_to_bark_prompt(emotion, use_emotional_tags)
-    history_prompt = get_bark_speaker(emotion)  # Default speaker per l'emozione
+    # 1. Configurazione Speaker (Hash sul nome video)
+    history_prompt = get_bark_speaker(emotion, video_name=video_name)
+    bark_config = map_emotion_to_bark_prompt(emotion, use_emotional_tags=True)
 
-    # 2. Scelta Tag Emotivo (basata su Confidence)
-    emotional_tag = ""
-    if use_emotional_tags:
-        emotional_tag = get_emotional_tag(emotion, confidence=confidence)
+    # 2. Scelta Tag (basata su confidenza)
+    emotional_tag = get_emotional_tag(emotion, confidence=confidence)
 
     # 3. Preparazione Testo
     if isinstance(caption, str) and len(caption) > 3:
         text = caption
+        if len(text) > 200:
+            text = text[:200] + "..."  # Protezione lunghezza
     else:
-        # Fallback se caption manca
         text = get_tts_text(emotion, confidence, video_name)
 
-    # 4. Ottimizzazione Posizionamento Tag
-    if use_emotional_tags and emotional_tag:
-        if optimize_tag_placement:
-            text = optimize_emotional_text(
-                text, emotion, use_tags=True, custom_tag=emotional_tag
-            )
-        else:
-            text = f"{emotional_tag} {text}"
+    # 4. Ottimizzazione Posizionamento (Context-Aware)
+    text = optimize_emotional_text(
+        text, emotion, use_tags=True, custom_tag=emotional_tag, confidence=confidence
+    )
 
-    # 5. Generazione Audio
-    print(f"🎙️  Generating: {video_name}")
-    print(f"   Emotion: {emotion} (Conf: {confidence:.2f}) | Tag: {emotional_tag}")
-    print(f'   Text: "{text}"')
+    print(
+        f"🎙️  Gen: {video_name} | {emotion} (Conf: {confidence:.2f}) | {history_prompt}"
+    )
 
     try:
         audio_array = generate_audio(
@@ -222,73 +212,57 @@ def generate_emotional_audio(
             history_prompt=history_prompt,
             text_temp=bark_config["temperature"],
             waveform_temp=bark_config["temperature"],
-            silent=True,  # Riduci output console di Bark
+            silent=True,
         )
 
-        # 6. Salvataggio
         safe_name = video_name.replace("/", "_").replace("\\", "_")
         filename = f"{safe_name}_{emotion.lower()}.wav"
         output_path = os.path.join(output_dir, filename)
 
         write_wav(output_path, SAMPLE_RATE, audio_array)
+        clean_memory()  # Fondamentale
         return output_path
 
     except Exception as e:
-        print(f"❌ Errore generazione {video_name}: {e}")
+        print(f"❌ Errore {video_name}: {e}")
+        clean_memory()
         return None
 
 
 def generate_from_csv(limit: int = None):
-    """
-    Funzione principale per generare audio in batch dal CSV del Meta-Learner.
-    Args:
-        limit (int): Se specificato, genera solo i primi N audio (per test rapidi).
-    """
+    """Funzione principale per generazione Batch."""
     print("=" * 60)
-    print("TTS BATCH GENERATION (META-LEARNER PREDICTIONS)")
+    print("TTS BATCH GENERATION (META-LEARNER)")
     print("=" * 60)
 
     if not BARK_AVAILABLE:
-        print("❌ Bark non installato. Impossibile procedere.")
         return
 
-    # 1. Carica Dati
     try:
         df = load_predictions_data()
-    except FileNotFoundError as e:
+    except Exception as e:
         print(e)
         return
 
-    # Filtra eventuali righe senza predizione valida
     df = df.dropna(subset=["predicted_label"])
 
-    # Applica limite se richiesto
     if limit:
         df = df.head(limit)
-        print(f"⚠️  Limitato ai primi {limit} video per test.")
+        print(f"⚠️  Limitato ai primi {limit} video.")
 
-    print(f"📂 Output Directory: {OUTPUT_AUDIO_DIR}")
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
-
-    # 2. Preload Modelli
     preload_bark_models()
 
-    # 3. Loop Generazione
-    successful = 0
-    failed = 0
+    successful, failed = 0, 0
 
-    # Barre di progresso
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generazione Audio"):
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generazione"):
         video_name = str(row["video_name"])
-        emotion = str(row["predicted_label"])  # L'etichetta predetta dal Meta-Learner
-        confidence = float(row["confidence"])  # La confidenza del Meta-Learner
-        caption = row["caption"] if pd.notna(row["caption"]) else None
-
-        # Normalizza nome emozione (es. "Positive" -> "Positive")
-        emotion = emotion.capitalize()
+        emotion = str(row["predicted_label"]).capitalize()
         if emotion not in ["Positive", "Negative", "Neutral"]:
-            # Fallback per etichette strane
             emotion = "Neutral"
+
+        confidence = float(row["confidence"])
+        caption = row["caption"] if pd.notna(row["caption"]) else None
 
         path = generate_emotional_audio(
             emotion=emotion,
@@ -296,8 +270,6 @@ def generate_from_csv(limit: int = None):
             video_name=video_name,
             output_dir=OUTPUT_AUDIO_DIR,
             caption=caption,
-            use_emotional_tags=True,  # Abilita [laughs], [sighs]
-            optimize_tag_placement=True,  # Posiziona i tag in modo intelligente
         )
 
         if path:
@@ -306,14 +278,11 @@ def generate_from_csv(limit: int = None):
             failed += 1
 
     print("\n" + "=" * 60)
-    print(f"✅ COMPLETATO")
-    print(f"Audio generati correttamente: {successful}")
-    print(f"Errori: {failed}")
-    print(f"Cartella: {OUTPUT_AUDIO_DIR}")
+    print(f"✅ COMPLETATO: {successful} ok, {failed} errori.")
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    # Esempio: Genera solo i primi 5 audio per testare che tutto funzioni
-    # Imposta limit=None per processare tutto il dataset
-    generate_from_csv(limit=5)
+    # Per avviare la generazione completa, rimuovi 'limit'
+    # Per testare, usa limit=5
+    generate_from_csv(limit=None)
