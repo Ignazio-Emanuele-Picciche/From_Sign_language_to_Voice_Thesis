@@ -24,10 +24,12 @@ INPUT RICHIESTI:
 OUTPUT:
 - Report testuale delle performance a video.
 - Immagine della Matrice di Confusione finale salvata in 'reports/figures/metalearner/'.
+- File CSV con le predizioni finali per eventuale uso in TTS (Bark).
 ================================================================================================================
 """
 
 import pandas as pd
+import numpy as np
 import os
 import sys
 import joblib
@@ -53,6 +55,9 @@ ENCODER_PATH = "src/models/three_classes/text_plus_video_metalearner_to_sentimen
 OUTPUT_PLOT = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png"
 
 OUTPUT_LOG_FILE = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/metalearner_final_test_log.txt"
+
+# 🆕 FILE DI OUTPUT PER BARK TTS
+OUTPUT_PREDICTIONS_FILE = "src/models/three_classes/text_plus_video_metalearner_to_sentiment/results/final_metalearner_predictions_for_tts.csv"
 
 
 # --- CLASSE LOGGER ---
@@ -119,9 +124,17 @@ def main():
     # Encoding Label Reali (String -> Int)
     y_true = le.transform(df["label"])
 
-    # 5. Predizione
-    print("\nEsecuzione predizione...")
+    # 5. Predizione (Classi)
+    print("\nEsecuzione predizione classi...")
     y_pred = clf.predict(X)
+
+    # 🆕 5b. Predizione (Probabilità/Confidenza)
+    # predict_proba restituisce array (N_samples, 3) con prob [Neg, Neu, Pos]
+    print("Esecuzione predizione probabilità...")
+    y_probs = clf.predict_proba(X)
+
+    # Calcolo la confidenza massima per ogni predizione (0.0 - 1.0)
+    max_confidence = np.max(y_probs, axis=1)
 
     # 6. Risultati e Metriche Estese
     acc = accuracy_score(y_true, y_pred)
@@ -151,6 +164,42 @@ def main():
     os.makedirs(os.path.dirname(OUTPUT_PLOT), exist_ok=True)
     plt.savefig(OUTPUT_PLOT)
     print(f"\n📊 Matrice salvata in: {OUTPUT_PLOT}")
+
+    # ---------------------------------------------------------------------
+    # 7. SALVATAGGIO CSV PER BARK TTS
+    # ---------------------------------------------------------------------
+    print("\nGenerazione file predizioni per Bark TTS...")
+
+    # Recuperiamo le etichette predette come stringhe (es. "Positive")
+    predicted_labels_str = le.inverse_transform(y_pred)
+
+    tts_data = {
+        "video_name": df["video_name"],
+        "true_label": df["label"],  # Label reale (utile per confronto)
+        "predicted_label": predicted_labels_str,  # Label predetta dal Meta-Learner
+        "confidence": max_confidence,  # Score di confidenza (0.0 - 1.0)
+        "caption": df.get(
+            "caption", ""
+        ),  # Se disponibile nel df mergiato (potrebbe non esserci)
+    }
+
+    # Aggiungiamo le probabilità dettagliate per ogni classe
+    # Assumiamo l'ordine delle classi dall'encoder (di solito alfabetico: Neg, Neu, Pos)
+    for i, class_name in enumerate(le.classes_):
+        tts_data[f"prob_{class_name.lower()}"] = y_probs[:, i]
+
+    tts_df = pd.DataFrame(tts_data)
+
+    # Se la colonna caption è vuota (perché non c'era nei feature file),
+    # dovrai fare un merge con il golden_test_set.csv originale per recuperarla.
+    # Qui aggiungo un controllo di sicurezza.
+
+    os.makedirs(os.path.dirname(OUTPUT_PREDICTIONS_FILE), exist_ok=True)
+    tts_df.to_csv(OUTPUT_PREDICTIONS_FILE, index=False)
+
+    print(f"✅ File salvato per Bark: {OUTPUT_PREDICTIONS_FILE}")
+    print(f"   Colonne: {list(tts_df.columns)}")
+    print("   Usa questo file come input per la pipeline TTS.")
 
 
 if __name__ == "__main__":

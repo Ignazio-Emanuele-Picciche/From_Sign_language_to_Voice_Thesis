@@ -6,7 +6,8 @@ Modello usato: src/models/three_classes/text_plus_video_metalearner_to_sentiment
 ✅ Dati uniti. Campioni di test trovati: 200
 Features usate (6): ['lstm_prob_negative', 'lstm_prob_neutral', 'lstm_prob_positive', 'roberta_prob_negative', 'roberta_prob_neutral', 'roberta_prob_positive']
 
-Esecuzione predizione...
+Esecuzione predizione classi...
+Esecuzione predizione probabilità...
 
 ========================================
 🏆 RISULTATI FINALI SUL TEST SET
@@ -29,3 +30,8 @@ weighted avg       0.87      0.78      0.81       200
 
 
 📊 Matrice salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png
+
+Generazione file predizioni per Bark TTS...
+✅ File salvato per Bark: src/models/three_classes/text_plus_video_metalearner_to_sentiment/results/final_metalearner_predictions_for_tts.csv
+   Colonne: ['video_name', 'true_label', 'predicted_label', 'confidence', 'caption', 'prob_negative', 'prob_neutral', 'prob_positive']
+   Usa questo file come input per la pipeline TTS.
