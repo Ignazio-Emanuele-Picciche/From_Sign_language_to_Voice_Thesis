@@ -33,12 +33,18 @@ def optimize_emotional_text(
 
     conf = confidence if confidence <= 1.0 else confidence / 100.0
 
+    # Tag base (fallback)
     default_tags = {
         "Positive": "[laughs]",
         "Negative": "[sighs]",
         "Neutral": "[clears throat]",
     }
     tag = custom_tag or default_tags.get(emotion, "")
+
+    # Se il tag passato era il vecchio [hesitation], lo convertiamo al volo
+    if tag == "[hesitation]":
+        tag = "uhm..."
+
     if not tag:
         return text
 
@@ -46,22 +52,24 @@ def optimize_emotional_text(
     text_len = len(text)
 
     # --- STRATEGIA BASSA CONFIDENZA (< 0.75) ---
-    # Il grafico mostrava un cluster tra 0.60 e 0.70.
-    # Trattiamo questa fascia come "incerta" -> Esitazione invece di emozione.
+    # Usiamo "uhm..." o "..." per simulare incertezza acustica reale
     if conf < 0.75:
+        hesitation_sound = "uhm..."  # Molto efficace in Bark
         if breaks:
-            return insert_tag(text, "... [hesitation]", breaks[0])
+            # Inserisci un'esitazione alla prima pausa
+            return insert_tag(text, f"... {hesitation_sound}", breaks[0])
         else:
-            return f"[hesitation] {text}"
+            # Inizio frase
+            return f"{hesitation_sound} {text}"
 
     # --- STRATEGIA ALTA CONFIDENZA ---
+    # ... (Il resto rimane uguale) ...
 
     if text_len < 40:
         return f"{tag} {text}"
 
     if emotion == "Positive":
         result = f"{tag} {text}"
-        # Solo se > 0.95 (certezza quasi assoluta) raddoppiamo la risata
         if conf > 0.95 and breaks:
             mid_break = breaks[len(breaks) // 2]
             result = insert_tag(result, "[laughter]", mid_break + len(tag) + 1)

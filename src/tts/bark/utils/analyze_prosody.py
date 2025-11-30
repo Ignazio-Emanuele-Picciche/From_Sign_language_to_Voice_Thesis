@@ -13,11 +13,8 @@ import librosa.display
 import random
 
 # --- CONFIGURAZIONE ---
-BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
-)
-AUDIO_DIR = os.path.join(BASE_DIR, "src", "tts", "bark", "output_audio")
-OUTPUT_IMG_DIR = os.path.join(BASE_DIR, "reports", "figures", "prosody_analysis")
+AUDIO_DIR = os.path.join("src", "tts", "bark", "best_audio")
+OUTPUT_IMG_DIR = os.path.join("reports", "figures", "prosody_analysis")
 
 
 def extract_pitch(audio_path):
@@ -122,8 +119,10 @@ def main():
     # L'ideale sarebbe confrontare lo stesso speaker, ma qui prendiamo a campione
     # p_file = pos_files[0]
     # n_file = neg_files[0]
+    # video_name_p = "30438"
+    # video_name_n = "254424"
     video_name_p = "30438"
-    video_name_n = "7987410"
+    video_name_n = "26827321"
     p_file = f"{AUDIO_DIR}/{video_name_p}.mp4_positive.wav"
     n_file = f"{AUDIO_DIR}/{video_name_n}.mp4_negative.wav"
 

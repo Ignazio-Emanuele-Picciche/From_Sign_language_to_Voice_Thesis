@@ -68,7 +68,6 @@
     - Usa modelli standard (migliore qualità, più VRAM richiesta).
     - Offload su CPU attivo per gestire la memoria.
 """
-
 import os
 import torch
 import gc
@@ -83,7 +82,7 @@ import numpy as np
 import warnings
 from tqdm import tqdm
 
-# Patch PyTorch (se serve ancora, ma su A100 con env recenti forse no)
+# Patch PyTorch
 try:
     from . import pytorch_patch
 except ImportError:
@@ -125,15 +124,26 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 from text_templates import get_tts_text
 
-# --- PATHS (Ho lasciato i tuoi percorsi hardcoded commentati per sicurezza) ---
-BASE_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+# --- PATHS ---
+
+# PUNTA AL NUOVO FILE GENERATO DA MERGE_CAPTIONS
+PREDICTIONS_FILE = os.path.join(
+    # BASE_DIR,
+    # "src",
+    # "models",
+    # "three_classes",
+    # "text_plus_video_metalearner_to_sentiment",
+    # "results",
+    "final_predictions_with_captions.csv",  # <--- FILE CORRETTO
 )
-PREDICTIONS_FILE = (
-    "final_metalearner_predictions_for_tts.csv"  # Modifica con path assoluto se serve
+
+OUTPUT_AUDIO_DIR = os.path.join(
+    # BASE_DIR,
+    # "src",
+    # "tts",
+    # "bark",
+    "output_audio",
 )
-OUTPUT_AUDIO_DIR = "output_audio"
-GOLDEN_TEST_FILE = "golden_test_set.csv"
 
 MODELS_PRELOADED = False
 
@@ -141,7 +151,6 @@ MODELS_PRELOADED = False
 def setup_optimizations():
     """Configura PyTorch per massime prestazioni su A100."""
     if torch.cuda.is_available():
-        # Usa TF32 per matrici (velocizza molto su Ampere A100)
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
         print("🚀 A100 Optimization: TF32 Enabled")
@@ -153,7 +162,6 @@ def preload_bark_models():
         return
     if not MODELS_PRELOADED:
         print("📥 Caricamento modelli Bark HQ in VRAM...")
-        # Su A100 carichiamo tutto su GPU subito e non lo muoviamo più
         preload_models(
             text_use_gpu=True,
             text_use_small=False,
@@ -170,28 +178,19 @@ def preload_bark_models():
 
 def load_predictions_data():
     if not os.path.exists(PREDICTIONS_FILE):
-        print(f"⚠️ File locale non trovato, provo path assoluto...")
-        # Fallback al path complesso se il locale non c'è
-        abs_path = os.path.join(
-            # BASE_DIR,
-            # "src",
-            # "models",
-            # "three_classes",
-            # "text_plus_video_metalearner_to_sentiment",
-            # "results",
-            "final_metalearner_predictions_for_tts.csv",
+        raise FileNotFoundError(
+            f"❌ File non trovato: {PREDICTIONS_FILE}\nEsegui prima src/utils/merge_captions.py!"
         )
-        if os.path.exists(abs_path):
-            return pd.read_csv(abs_path)
-        else:
-            raise FileNotFoundError(f"❌ File non trovato: {PREDICTIONS_FILE}")
 
     df = pd.read_csv(PREDICTIONS_FILE)
+    print(f"📄 Dataset caricato: {len(df)} righe")
 
-    # Logica recupero caption (semplificata per velocità)
-    if "caption" not in df.columns or df["caption"].isnull().all():
-        print("⚠️ Recupero caption...")
-        # ... logica recupero ... (omessa per brevità, usa quella del tuo script precedente se serve)
+    # Check rapido
+    missing_caps = df["caption"].isna().sum()
+    if missing_caps > 0:
+        print(
+            f"⚠️ Attenzione: {missing_caps} caption sono ancora vuote (useranno template fallback)."
+        )
 
     return df
 
@@ -208,11 +207,13 @@ def generate_emotional_audio(emotion, confidence, video_name, output_dir, captio
     # Testo
     if isinstance(caption, str) and len(caption) > 3:
         text = caption
+        # A100 gestisce testi lunghi, ma Bark può allucinare se > 250 token
         if len(text) > 250:
-            text = text[:250] + "..."  # A100 regge di più ma occhio ai token
+            text = text[:250] + "..."
     else:
         text = get_tts_text(emotion, confidence, video_name)
 
+    # Ottimizzazione
     text = optimize_emotional_text(
         text, emotion, use_tags=True, custom_tag=emotional_tag, confidence=confidence
     )
@@ -220,8 +221,6 @@ def generate_emotional_audio(emotion, confidence, video_name, output_dir, captio
     print(f"🎙️ {video_name} | {emotion} ({confidence:.2f})")
 
     try:
-        # Generazione (Senza silent=True vediamo la barra di Bark se vogliamo)
-        # Su A100 questo step dovrebbe volare
         audio_array = generate_audio(
             text,
             history_prompt=history_prompt,
@@ -236,12 +235,13 @@ def generate_emotional_audio(emotion, confidence, video_name, output_dir, captio
 
         write_wav(output_path, SAMPLE_RATE, audio_array)
 
-        # NON puliamo la cache ogni volta su A100, rallenta solo!
-        # Facciamolo solo ogni tanto se proprio serve
+        # Su A100 non puliamo la cache ad ogni file per velocità
         return output_path
 
     except Exception as e:
         print(f"❌ Errore: {e}")
+        gc.collect()
+        torch.cuda.empty_cache()
         return None
 
 
@@ -262,8 +262,6 @@ def generate_from_csv(limit: int = None):
     preload_bark_models()
 
     successful = 0
-
-    # TQDM con statistiche
     pbar = tqdm(df.iterrows(), total=len(df), desc="A100 Generating")
 
     for i, (_, row) in enumerate(pbar):
@@ -272,22 +270,25 @@ def generate_from_csv(limit: int = None):
         if emotion not in ["Positive", "Negative", "Neutral"]:
             emotion = "Neutral"
 
+        # Gestione caption che potrebbero essere NaN
+        caption = row["caption"] if pd.notna(row["caption"]) else None
+
         path = generate_emotional_audio(
             emotion,
             float(row["confidence"]),
             video_name,
             OUTPUT_AUDIO_DIR,
-            row.get("caption"),
+            caption,
         )
 
         if path:
             successful += 1
 
-        # Pulizia leggera ogni 50 file invece che ogni 1
+        # Pulizia leggera ogni 50 file
         if i % 50 == 0:
             gc.collect()
 
-    print(f"✅ Fatto. {successful}/{len(df)} generati.")
+    print(f"✅ Fatto. {successful}/{len(df)} generati in: {OUTPUT_AUDIO_DIR}")
 
 
 if __name__ == "__main__":

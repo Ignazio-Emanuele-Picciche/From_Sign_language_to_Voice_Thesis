@@ -33,36 +33,28 @@ EMOTION_BARK_MAPPING = {
     },
 }
 
-# Configurazione Tag Emotivi (SOGLIE AGGIORNATE)
+# Configurazione Tag Emotivi basata su Confidenza (CORRETTA)
 EMOTIONAL_TAGS = {
     "Positive": {
         "primary": "[laughs]",
         "alternatives": ["[chuckles]", "[giggles]", "[laughter]", "♪"],
-        # SOGLIA ALZATA A 0.92: Il grafico mostra molti dati > 0.90.
-        # Riserviamo [laughter] (risata forte) solo ai casi estremi.
-        "high_confidence": "[laughter]",
-        # Fascia 0.75 - 0.92: Confidenza solida ma non estrema.
-        "medium_confidence": "[laughs]",
-        # Sotto 0.75: Il modello ha dubbi. Usiamo [chuckles] (sorriso) o niente.
-        "low_confidence": "[chuckles]",
+        "high_confidence": "[laughter]",  # >92%
+        "medium_confidence": "[laughs]",  # 75-92%
+        "low_confidence": "[clears throat]",  # <75% (Sicuro)
     },
     "Negative": {
         "primary": "[sighs]",
-        "alternatives": ["[sad]", "[gasps]", "... -"],
-        # SOGLIA RICALIBRATA SUI TUOI DATI (Max osservato ~0.71)
-        # Abbassiamo drasticamente per "forzare" l'espressività sui migliori negativi che hai
-        "high_confidence": "[sighs]",  # > 0.65 (Invece di 0.92)
-        # Fascia media
-        "medium_confidence": "[gasps]",  # 0.55 - 0.65
-        # Sotto 0.55 è davvero incerto
-        "low_confidence": "...",
+        "alternatives": ["[sad]", "[gasps]", "...", "—"],
+        "high_confidence": "[sighs]",  # >65% (Ricalibrato sui tuoi dati)
+        "medium_confidence": "[gasps]",  # 55-65%
+        "low_confidence": "...",  # <55% (Pausa lunga è meglio di [hesitation])
     },
     "Neutral": {
         "primary": "",
-        "alternatives": ["[clears throat]", "[breath]"],
+        "alternatives": ["[clears throat]", "uhm...", "—"],
         "high_confidence": "",
-        "medium_confidence": "",
-        "low_confidence": "[hesitation]",
+        "medium_confidence": "[clears throat]",
+        "low_confidence": "uhm...",  # <75% (Uhm... è il vero suono di esitazione)
     },
 }
 

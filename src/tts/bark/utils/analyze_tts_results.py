@@ -15,15 +15,9 @@ import seaborn as sns
 BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
-AUDIO_DIR = os.path.join(BASE_DIR, "src", "tts", "bark", "output_audio")
+AUDIO_DIR = os.path.join("src", "tts", "bark", "output_audio")
 PREDICTIONS_FILE = os.path.join(
-    BASE_DIR,
-    "src",
-    "models",
-    "three_classes",
-    "text_plus_video_metalearner_to_sentiment",
-    "results",
-    "final_metalearner_predictions_for_tts.csv",
+    "src", "tts", "bark", "final_predictions_with_captions.csv"
 )
 
 
