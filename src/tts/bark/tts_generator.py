@@ -1,73 +1,48 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║           TTS GENERATOR - MOTORE DI SINTESI VOCALE EMOTIVA (BARK)            ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-
-📋 DESCRIZIONE:
-    Modulo core per la generazione di audio espressivo utilizzando il modello
-    generativo Bark. Questo script rappresenta l'ultimo stadio della pipeline
-    multimodale "EmoSign".
-
-    Prende in input le predizioni raffinate del Meta-Learner (Video + Testo)
-    e converte le caption testuali in parlato, modulando l'espressività vocale
-    (tono, risate, sospiri, pause) in base all'emozione predetta e al
-    livello di confidenza del modello.
-
-🔄 FLUSSO DI LAVORO:
-    1. CARICAMENTO DATI:
-       Legge il CSV generato dal Meta-Learner (`final_metalearner_predictions_for_tts.csv`).
-       Se le caption mancano, effettua un fallback intelligente recuperandole
-       dal Golden Test Set originale.
-
-    2. MAPPING EMOTIVO:
-       Per ogni video, utilizza `emotion_mapper` per tradurre:
-       - Label (Positive/Negative) -> Speaker Voice (es. 'en_speaker_6')
-       - Confidence Score -> Intensità del Tag Emotivo (es. [laughs] vs [chuckles])
-
-    3. OTTIMIZZAZIONE TESTO:
-       Utilizza `emotion_tag_optimizer` per inserire i tag emotivi non a caso,
-       ma in punti sintatticamente naturali (es. dopo una virgola o a fine frase),
-       per garantire una prosodia realistica.
-
-    4. SINTESI (BARK):
-       Genera l'audio waveform utilizzando la potenza di calcolo (GPU/CPU)
-       e salva i file .wav risultanti.
-
-📂 INPUT FILE:
-    - Path: .../results/final_metalearner_predictions_for_tts.csv
-    - Colonne richieste: video_name, predicted_label, confidence, [caption]
-
-📂 OUTPUT:
-    - Directory: src/tts/bark/output_audio/
-    - Formato: {video_name}_{emotion}.wav (es. "video123_positive.wav")
-
-🛠️ DIPENDENZE INTERNE:
-    - emotion_mapper: Configurazione speaker e temperature.
-    - emotion_tag_optimizer: Strategie linguistiche per i tag [sound].
-
-⚠️ REQUISITI HARDWARE:
-    Bark richiede significativa memoria RAM/VRAM.
-    - Consigliato: GPU con >8GB VRAM
-    - Minimo: 16GB System RAM (per esecuzione CPU lenta)
-
-👤 AUTORE: Ignazio Emanuele Picciche
-📅 DATA: Novembre 2025
-🎓 PROGETTO: Tesi Magistrale - EmoSign
-"""
-
-"""
-╔══════════════════════════════════════════════════════════════════════════════╗
 ║           TTS GENERATOR - MOTORE DI SINTESI VOCALE EMOTIVA (PROD)            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 📋 DESCRIZIONE:
-    Modulo core per la generazione di audio espressivo utilizzando il modello
-    generativo Bark.
-    
-⚠️  CONFIGURAZIONE: HIGH QUALITY (STANDARD MODELS)
-    - Usa modelli standard (migliore qualità, più VRAM richiesta).
-    - Offload su CPU attivo per gestire la memoria.
+    Modulo principale per la generazione massiva (Batch Processing) di audio espressivo
+    utilizzando il modello generativo Bark. Questo script rappresenta l'ultimo stadio
+    della pipeline multimodale "EmoSign".
+
+    Il generatore funge da orchestratore tra le predizioni del Meta-Learner e la
+    sintesi vocale, implementando logiche avanzate di gestione delle risorse hardware
+    per massimizzare la velocità su GPU A100.
+
+🔄 FLUSSO DI LAVORO (PIPELINE):
+    1. CARICAMENTO DATI ROBUSTO:
+       - Legge il file delle predizioni (`final_predictions_with_captions.csv`).
+       - Verifica l'integrità dei dati e la presenza delle caption.
+
+    2. OTTIMIZZAZIONE HARDWARE (A100 MODE):
+       - Configura PyTorch per utilizzare TF32 (TensorFloat-32) per calcoli matriciali veloci.
+       - Disabilita l'offload su CPU per mantenere l'intero modello (Text, Coarse, Fine)
+         nella VRAM da 80GB, eliminando i colli di bottiglia del trasferimento dati.
+
+    3. LOGICA DI SINTESI CONTEXT-AWARE:
+       - Per ogni video, invoca i moduli ausiliari (`emotion_mapper`, `emotion_tag_optimizer`)
+         per determinare speaker, prosodia e tag emotivi ottimali.
+       - Gestisce il troncamento intelligente dei testi troppo lunghi per evitare
+         allucinazioni del modello Bark.
+
+    4. GESTIONE MEMORIA:
+       - Monitora l'uso della VRAM e forza la Garbage Collection ciclica per prevenire
+         memory leak durante la generazione di migliaia di file.
+
+📂 INPUT:
+    - File CSV pre-processato con colonne: video_name, predicted_label, confidence, caption.
+
+📂 OUTPUT:
+    - File .wav salvati in `output_audio/`, nominati univocamente per video ed emozione.
+
+⚠️ NOTE TECNICHE:
+    - Richiede GPU con >24GB VRAM per la modalità "High Performance".
+    - Utilizza modelli Bark "Large" per la massima fedeltà acustica ed emotiva.
 """
+
 import os
 import torch
 import gc

@@ -1,10 +1,28 @@
 """
-================================================================================
-SCRIPT DI MERGE CAPTION: PREDIZIONI + TESTI ORIGINALI
-================================================================================
-Questo script unisce le predizioni del Meta-Learner con le caption originali
-del Golden Test Set, basandosi sulla colonna 'video_name'.
-Serve per garantire che Bark abbia il testo corretto da pronunciare.
+╔══════════════════════════════════════════════════════════════════════════════╗
+║            MERGE CAPTIONS - DATA INTEGRATION & ENRICHMENT                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Modulo di pre-processing critico per la pipeline TTS.
+    Questo script risolve il disallineamento tra i risultati numerici del Meta-Learner
+    (che contengono solo probabilità e label) e i dati testuali originali (trascrizioni).
+
+    Esegue un'operazione di JOIN relazionale tra il file delle predizioni e il
+    Golden Test Set originale, utilizzando il `video_name` come chiave primaria.
+
+🎯 OBIETTIVO:
+    Garantire che il generatore vocale (Bark) riceva non solo l'emozione da simulare,
+    ma anche il testo corretto da pronunciare (Caption), evitando l'uso eccessivo
+    di template di fallback generici.
+
+🔄 FLUSSO DATI:
+    Input A: final_metalearner_predictions_for_tts.csv (Output del classificatore)
+    Input B: golden_test_set.csv (Ground Truth con trascrizioni)
+
+    Processo: Left Join su 'video_name' -> Gestione valori nulli (fillna)
+
+    Output: final_predictions_with_captions.csv (Dataset completo pronto per TTS)
 """
 
 import pandas as pd

@@ -1,7 +1,28 @@
 """
-================================================================================
-ANALISI RISULTATI TTS (QUANTITATIVA & SELEZIONE QUALITATIVA)
-================================================================================
+╔══════════════════════════════════════════════════════════════════════════════╗
+║        TTS ANALYZER - VALIDAZIONE QUANTITATIVA E QUALITATIVA                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Strumento di analisi post-generazione progettato per validare l'output del
+    modulo TTS. Fornisce metriche oggettive sulla qualità del processo e seleziona
+    intelligente campioni per l'ascolto umano (Human Evaluation).
+
+📊 METRICHE CALCOLATE:
+    1. Copertura: Percentuale di video per cui è stato generato con successo un audio.
+    2. Durata Media per Emozione: Verifica l'ipotesi che le emozioni negative
+       (caratterizzate da pause e sospiri) producano audio mediamente più lunghi.
+    3. Correlazione Confidenza-Durata: Indaga se una maggiore certezza del modello
+       (che attiva più tag espressivi) corrisponde a una maggiore durata dell'audio.
+
+🎧 CAMPIONAMENTO QUALITATIVO:
+    Seleziona automaticamente i casi limite (Edge Cases) per l'ascolto manuale:
+    - Top-2 High Confidence: Per verificare la massima espressività (risate/pianti).
+    - Top-2 Low Confidence: Per verificare la gestione dell'incertezza (esitazioni).
+
+📂 OUTPUT:
+    - Report testuale a video.
+    - File CSV dettagliato: reports/tts_generation_analysis.csv
 """
 
 import os

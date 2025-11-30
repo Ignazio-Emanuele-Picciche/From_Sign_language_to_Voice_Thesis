@@ -1,8 +1,31 @@
 """
-================================================================================
-ANALISI PROSODICA PER TESI (PITCH & SPECTROGRAM)
-================================================================================
-Genera grafici comparativi tra emozioni per dimostrare l'espressività di Bark.
+╔══════════════════════════════════════════════════════════════════════════════╗
+║      PROSODY ANALYZER - ANALISI SPETTRALE E DEL PITCH (F0)                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Modulo di analisi del segnale audio (DSP) finalizzato alla dimostrazione
+    scientifica dell'espressività emotiva.
+
+    Confronta file audio generati con etichette emotive opposte (Positive vs Negative)
+    estraendo feature acustiche oggettive per dimostrare che il modello TTS non
+    sta solo leggendo il testo, ma sta modulando la voce.
+
+🔬 METODOLOGIA:
+    1. Estrazione F0 (Fondamentale): Utilizza l'algoritmo PYIN per tracciare
+       il contorno dell'intonazione (Pitch Contour) nel tempo.
+    2. Analisi Spettrale: Genera spettrogrammi log-mel per visualizzare l'energia
+       e la formante della voce.
+    3. Calcolo Variabilità: Misura la deviazione standard del pitch come proxy
+       della dinamicità emotiva (voci felici tendono ad avere alta varianza).
+
+🖼️ OUTPUT VISIVO:
+    Genera grafici comparativi (Side-by-Side) salvati in `reports/figures/prosody_analysis`,
+    ideali per l'inclusione nella tesi o nella presentazione finale.
+
+📦 DIPENDENZE:
+    - Librosa (Audio processing)
+    - Matplotlib/Seaborn (Visualizzazione)
 """
 
 import os

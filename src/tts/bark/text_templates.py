@@ -1,17 +1,26 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║            TEXT TEMPLATES - GENERAZIONE TESTI DI FALLBACK                    ║
+║            TEXT TEMPLATES - SISTEMA DI FALLBACK E NORMALIZZAZIONE            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 📋 DESCRIZIONE:
-    Questo modulo gestisce il testo da passare al TTS.
-    La sua funzione principale è `get_tts_text`:
-    1. Se esiste una CAPTION originale: la pulisce e la usa (Priorità Massima).
-    2. Se manca la CAPTION: genera una frase sintetica basata sull'emozione
-       e sulla confidenza (Fallback).
+    Modulo di utilità che gestisce la preparazione del testo grezzo per il TTS.
+    Svolge una doppia funzione critica per la robustezza della pipeline:
+
+    1. NORMALIZZAZIONE (Cleaning):
+       - Pulisce le caption originali rimuovendo caratteri che potrebbero confondere
+         Bark (es. parentesi quadre di metadati, URL, simboli matematici).
+       - Espande abbreviazioni comuni per migliorare la pronuncia.
+
+    2. GENERAZIONE DI FALLBACK (Data Augmentation):
+       - Nel caso in cui un video del Test Set non abbia una caption associata,
+         fornisce frasi sintetiche coerenti con l'emozione predetta.
+       - I template sono progettati per essere "recitativi" ("I am feeling...")
+         piuttosto che descrittivi, per facilitare l'espressione emotiva del modello.
 
 🔧 UTILIZZO:
-    Usato da tts_generator.py quando il dataset non contiene trascrizioni.
+    - `clean_text_for_tts`: Usato sempre sulle caption reali.
+    - `get_tts_text`: Usato solo in caso di `caption=NaN`.
 """
 
 import random

@@ -1,7 +1,32 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║      EMOTION TAG OPTIMIZER - SOGLIE AGGIORNATE SU DISTRIBUZIONE DATI         ║
+║      EMOTION TAG OPTIMIZER - POSIZIONAMENTO SINTATTICO DEI TAG               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Modulo responsabile dell'iniezione intelligente dei tag emotivi (es. [laughs])
+    all'interno del testo. Invece di preporre ciecamente il tag all'inizio della frase,
+    questo script analizza la struttura sintattica per posizionarli in modo naturale.
+
+🧠 LOGICA ALGORITMICA:
+    1. ANALISI DELLE PAUSE NATURALI:
+       - Scansiona il testo cercando punti di respiro naturali: punteggiatura (. , ! ?)
+         e congiunzioni avversative o coordinanti (but, and, so, however).
+
+    2. STRATEGIE DI INIEZIONE (Context-Aware):
+       - Testi Brevi: Tag all'inizio per impostare subito il tono.
+       - Testi Lunghi + Alta Confidenza: Inserimento "a tenaglia" (inizio e metà frase)
+         per mantenere l'emozione viva durante tutta l'esecuzione.
+       - Emozioni Negative: Preferisce inserire i sospiri (`[sighs]`) in corrispondenza
+         delle pause intermedie, simulando un parlato rotto o drammatico.
+
+    3. GESTIONE DELL'INCERTEZZA (Low Confidence Handling):
+       - Se la confidenza è bassa (< 0.75), converte i tag di emozione forte in
+         marcatori di esitazione (`uhm...`, `...`), istruendo Bark a generare
+         un parlato più incerto e meno assertivo.
+
+🔧 UTILIZZO:
+    Chiamato da `tts_generator.py` subito prima della sintesi audio.
 """
 
 import re

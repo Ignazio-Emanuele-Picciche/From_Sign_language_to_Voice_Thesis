@@ -1,7 +1,35 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║        EMOTION MAPPER - CALIBRATO SULLA DISTRIBUZIONE DEI DATI               ║
+║        EMOTION MAPPER - CALIBRAZIONE ADATTIVA DELLE EMOZIONI                 ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Questo modulo definisce le regole di mappatura tra le predizioni numeriche del
+    classificatore (Label + Confidence Score) e i parametri acustici di Bark.
+
+    La logica è stata calibrata empiricamente analizzando la distribuzione delle
+    confidenze del modello sul Test Set (vedere analisi in `analyze_tts_results.py`).
+
+🔧 FUNZIONALITÀ CHIAVE:
+    1. SELEZIONE SPEAKER DETERMINISTICA:
+       - Implementa una rotazione degli speaker basata sull'hash del `video_name`.
+       - Garantisce varietà nel dataset (non tutti i video "Positive" hanno la stessa voce)
+         ma coerenza assoluta (lo stesso video avrà sempre la stessa voce se rigenerato).
+
+    2. SOGLIE DI CONFIDENZA ASIMMETRICHE:
+       - Le soglie per attivare i tag emotivi (es. [laughs], [sighs]) sono diverse
+         per ogni emozione, riflettendo il bias del modello:
+         * Positive: Soglia alta (0.90) perché il modello è molto sicuro sui positivi.
+         * Negative: Soglia bassa (0.65) per compensare la cautela del modello sui negativi.
+
+    3. TAGGING SEMANTICO:
+       - Mappa livelli di certezza a risposte acustiche coerenti:
+         * Alta Certezza -> Emozione esplicita (Risata, Sospiro profondo).
+         * Bassa Certezza -> Segnali di dubbio (Esitazioni, Schiarimenti di voce "uhm...").
+
+Struttura Dati:
+    - EMOTION_BARK_MAPPING: Definisce il "timbro" (Speaker ID, Temperatura).
+    - EMOTIONAL_TAGS: Definisce la "prosodia" (Token non verbali).
 """
 
 import random
