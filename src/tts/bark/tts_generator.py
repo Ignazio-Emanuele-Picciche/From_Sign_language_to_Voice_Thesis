@@ -1,323 +1,75 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║              TTS GENERATOR - CORE GENERAZIONE AUDIO CON BARK                 ║
+║           TTS GENERATOR - MOTORE DI SINTESI VOCALE EMOTIVA (BARK)            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 📋 DESCRIZIONE:
-    Modulo principale per la generazione di audio emotivo usando Bark TTS.
-    Questo è il CUORE della pipeline TTS: coordina tutti i componenti
-    (emotion_mapper, emotion_tag_optimizer) e effettua la sintesi vocale
-    vera e propria producendo file WAV ad alta qualità.
-
-🎯 SCOPO PRINCIPALE:
-    Trasformare predizioni emotive da ViViT in audio espressivo:
-
-    INPUT:
-        - Emozione predetta: "Positive" | "Negative" | "Neutral"
-        - Confidence score: 0.0-1.0 (certezza della predizione)
-        - Testo da pronunciare: caption del sign language
-        - Parametri opzionali: speaker, tag, ottimizzazioni
-
-    OUTPUT:
-        - File audio WAV a 24kHz (standard Bark)
-        - Prosodia emotiva naturale
-        - Qualità paragonabile a voce umana
-
-🏗️ ARCHITETTURA BARK:
-
-    Bark è un modello generativo transformer-based (GPT-like) sviluppato
-    da Suno AI. Architettura multi-stage:
-
-    1. TEXT → SEMANTIC TOKENS (GPT encoder)
-       └─> Converte testo in rappresentazione semantica
-
-    2. SEMANTIC → COARSE ACOUSTIC (GPT generator)
-       └─> Genera feature acustiche a bassa risoluzione
-
-    3. COARSE → FINE ACOUSTIC (refinement)
-       └─> Raffina feature per qualità alta
-
-    4. FINE ACOUSTIC → WAVEFORM (EnCodec decoder)
-       └─> Converte in forma d'onda audio 24kHz
-
-    Ogni stage è controllabile tramite "history_prompt" (speaker voice)
-    e temperature (variabilità/creatività).
-
-🔧 FUNZIONI PRINCIPALI:
-
-    1. generate_emotional_audio()
-       ╔════════════════════════════════════════════════════╗
-       ║  FUNZIONE PIÙ IMPORTANTE - USA QUESTA!             ║
-       ╚════════════════════════════════════════════════════╝
-
-       Genera audio emotivo completo con tutti i controlli:
-
-       Parametri chiave:
-       • emotion: "Positive" | "Negative" | "Neutral"
-       • confidence: 0.0-1.0 (influenza scelta tag)
-       • video_name: identificatore per naming file
-       • output_dir: dove salvare WAV
-       • caption: testo da pronunciare (se None, usa template)
-       • use_emotional_tags: abilita/disabilita tag ([laughs], etc.)
-       • alternative_speaker: 0-2 per variare voce
-       • alternative_tag: 0-N per variare tag emotivo
-       • confidence_based_tags: adapta tag a confidence
-       • optimize_tag_placement: usa posizionamento intelligente
-       • preload: carica modelli in RAM (più veloce)
-
-       Output: path al file WAV generato
-
-       Workflow interno:
-       1. Pre-carica modelli Bark (opzionale)
-       2. Ottiene config Bark da emotion_mapper
-       3. Seleziona speaker (con alternatives)
-       4. Seleziona tag emotivo (basato su confidence o manuale)
-       5. Genera/ottiene testo da pronunciare
-       6. Ottimizza posizionamento tag (emotion_tag_optimizer)
-       7. Chiama Bark per generare audio
-       8. Salva WAV file
-       9. Ritorna path
-
-    2. generate_baseline_audio()
-       └─> Genera audio NEUTRALE per confronti/baseline
-           Usa speaker neutro (v2/en_speaker_9)
-           Nessun tag emotivo
-           Temperature basse (0.5)
-           Utile per ablation studies
-
-    3. preload_bark_models()
-       └─> PRE-CARICA modelli Bark in RAM
-
-           Perché serve:
-           - Prima generazione: ~60-90 secondi (caricamento + sintesi)
-           - Successive generazioni: ~15-30 secondi (solo sintesi)
-
-           Trade-off:
-           + Velocità: 4x più veloce dopo preload
-           - RAM: richiede ~10GB memoria
-
-           Quando usare:
-           ✅ Batch processing (molti audio)
-           ✅ Demo interattive
-           ❌ Una tantum (spreco memoria)
-           ❌ Server con poca RAM
-
-🎨 CONTROLLO ESPRESSIVITÀ:
-
-    Bark offre controllo fine tramite TEMPERATURE:
-
-    Temperature basse (0.3-0.5):
-    • Voce più consistente e prevedibile
-    • Meno variazioni prosodiche
-    • Meglio per neutral/informative
-
-    Temperature medie (0.6-0.7):
-    • Bilanciamento espressività/consistenza
-    • Default per positive/negative
-    • Sweet spot per uso generale
-
-    Temperature alte (0.8-1.0):
-    • Massima espressività e variabilità
-    • Rischio: artefatti, inconsistenze
-    • Solo per sperimentazione
-
-📊 STRATEGIE TAG EMOTIVI:
-
-    Il modulo supporta 3 modalità per selezione tag:
-
-    1. CONFIDENCE-BASED (default, consigliato)
-       └─> Tag adapta a certezza predizione
-           High conf (>90%) → tag forte ([laughs])
-           Med conf (70-90%) → tag moderato ([chuckles])
-           Low conf (<70%) → nessun tag
-
-    2. ALTERNATIVE INDEX (manuale)
-       └─> Specifica quale tag dalla lista alternatives
-           alternative_tag=0 → primary
-           alternative_tag=1 → prima alternativa
-           alternative_tag=2 → seconda alternativa, etc.
-
-    3. CUSTOM TAG (via emotion_tag_optimizer)
-       └─> Passa tag custom direttamente
-           Utile per sperimentazione
-
-💡 INNOVAZIONI RISPETTO A BARK VANILLA:
-
-    Questo modulo estende Bark con:
-
-    1. SISTEMA MULTI-TAG
-       └─> Bark di default supporta tag, ma nessun sistema di selezione
-           Qui: scelta intelligente basata su emotion + confidence
-
-    2. TAG PLACEMENT OPTIMIZATION
-       └─> Bark mette tag dove li scrivi nel testo
-           Qui: analisi linguistica per posizionamento ottimale
-
-    3. EMOTION-AWARE CONFIGURATION
-       └─> Bark richiede config manuale
-           Qui: mapping automatico emozione → speaker + temperature
-
-    4. CONFIDENCE ADAPTATION
-       └─> Novità assoluta: intensità tag ∝ certezza predizione
-
-    5. SPEAKER ALTERNATIVES
-       └─> Sistema per variare voce mantenendo coerenza emotiva
-
-🔄 PIPELINE COMPLETA:
-
-    Da video sign language ad audio emotivo:
-
-    Video (.mp4)
-      ↓ [ViViT Model]
-    Emotion + Confidence (es: "Positive", 0.92)
-      ↓ [emotion_mapper.py]
-    Bark Config (speaker: v2/en_speaker_6, tag: [laughs], temp: 0.7)
-      ↓ [get_tts_text()]
-    Testo grezzo ("This video shows positive emotion")
-      ↓ [emotion_tag_optimizer.py]
-    Testo ottimizzato ("[laughs] This video shows [laughs] positive emotion")
-      ↓ [Bark TTS - 4 stage generation]
-    Audio WAV 24kHz
-      ↓ [scipy.io.wavfile.write]
-    File salvato (video_001_positive.wav)
-
-⚙️ DIPENDENZE CRITICHE:
-
-    Bark TTS:
-    - bark: Modello principale (pip install git+https://github.com/suno-ai/bark.git)
-    - transformers: Backend per transformer models
-    - encodec: Audio codec per waveform generation
-
-    Audio processing:
-    - scipy: Salvataggio WAV files
-    - numpy: Manipolazione array audio
-
-    Moduli custom:
-    - emotion_mapper: Configurazione Bark per emozioni
-    - emotion_tag_optimizer: Posizionamento intelligente tag
-    - text_templates: Generazione testo template (parent module)
-    - pytorch_patch: Fix compatibilità PyTorch 2.6+
-
-🎯 PARAMETRI OTTIMALI TROVATI:
-
-    Dopo sperimentazione, configurazione migliore:
-
-    POSITIVE:
-        speaker: v2/en_speaker_6
-        tag: [laughs] (high conf) / [chuckles] (med conf)
-        temperature: 0.7
-        placement: inizio + dopo pause
-
-    NEGATIVE:
-        speaker: v2/en_speaker_3
-        tag: [sighs] (high/med conf) / [clears throat] (low conf)
-        temperature: 0.6
-        placement: metà frase + verso fine
-
-    NEUTRAL:
-        speaker: v2/en_speaker_9
-        tag: nessuno (o [clears throat] se >80 char)
-        temperature: 0.5
-        placement: solo inizio se necessario
-
-📈 PERFORMANCE:
-
-    Tempi di generazione (Apple M1 Pro, 16GB RAM):
-    - Prima generazione (con caricamento): ~60-90 sec
-    - Con preload: ~15-30 sec per audio
-    - Audio tipico: 3-8 secondi di durata
-
-    Qualità audio:
-    - Sample rate: 24kHz (Bark standard)
-    - Bit depth: 16-bit PCM
-    - Mono channel
-    - File size: ~500KB per 10 sec audio
-
-🧪 TESTING:
-
-    Il modulo include blocco __main__ per testing end-to-end:
-    - Pre-carica modelli
-    - Genera baseline neutrale
-    - Genera audio per ogni emozione
-    - Salva file per ascolto manuale
-
-    Esegui: python tts_generator.py
-    Output: test_baseline_bark.wav, test_video_positive.wav, etc.
-
-🔗 INTEGRAZIONE:
-
-    Usato da:
-    - Script principali: test_bark_*.py per sperimentazione
-    - Pipeline evaluation: run_how2sign_evaluation.sh
-    - Demo: demo_tag_optimization.py
-
-    Import standard:
-    from src.tts.bark.tts_generator import generate_emotional_audio
-
-⚠️ LIMITAZIONI:
-
-    1. VELOCITÀ
-       └─> Bark è lento (~30 sec per frase su CPU)
-           Soluzione: usa GPU se disponibile, preload modelli
-
-    2. MEMORIA
-       └─> Modelli occupano ~10GB RAM quando caricati
-           Soluzione: non preload se memoria limitata
-
-    3. LINGUE
-       └─> Bark supporta multi-lingua ma mapping è solo EN
-           Soluzione: estendi EMOTION_BARK_MAPPING per altre lingue
-
-    4. TAG SUPPORT
-       └─> Non tutti tag funzionano con tutti speaker
-           Soluzione: testa combinazioni, usa quelle validate
-
-    5. DETERMINISMO
-       └─> Output non deterministico anche con seed (Bark limitation)
-           Soluzione: genera multiple versioni, scegli migliore
-
-📚 RIFERIMENTI:
-    - Bark GitHub: https://github.com/suno-ai/bark
-    - Bark paper: https://arxiv.org/abs/2301.03298
-    - Tag emotivi: docs/BARK_EMOTIONAL_TAGS.md
-    - Esperimenti prosody: docs/2_tts_prosody_optimization_report.md
-    - Pipeline completa: docs/BARK_TTS_PIPELINE.md
-
-💭 NOTE IMPLEMENTATIVE:
-
-    - generate_audio() è wrapper attorno a pipeline Bark completa
-    - SAMPLE_RATE (24000 Hz) è standard Bark, non modificare
-    - history_prompt determina voce ma non è fine-tunable
-    - temperature applica a text_temp E waveform_temp (entrambi)
-    - WAV format scelto per compatibilità universale
-
-🚀 ESTENSIONI FUTURE:
-
-    Possibili miglioramenti:
-    - [ ] Support per GPU acceleration (CUDA)
-    - [ ] Batch generation (multiple audio in parallelo)
-    - [ ] Caching di speaker embeddings
-    - [ ] Fine-tuning su voci custom
-    - [ ] Real-time streaming generation
-    - [ ] Multi-language support completo
-    - [ ] Emotion blending (mix di emozioni)
+    Modulo core per la generazione di audio espressivo utilizzando il modello
+    generativo Bark. Questo script rappresenta l'ultimo stadio della pipeline
+    multimodale "EmoSign".
+
+    Prende in input le predizioni raffinate del Meta-Learner (Video + Testo)
+    e converte le caption testuali in parlato, modulando l'espressività vocale
+    (tono, risate, sospiri, pause) in base all'emozione predetta e al
+    livello di confidenza del modello.
+
+🔄 FLUSSO DI LAVORO:
+    1. CARICAMENTO DATI:
+       Legge il CSV generato dal Meta-Learner (`final_metalearner_predictions_for_tts.csv`).
+       Se le caption mancano, effettua un fallback intelligente recuperandole
+       dal Golden Test Set originale.
+
+    2. MAPPING EMOTIVO:
+       Per ogni video, utilizza `emotion_mapper` per tradurre:
+       - Label (Positive/Negative) -> Speaker Voice (es. 'en_speaker_6')
+       - Confidence Score -> Intensità del Tag Emotivo (es. [laughs] vs [chuckles])
+
+    3. OTTIMIZZAZIONE TESTO:
+       Utilizza `emotion_tag_optimizer` per inserire i tag emotivi non a caso,
+       ma in punti sintatticamente naturali (es. dopo una virgola o a fine frase),
+       per garantire una prosodia realistica.
+
+    4. SINTESI (BARK):
+       Genera l'audio waveform utilizzando la potenza di calcolo (GPU/CPU)
+       e salva i file .wav risultanti.
+
+📂 INPUT FILE:
+    - Path: .../results/final_metalearner_predictions_for_tts.csv
+    - Colonne richieste: video_name, predicted_label, confidence, [caption]
+
+📂 OUTPUT:
+    - Directory: src/tts/bark/output_audio/
+    - Formato: {video_name}_{emotion}.wav (es. "video123_positive.wav")
+
+🛠️ DIPENDENZE INTERNE:
+    - emotion_mapper: Configurazione speaker e temperature.
+    - emotion_tag_optimizer: Strategie linguistiche per i tag [sound].
+
+⚠️ REQUISITI HARDWARE:
+    Bark richiede significativa memoria RAM/VRAM.
+    - Consigliato: GPU con >8GB VRAM
+    - Minimo: 16GB System RAM (per esecuzione CPU lenta)
 
 👤 AUTORE: Ignazio Emanuele Picciche
 📅 DATA: Novembre 2025
-🎓 PROGETTO: Tesi Magistrale - EmoSign con Bark TTS
-🎵 COMPONENTE: Core TTS Generation Engine
+🎓 PROGETTO: Tesi Magistrale - EmoSign
 """
 
 import os
+import pandas as pd
 import numpy as np
-from typing import Optional
 import warnings
+from typing import Optional
+from tqdm import tqdm
 
 # Applica patch per compatibilità PyTorch 2.9+
 try:
     from . import pytorch_patch
 except ImportError:
-    pass  # Patch non disponibile, continua comunque
+    try:
+        import pytorch_patch
+    except ImportError:
+        pass
 
 # Bark imports
 try:
@@ -327,17 +79,22 @@ try:
     BARK_AVAILABLE = True
 except ImportError:
     BARK_AVAILABLE = False
-    warnings.warn(
-        "Bark non installato. Installa con: pip install git+https://github.com/suno-ai/bark.git"
-    )
+    warnings.warn("Bark non installato. Audio non verrà generato.")
 
-from .emotion_mapper import (
-    map_emotion_to_bark_prompt,
-    get_bark_speaker,
-    get_emotional_tag,
-    get_alternative_emotional_tags,
-)
-from .emotion_tag_optimizer import optimize_emotional_text, get_alternative_tags
+try:
+    from .emotion_mapper import (
+        map_emotion_to_bark_prompt,
+        get_bark_speaker,
+        get_emotional_tag,
+    )
+    from .emotion_tag_optimizer import optimize_emotional_text
+except ImportError:
+    from emotion_mapper import (
+        map_emotion_to_bark_prompt,
+        get_bark_speaker,
+        get_emotional_tag,
+    )
+    from emotion_tag_optimizer import optimize_emotional_text
 
 # Importa text_templates dal modulo parent
 import sys
@@ -348,26 +105,70 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 from text_templates import get_tts_text, get_baseline_text
 
+# --- CONFIGURAZIONE PATH ---
+BASE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
+)
+PREDICTIONS_FILE = os.path.join(
+    BASE_DIR,
+    "src",
+    "models",
+    "three_classes",
+    "text_plus_video_metalearner_to_sentiment",
+    "results",
+    "final_metalearner_predictions_for_tts.csv",
+)
+OUTPUT_AUDIO_DIR = os.path.join(BASE_DIR, "src", "tts", "bark", "output_audio")
+GOLDEN_TEST_FILE = os.path.join(
+    BASE_DIR, "data", "processed", "golden_test_set.csv"
+)  # Backup per le caption
 
-# Flag per pre-caricare i modelli (velocizza la generazione)
+# Flag per pre-caricare i modelli
 MODELS_PRELOADED = False
 
 
 def preload_bark_models():
-    """
-    Pre-carica i modelli Bark in memoria
-    Questo velocizza la generazione successiva ma richiede ~10GB di RAM
-    """
+    """Pre-carica i modelli Bark in memoria (10GB RAM richiesta)."""
     global MODELS_PRELOADED
-
     if not BARK_AVAILABLE:
-        raise RuntimeError("Bark non è installato!")
-
+        return
     if not MODELS_PRELOADED:
-        print("Caricamento modelli Bark in memoria...")
+        print("📥 Caricamento modelli Bark in memoria...")
         preload_models()
         MODELS_PRELOADED = True
-        print("✅ Modelli Bark caricati!")
+        print("✅ Modelli Bark pronti!")
+
+
+def load_predictions_data():
+    """Carica le predizioni del Meta-Learner e fa il merge con le caption se mancano."""
+    if not os.path.exists(PREDICTIONS_FILE):
+        raise FileNotFoundError(f"❌ File predizioni non trovato: {PREDICTIONS_FILE}")
+
+    df = pd.read_csv(PREDICTIONS_FILE)
+
+    # Se la colonna caption è vuota o manca, proviamo a recuperarla dal golden set originale
+    if "caption" not in df.columns or df["caption"].isnull().all():
+        print("⚠️  Caption mancanti nel file predizioni. Recupero dal Golden Set...")
+        if os.path.exists(GOLDEN_TEST_FILE):
+            df_golden = pd.read_csv(GOLDEN_TEST_FILE)
+            # Merge per recuperare la caption usando video_name
+            df = pd.merge(
+                df,
+                df_golden[["video_name", "caption"]],
+                on="video_name",
+                how="left",
+                suffixes=("", "_golden"),
+            )
+            # Se c'era una colonna caption vuota, riempila
+            if "caption" in df.columns:
+                df["caption"] = df["caption"].fillna(df["caption_golden"])
+            else:
+                df["caption"] = df["caption_golden"]
+            print(f"✅ Caption recuperate per {df['caption'].notnull().sum()} video.")
+        else:
+            print("❌ File Golden Set non trovato. Useremo template generici.")
+
+    return df
 
 
 def generate_emotional_audio(
@@ -377,206 +178,142 @@ def generate_emotional_audio(
     output_dir: str,
     caption: str = None,
     use_emotional_tags: bool = True,
-    alternative_speaker: int = 0,
-    alternative_tag: int = 0,
-    confidence_based_tags: bool = True,
-    preload: bool = False,
     optimize_tag_placement: bool = True,
 ) -> str:
     """
-    Genera audio emotivo per un video analizzato usando Bark
-
-    Args:
-        emotion (str): Emozione predetta ('Positive', 'Negative', 'Neutral')
-        confidence (float): Confidenza della predizione (0.0-1.0 o 0-100)
-        video_name (str): Nome del video (per naming del file)
-        output_dir (str): Directory dove salvare l'audio
-        caption (str, optional): Testo originale del sign language da pronunciare
-        use_emotional_tags (bool): Se True, usa tag emotivi come [laughs], [sighs]
-        alternative_speaker (int): Indice speaker alternativo (0-2)
-        alternative_tag (int): 🆕 Indice tag emotivo alternativo (0=default, 1+=alternatives)
-        confidence_based_tags (bool): 🆕 Se True, sceglie tag basandosi su confidenza
-        preload (bool): Se True, pre-carica i modelli Bark (prima generazione più lenta, successive veloci)
-        optimize_tag_placement (bool): Se True, posiziona tag in modo intelligente nel testo
-
-    Returns:
-        str: Path completo del file audio generato
-
-    Example:
-        >>> # Tag default basato su confidenza
-        >>> generate_emotional_audio('Positive', 0.92, 'video_001', 'results/tts_audio')
-
-        >>> # Tag alternativo specifico
-        >>> generate_emotional_audio('Positive', 0.92, 'video_001', 'results/tts_audio',
-        ...                          alternative_tag=1)  # Usa [chuckles] invece di [laughs]
+    Genera un singolo file audio basato sui parametri passati.
     """
     if not BARK_AVAILABLE:
-        raise RuntimeError(
-            "Bark non è installato! Installa con: pip install git+https://github.com/suno-ai/bark.git"
-        )
+        return None
 
-    # Pre-carica modelli se richiesto
-    if preload:
-        preload_bark_models()
-
-    # Crea directory se non esiste
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Ottieni configurazione Bark per l'emozione
+    # 1. Configurazione Bark (Speaker & Temperature)
     bark_config = map_emotion_to_bark_prompt(emotion, use_emotional_tags)
+    history_prompt = get_bark_speaker(emotion)  # Default speaker per l'emozione
 
-    # Ottieni speaker (con possibilità di usare alternative)
-    history_prompt = get_bark_speaker(emotion, alternative_speaker)
-
-    # 🆕 Determina quale tag emotivo usare
+    # 2. Scelta Tag Emotivo (basata su Confidence)
     emotional_tag = ""
     if use_emotional_tags:
-        if confidence_based_tags and alternative_tag == 0:
-            # Usa tag basato su confidenza
-            emotional_tag = get_emotional_tag(emotion, confidence=confidence)
-        else:
-            # Usa tag alternativo specifico o default
-            emotional_tag = get_emotional_tag(emotion, alternative=alternative_tag)
+        emotional_tag = get_emotional_tag(emotion, confidence=confidence)
 
-    # Genera testo
-    if caption:
-        # Usa il caption originale del sign language
+    # 3. Preparazione Testo
+    if isinstance(caption, str) and len(caption) > 3:
         text = caption
     else:
-        # Genera testo basato sull'emozione
-        text = get_tts_text(emotion, confidence, video_name, caption=None)
+        # Fallback se caption manca
+        text = get_tts_text(emotion, confidence, video_name)
 
-    # Applica ottimizzazione posizionamento tag emotivi
+    # 4. Ottimizzazione Posizionamento Tag
     if use_emotional_tags and emotional_tag:
         if optimize_tag_placement:
-            # Usa posizionamento intelligente
             text = optimize_emotional_text(
-                text=text,
-                emotion=emotion,
-                use_tags=True,
-                custom_tag=emotional_tag,
+                text, emotion, use_tags=True, custom_tag=emotional_tag
             )
         else:
-            # Metodo tradizionale: tag all'inizio
             text = f"{emotional_tag} {text}"
 
-    # Path output (Bark genera WAV)
-    safe_video_name = video_name.replace("/", "_").replace("\\", "_")
-    output_filename = f"{safe_video_name}_{emotion.lower()}.wav"
-    output_path = os.path.join(output_dir, output_filename)
+    # 5. Generazione Audio
+    print(f"🎙️  Generating: {video_name}")
+    print(f"   Emotion: {emotion} (Conf: {confidence:.2f}) | Tag: {emotional_tag}")
+    print(f'   Text: "{text}"')
 
-    # Genera audio con Bark
-    print(f"Generazione audio con Bark...")
-    print(f"  Testo: {text[:80]}..." if len(text) > 80 else f"  Testo: {text}")
-    print(f"  Speaker: {history_prompt}")
-    print(f"  Tag emotivo: {emotional_tag if emotional_tag else '(nessuno)'}")
-    print(f"  Temperature: {bark_config['temperature']}")
+    try:
+        audio_array = generate_audio(
+            text,
+            history_prompt=history_prompt,
+            text_temp=bark_config["temperature"],
+            waveform_temp=bark_config["temperature"],
+            silent=True,  # Riduci output console di Bark
+        )
 
-    audio_array = generate_audio(
-        text,
-        history_prompt=history_prompt,
-        text_temp=bark_config["temperature"],
-        waveform_temp=bark_config["temperature"],
-    )
+        # 6. Salvataggio
+        safe_name = video_name.replace("/", "_").replace("\\", "_")
+        filename = f"{safe_name}_{emotion.lower()}.wav"
+        output_path = os.path.join(output_dir, filename)
 
-    # Salva audio come WAV (Bark usa sample rate 24kHz)
-    write_wav(output_path, SAMPLE_RATE, audio_array)
+        write_wav(output_path, SAMPLE_RATE, audio_array)
+        return output_path
 
-    print(f"  ✅ Audio salvato: {output_path}")
-
-    return output_path
+    except Exception as e:
+        print(f"❌ Errore generazione {video_name}: {e}")
+        return None
 
 
-def generate_baseline_audio(output_path: str, preload: bool = False) -> str:
+def generate_from_csv(limit: int = None):
     """
-    Genera audio baseline neutrale (senza modulazione emotiva)
-    Serve come riferimento per comparazioni
-
+    Funzione principale per generare audio in batch dal CSV del Meta-Learner.
     Args:
-        output_path (str): Path completo dove salvare il file
-        preload (bool): Se True, pre-carica i modelli Bark
-
-    Returns:
-        str: Path del file audio generato
-
-    Example:
-        >>> generate_baseline_audio('results/tts_audio/baseline/baseline_neutral.wav')
-        'results/tts_audio/baseline/baseline_neutral.wav'
+        limit (int): Se specificato, genera solo i primi N audio (per test rapidi).
     """
+    print("=" * 60)
+    print("TTS BATCH GENERATION (META-LEARNER PREDICTIONS)")
+    print("=" * 60)
+
     if not BARK_AVAILABLE:
-        raise RuntimeError("Bark non è installato!")
+        print("❌ Bark non installato. Impossibile procedere.")
+        return
 
-    # Pre-carica modelli se richiesto
-    if preload:
-        preload_bark_models()
+    # 1. Carica Dati
+    try:
+        df = load_predictions_data()
+    except FileNotFoundError as e:
+        print(e)
+        return
 
-    # Crea directory se non esiste
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    # Filtra eventuali righe senza predizione valida
+    df = df.dropna(subset=["predicted_label"])
 
-    # Usa speaker neutro
-    neutral_speaker = "v2/en_speaker_9"
+    # Applica limite se richiesto
+    if limit:
+        df = df.head(limit)
+        print(f"⚠️  Limitato ai primi {limit} video per test.")
 
-    # Testo baseline
-    text = get_baseline_text()
+    print(f"📂 Output Directory: {OUTPUT_AUDIO_DIR}")
+    os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
 
-    # Genera audio
-    print(f"Generazione audio baseline con Bark...")
-    audio_array = generate_audio(
-        text,
-        history_prompt=neutral_speaker,
-        text_temp=0.5,
-        waveform_temp=0.5,
-    )
+    # 2. Preload Modelli
+    preload_bark_models()
 
-    # Salva audio come WAV
-    write_wav(output_path, SAMPLE_RATE, audio_array)
+    # 3. Loop Generazione
+    successful = 0
+    failed = 0
 
-    print(f"✅ Baseline salvato: {output_path}")
+    # Barre di progresso
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Generazione Audio"):
+        video_name = str(row["video_name"])
+        emotion = str(row["predicted_label"])  # L'etichetta predetta dal Meta-Learner
+        confidence = float(row["confidence"])  # La confidenza del Meta-Learner
+        caption = row["caption"] if pd.notna(row["caption"]) else None
 
-    return output_path
+        # Normalizza nome emozione (es. "Positive" -> "Positive")
+        emotion = emotion.capitalize()
+        if emotion not in ["Positive", "Negative", "Neutral"]:
+            # Fallback per etichette strane
+            emotion = "Neutral"
+
+        path = generate_emotional_audio(
+            emotion=emotion,
+            confidence=confidence,
+            video_name=video_name,
+            output_dir=OUTPUT_AUDIO_DIR,
+            caption=caption,
+            use_emotional_tags=True,  # Abilita [laughs], [sighs]
+            optimize_tag_placement=True,  # Posiziona i tag in modo intelligente
+        )
+
+        if path:
+            successful += 1
+        else:
+            failed += 1
+
+    print("\n" + "=" * 60)
+    print(f"✅ COMPLETATO")
+    print(f"Audio generati correttamente: {successful}")
+    print(f"Errori: {failed}")
+    print(f"Cartella: {OUTPUT_AUDIO_DIR}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    # Test del modulo
-    print("=" * 70)
-    print("TEST TTS GENERATOR - BARK")
-    print("=" * 70)
-
-    if not BARK_AVAILABLE:
-        print("❌ Bark non installato!")
-        print("   Installa con: pip install git+https://github.com/suno-ai/bark.git")
-        exit(1)
-
-    # Test 1: Pre-carica modelli
-    print("\n1. Pre-caricamento modelli Bark...")
-    preload_bark_models()
-
-    # Test 2: Genera baseline
-    print("\n2. Generazione audio baseline...")
-    baseline_path = generate_baseline_audio("test_baseline_bark.wav", preload=True)
-
-    # Test 3: Genera audio emotivo
-    print("\n3. Generazione audio emotivo...")
-
-    positive_path = generate_emotional_audio(
-        emotion="Positive",
-        confidence=0.92,
-        video_name="test_video",
-        output_dir=".",
-        caption="This is a test of positive emotion with Bark TTS",
-        preload=True,
-    )
-    print(f"   ✅ Audio Positive salvato in: {positive_path}")
-
-    negative_path = generate_emotional_audio(
-        emotion="Negative",
-        confidence=0.85,
-        video_name="test_video",
-        output_dir=".",
-        caption="This is a test of negative emotion with Bark TTS",
-        preload=True,
-    )
-    print(f"   ✅ Audio Negative salvato in: {negative_path}")
-
-    print("\n✅ Test completato! Ascolta i file .wav generati per verificare.")
-    print("   Bark genera audio molto più espressivo di edge-tts!")
+    # Esempio: Genera solo i primi 5 audio per testare che tutto funzioni
+    # Imposta limit=None per processare tutto il dataset
+    generate_from_csv(limit=5)
