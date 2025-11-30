@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║      EMOTION TAG OPTIMIZER - POSIZIONAMENTO CONTEXT-AWARE (PROD)             ║
+║      EMOTION TAG OPTIMIZER - SOGLIE AGGIORNATE SU DISTRIBUZIONE DATI         ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -9,7 +9,6 @@ from typing import List
 
 
 def find_natural_breaks(text: str) -> List[int]:
-    """Trova posizioni naturali (punteggiatura, congiunzioni)."""
     breaks = []
     for match in re.finditer(r"[.,!?;]\s+", text):
         breaks.append(match.end())
@@ -19,7 +18,6 @@ def find_natural_breaks(text: str) -> List[int]:
 
 
 def insert_tag(text: str, tag: str, pos: int) -> str:
-    """Inserisce tag gestendo gli spazi."""
     return f"{text[:pos].rstrip()} {tag} {text[pos:].lstrip()}"
 
 
@@ -30,16 +28,11 @@ def optimize_emotional_text(
     custom_tag: str = None,
     confidence: float = 1.0,
 ) -> str:
-    """
-    Ottimizza il testo inserendo tag in base a emozione e confidenza.
-    """
     if not use_tags:
         return text
 
-    # Normalizza confidenza
     conf = confidence if confidence <= 1.0 else confidence / 100.0
 
-    # Tag base di fallback
     default_tags = {
         "Positive": "[laughs]",
         "Negative": "[sighs]",
@@ -52,31 +45,29 @@ def optimize_emotional_text(
     breaks = find_natural_breaks(text)
     text_len = len(text)
 
-    # --- STRATEGIA BASSA CONFIDENZA (< 0.60) ---
-    # Inserisce esitazioni invece di emozioni forti
-    if conf < 0.60:
+    # --- STRATEGIA BASSA CONFIDENZA (< 0.75) ---
+    # Il grafico mostrava un cluster tra 0.60 e 0.70.
+    # Trattiamo questa fascia come "incerta" -> Esitazione invece di emozione.
+    if conf < 0.75:
         if breaks:
             return insert_tag(text, "... [hesitation]", breaks[0])
         else:
             return f"[hesitation] {text}"
 
-    # --- STRATEGIA STANDARD ---
+    # --- STRATEGIA ALTA CONFIDENZA ---
 
-    # 1. Testo Corto
     if text_len < 40:
         return f"{tag} {text}"
 
-    # 2. Testo Medio/Lungo
     if emotion == "Positive":
         result = f"{tag} {text}"
-        # Se ALTA CONFIDENZA (>0.90) e testo lungo: raddoppia l'emozione
-        if conf > 0.90 and breaks:
+        # Solo se > 0.95 (certezza quasi assoluta) raddoppiamo la risata
+        if conf > 0.95 and breaks:
             mid_break = breaks[len(breaks) // 2]
-            result = insert_tag(result, "[chuckles]", mid_break + len(tag) + 1)
+            result = insert_tag(result, "[laughter]", mid_break + len(tag) + 1)
         return result
 
     elif emotion == "Negative":
-        # Negative: preferisce interrompere la frase (più drammatico)
         if breaks:
             return insert_tag(text, tag, breaks[0])
         else:

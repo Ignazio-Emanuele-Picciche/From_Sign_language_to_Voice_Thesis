@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║        EMOTION MAPPER - CONFIGURAZIONE DINAMICA BARK TTS (PROD)              ║
+║        EMOTION MAPPER - CALIBRATO SULLA DISTRIBUZIONE DEI DATI               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -29,25 +29,32 @@ EMOTION_BARK_MAPPING = {
         "speakers": ["v2/en_speaker_9", "v2/en_speaker_0", "v2/en_speaker_2"],
         "description": "Voce neutra e professionale",
         "text_prefix": "",
-        "temperature": 0.30,
+        "temperature": 0.50,
     },
 }
 
-# Configurazione Tag Emotivi basata su Confidenza
+# Configurazione Tag Emotivi (SOGLIE AGGIORNATE)
 EMOTIONAL_TAGS = {
     "Positive": {
         "primary": "[laughs]",
-        "alternatives": ["[chuckles]", "[giggles]", "[laughter]"],
-        "high_confidence": "[laughs]",  # >85%
-        "medium_confidence": "[chuckles]",  # 65-85%
-        "low_confidence": "[hesitation]",  # <65%
+        "alternatives": ["[chuckles]", "[giggles]", "[laughter]", "♪"],
+        # SOGLIA ALZATA A 0.92: Il grafico mostra molti dati > 0.90.
+        # Riserviamo [laughter] (risata forte) solo ai casi estremi.
+        "high_confidence": "[laughter]",
+        # Fascia 0.75 - 0.92: Confidenza solida ma non estrema.
+        "medium_confidence": "[laughs]",
+        # Sotto 0.75: Il modello ha dubbi. Usiamo [chuckles] (sorriso) o niente.
+        "low_confidence": "[chuckles]",
     },
     "Negative": {
         "primary": "[sighs]",
         "alternatives": ["[sad]", "[gasps]", "... -"],
-        "high_confidence": "[sighs]",  # >85%
-        "medium_confidence": "...",  # 65-85%
-        "low_confidence": "[clears throat]",  # <65%
+        # SOGLIA ALZATA A 0.92
+        "high_confidence": "[sighs]",
+        # Fascia 0.75 - 0.92
+        "medium_confidence": "...",
+        # Sotto 0.75: Esitazione
+        "low_confidence": "[clears throat]",
     },
     "Neutral": {
         "primary": "",
@@ -60,59 +67,45 @@ EMOTIONAL_TAGS = {
 
 
 def map_emotion_to_bark_prompt(emotion: str, use_emotional_tags: bool = True) -> dict:
-    """Restituisce la config base (temperatura, desc), escluso lo speaker."""
     if emotion not in EMOTION_BARK_MAPPING:
         emotion = "Neutral"
-
     config = EMOTION_BARK_MAPPING[emotion].copy()
-
-    # Rimuoviamo la lista speakers per evitare errori in Bark (gestito separatamente)
     if "speakers" in config:
         del config["speakers"]
-
     if not use_emotional_tags:
         config["text_prefix"] = ""
-
     return config
 
 
 def get_emotional_tag(
     emotion: str, confidence: float = None, alternative: int = 0
 ) -> str:
-    """Seleziona il tag in base alla confidenza."""
     if emotion not in EMOTIONAL_TAGS:
         return ""
-
     tags_config = EMOTIONAL_TAGS[emotion]
 
-    # Selezione Manuale
     if alternative > 0:
         alts = tags_config.get("alternatives", [])
         if 0 <= (alternative - 1) < len(alts):
             return alts[alternative - 1]
 
-    # Selezione basata su Confidenza
     if confidence is not None:
         conf = confidence if confidence <= 1.0 else confidence / 100.0
 
-        if conf >= 0.85:
+        # SOGLIE CALIBRATE SULL'ISTOGRAMMA
+        if conf >= 0.92:  # Top tier (Picco estremo)
             return tags_config.get("high_confidence", "")
-        elif conf >= 0.65:
+        elif conf >= 0.75:  # Fascia media solida
             return tags_config.get("medium_confidence", "")
-        else:
+        else:  # Coda bassa e incerta
             return tags_config.get("low_confidence", "")
 
     return tags_config.get("primary", "")
 
 
 def get_bark_speaker(emotion: str, video_name: str = None) -> str:
-    """
-    Seleziona uno speaker usando un hash deterministico sul video_name.
-    Garantisce varietà nel dataset ma coerenza per lo stesso file.
-    """
     if emotion not in EMOTION_BARK_MAPPING:
         emotion = "Neutral"
-
     speakers_list = EMOTION_BARK_MAPPING[emotion]["speakers"]
 
     if video_name:
