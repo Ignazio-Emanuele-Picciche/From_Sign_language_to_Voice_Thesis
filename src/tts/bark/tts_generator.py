@@ -55,13 +55,35 @@
 🎓 PROGETTO: Tesi Magistrale - EmoSign
 """
 
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           TTS GENERATOR - MOTORE DI SINTESI VOCALE EMOTIVA (PROD)            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 DESCRIZIONE:
+    Modulo core per la generazione di audio espressivo utilizzando il modello
+    generativo Bark.
+    
+⚠️  CONFIGURAZIONE: HIGH QUALITY (STANDARD MODELS)
+    - Usa modelli standard (migliore qualità, più VRAM richiesta).
+    - Offload su CPU attivo per gestire la memoria.
+"""
+
 import os
 import gc
 import torch
 
-# --- 1. CONFIGURAZIONE ANTI-CRASH (Essenziale) ---
-os.environ["SUNO_USE_SMALL_MODELS"] = "True"  # Modelli ottimizzati
-os.environ["SUNO_OFFLOAD_CPU"] = "True"  # Libera VRAM
+# --- 1. APPLICA PATCH PRIMA DI TUTTO ---
+try:
+    # Se il file è nella stessa cartella
+    from . import pytorch_patch
+except ImportError:
+    # Se lo lanci direttamente come script
+    import pytorch_patch
+
+# --- 2. CONFIGURAZIONE ANTI-CRASH ---
+# os.environ["SUNO_USE_SMALL_MODELS"] = "True"  <-- (Disattivato per HQ)
+os.environ["SUNO_OFFLOAD_CPU"] = "True"
 
 import pandas as pd
 import numpy as np
@@ -116,16 +138,27 @@ BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir)
 )
 PREDICTIONS_FILE = os.path.join(
-    BASE_DIR,
-    "src",
-    "models",
-    "three_classes",
-    "text_plus_video_metalearner_to_sentiment",
-    "results",
+    # BASE_DIR,
+    # "src",
+    # "models",
+    # "three_classes",
+    # "text_plus_video_metalearner_to_sentiment",
+    # "results",
     "final_metalearner_predictions_for_tts.csv",
 )
-OUTPUT_AUDIO_DIR = os.path.join(BASE_DIR, "src", "tts", "bark", "output_audio")
-GOLDEN_TEST_FILE = os.path.join(BASE_DIR, "data", "processed", "golden_test_set.csv")
+OUTPUT_AUDIO_DIR = os.path.join(
+    # BASE_DIR,
+    # "src",
+    # "tts",
+    # "bark",
+    "output_audio",
+)
+GOLDEN_TEST_FILE = os.path.join(
+    # BASE_DIR,
+    # "data",
+    # "processed",
+    "golden_test_set.csv",
+)
 
 MODELS_PRELOADED = False
 
@@ -135,7 +168,8 @@ def preload_bark_models():
     if not BARK_AVAILABLE:
         return
     if not MODELS_PRELOADED:
-        print("📥 Caricamento modelli Bark (SMALL)...")
+        print("📥 Caricamento modelli Bark (STANDARD/LARGE)...")
+        # Nota: Il primo download sarà di circa 12GB se non li hai mai usati
         preload_models()
         MODELS_PRELOADED = True
 
@@ -192,8 +226,9 @@ def generate_emotional_audio(
     # 3. Preparazione Testo
     if isinstance(caption, str) and len(caption) > 3:
         text = caption
-        if len(text) > 200:
-            text = text[:200] + "..."  # Protezione lunghezza
+        # TRUNCATE SAFEGUARD: I modelli grandi sono più sensibili alla lunghezza
+        if len(text) > 180:
+            text = text[:180] + "..."
     else:
         text = get_tts_text(emotion, confidence, video_name)
 
@@ -220,7 +255,7 @@ def generate_emotional_audio(
         output_path = os.path.join(output_dir, filename)
 
         write_wav(output_path, SAMPLE_RATE, audio_array)
-        clean_memory()  # Fondamentale
+        clean_memory()  # Fondamentale con modelli grandi
         return output_path
 
     except Exception as e:
@@ -232,7 +267,7 @@ def generate_emotional_audio(
 def generate_from_csv(limit: int = None):
     """Funzione principale per generazione Batch."""
     print("=" * 60)
-    print("TTS BATCH GENERATION (META-LEARNER)")
+    print("TTS BATCH GENERATION (META-LEARNER - HQ MODELS)")
     print("=" * 60)
 
     if not BARK_AVAILABLE:
@@ -283,6 +318,5 @@ def generate_from_csv(limit: int = None):
 
 
 if __name__ == "__main__":
-    # Per avviare la generazione completa, rimuovi 'limit'
-    # Per testare, usa limit=5
+    # Esegui senza limiti per generare tutto
     generate_from_csv(limit=None)

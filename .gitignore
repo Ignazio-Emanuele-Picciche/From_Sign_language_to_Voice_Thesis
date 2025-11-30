@@ -5,7 +5,7 @@ raw/
 models/*
 mlruns/
 mlartifacts/
-results/tts_audio/
+src/tts/bark/output_audio
 results/grid_search/
 data/processed/sign_language_landmarks
 data/processed/how2sign_ssvp
