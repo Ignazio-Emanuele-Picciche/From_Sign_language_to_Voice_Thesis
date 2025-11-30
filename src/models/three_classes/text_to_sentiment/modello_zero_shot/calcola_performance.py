@@ -4,6 +4,7 @@ from sklearn.metrics import (
     f1_score,
     balanced_accuracy_score,
     classification_report,
+    cohen_kappa_score,
 )
 
 
@@ -50,6 +51,9 @@ def calcola_metriche_excel(file_path):
         # Utile se le classi sono sbilanciate (es. molti "neutral" e pochi "angry")
         balanced_acc = balanced_accuracy_score(y_true, y_pred)
 
+        # Cohen's Kappa Score
+        kappa = cohen_kappa_score(y_true, y_pred)
+
         # 5. Output dei risultati
         print("-" * 30)
         print("RISULTATI DEL CALCOLO")
@@ -57,6 +61,7 @@ def calcola_metriche_excel(file_path):
         print(f"Accuracy (Standard):  {acc:.4f} ({acc*100:.2f}%)")
         print(f"Weighted F1 Score:    {f1_w:.4f} ({f1_w*100:.2f}%)")
         print(f"Balanced Accuracy:    {balanced_acc:.4f} ({balanced_acc*100:.2f}%)")
+        print(f"Cohen's Kappa Score:  {kappa:.4f}")
         print("-" * 30)
 
         # Report dettagliato per ogni classe (opzionale)
