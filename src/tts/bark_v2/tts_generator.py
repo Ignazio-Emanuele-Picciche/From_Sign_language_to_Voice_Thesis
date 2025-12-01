@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║           TTS GENERATOR - FIX TOTALE (A100 + PYTORCH 2.6+)                   ║
+║           TTS GENERATOR - FIX STABILITÀ A100 (NO MIXED PRECISION)            ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -10,33 +10,54 @@ import gc
 import pandas as pd
 import numpy as np
 import warnings
+import contextlib
 from tqdm import tqdm
 import sys
 from pathlib import Path
 from scipy.io.wavfile import write as write_wav
 
-# --- 🛑 FIX PYTORCH 2.6+ CRITICO ---
-# Questo deve essere eseguito PRIMA di importare Bark
-# Bark usa checkpoint vecchi che richiedono pickle completo (weights_only=False)
+# ==============================================================================
+# 🛑 FIX CRITICI PER A100 E PYTORCH 2.6+
+# Da eseguire PRIMA di qualsiasi import di Bark o torch.nn
+# ==============================================================================
+
+# 1. FIX PYTORCH 2.6+ (Pickle Error)
 _original_torch_load = torch.load
 
 
 def patched_torch_load(*args, **kwargs):
-    # Se la chiamata non specifica weights_only, lo forziamo a False
     if "weights_only" not in kwargs:
         kwargs["weights_only"] = False
     return _original_torch_load(*args, **kwargs)
 
 
 torch.load = patched_torch_load
-print("🛡️ PyTorch Patch applicato: weights_only=False forzato per compatibilità Bark.")
-# -----------------------------------
 
-# --- CONFIGURAZIONE GPU ---
+
+# 2. FIX A100 NAN (Disabilita Mixed Precision / Autocast)
+# Bark su A100 crasha con autocast (NaN errors).
+# Forziamo un "finto" autocast che non fa nulla, mantenendo tutto in FP32.
+@contextlib.contextmanager
+def _mock_autocast(*args, **kwargs):
+    yield
+
+
+torch.cuda.amp.autocast = _mock_autocast
+if hasattr(torch, "amp"):
+    torch.amp.autocast = _mock_autocast
+
+print(
+    "🛡️ A100 Safe-Mode attivato: Autocast disabilitato (Force FP32), Patch Load applicato."
+)
+# ==============================================================================
+
+# --- CONFIGURAZIONE AMBIENTE ---
 os.environ["SUNO_OFFLOAD_CPU"] = "False"
 os.environ["SUNO_USE_SMALL_MODELS"] = "False"
+# Disabilita algoritmi non deterministici che possono causare crash
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
-# --- IMPORTS BARK ---
+# --- IMPORTS ---
 try:
     from bark import SAMPLE_RATE, generate_audio, preload_models
 
@@ -45,7 +66,6 @@ except ImportError:
     BARK_AVAILABLE = False
     warnings.warn("Bark non installato.")
 
-# --- IMPORTS PROPRIETARI ---
 try:
     from .emotion_mapper import (
         map_emotion_to_bark_prompt,
@@ -70,14 +90,18 @@ MODELS_PRELOADED = False
 
 def setup_optimizations():
     """
-    Configurazione Hardware.
-    FIX A100: Disabilitiamo TF32 per evitare errori NaN.
+    Configurazione Hardware Estrema per A100
     """
     if torch.cuda.is_available():
-        # DISABILITIAMO TF32 PER STABILITÀ SU A100
+        # Disabilita TF32 (vecchia API)
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
-        print("🛡️ A100 Stability Mode: TF32 Disabled (Prevents NaNs)")
+
+        # Disabilita TF32 (nuova API PyTorch 2.x)
+        if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
+            torch.backends.cuda.matmul.fp32_precision = "highest"  # Forza IEEE 754
+
+        print("🛡️ Precisione impostata su FP32 (Highest/IEEE) per evitare NaN.")
 
 
 def preload_bark_models():
@@ -98,7 +122,7 @@ def preload_bark_models():
                 force_reload=False,
             )
             MODELS_PRELOADED = True
-            print("✅ Modelli caricati con successo.")
+            print("✅ Modelli caricati (FP32 Mode).")
         except Exception as e:
             print(f"❌ Errore fatale preload: {e}")
             sys.exit(1)
@@ -107,13 +131,10 @@ def preload_bark_models():
 def load_data():
     if not os.path.exists(INPUT_FILE):
         raise FileNotFoundError(f"❌ File non trovato: {INPUT_FILE}")
-
     df = pd.read_csv(INPUT_FILE)
-    # Gestione robusta colonne
     if "Sentiment" not in df.columns:
         print("⚠️ Colonna 'Sentiment' mancante, uso default 0")
         df["Sentiment"] = 0
-
     print(f"📄 Dataset EmoSign caricato: {len(df)} campioni")
     return df
 
@@ -122,21 +143,19 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
     if not BARK_AVAILABLE:
         return None
 
-    # 1. Setup
+    # Setup
     history_prompt = get_bark_speaker(emotion, video_name=video_name)
     bark_config = map_emotion_to_bark_prompt(emotion)
     emotional_tag = get_emotional_tag(emotion, sentiment_score=sentiment_score)
 
-    # 2. Validazione Testo
     if pd.isna(caption) or str(caption).strip() == "":
-        print(f"⚠️ Caption vuota per {video_name}, salto.")
         return None
 
     text = str(caption)
     if len(text) > 250:
         text = text[:250] + "..."
 
-    # 3. Ottimizzazione
+    # Ottimizzazione testo
     text = optimize_emotional_text(
         text,
         emotion,
@@ -145,14 +164,13 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
         sentiment_score=sentiment_score,
     )
 
-    # CHECK DI SICUREZZA: Bark crasha se il testo è SOLO un tag
     if text.strip() == emotional_tag.strip():
         text = f"{emotional_tag} ..."
 
     print(f"🎙️ [{emotion[:3]}] {video_name} (S:{sentiment_score}) -> '{text}'")
 
     try:
-        # Generazione Audio
+        # Generazione (Ora protetta dal mock autocast)
         audio_array = generate_audio(
             text,
             history_prompt=history_prompt,
@@ -164,49 +182,39 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
         safe_name = str(video_name).replace("/", "_").replace(".mp4", "")
         filename = f"{safe_name}_{emotion.lower()}_score{sentiment_score}.wav"
         output_path = os.path.join(output_dir, filename)
-
         write_wav(output_path, SAMPLE_RATE, audio_array)
         return output_path
 
     except Exception as e:
-        # Gestione specifica errore CUDA (NaN)
-        err_msg = str(e)
-        if "device-side assert" in err_msg or "probability tensor" in err_msg:
-            print(f"💥 ERROR A100 NaN su {video_name}. Riprovo in modalità safe.")
+        # Gestione Errori Aggressiva
+        print(f"❌ Errore su {video_name}: {e}")
+
+        # Tentativo Fallback in caso di NaN residui
+        if "device-side assert" in str(e) or "probability tensor" in str(e):
+            print("💥 Riprovo con parametri conservativi...")
             try:
-                # Fallback: temperatura bassa, niente tag
                 audio_array = generate_audio(
-                    str(caption),
+                    str(caption),  # No tag
                     history_prompt=history_prompt,
                     text_temp=0.5,
                     waveform_temp=0.5,
                     silent=True,
                 )
                 safe_name = str(video_name).replace("/", "_").replace(".mp4", "")
-                filename = f"{safe_name}_{emotion.lower()}_FALLBACK.wav"
-                path = os.path.join(output_dir, filename)
+                path = os.path.join(output_dir, f"{safe_name}_FALLBACK.wav")
                 write_wav(path, SAMPLE_RATE, audio_array)
-                print(f"✅ Salvato FALLBACK per {video_name}")
+                print("✅ Fallback salvato.")
                 return path
             except:
-                print(f"❌ Fallito anche il fallback.")
-                return None
-        else:
-            print(f"❌ Errore generico generazione: {e}")
+                pass
 
-        # Pulizia memoria
         gc.collect()
-        try:
-            torch.cuda.empty_cache()
-        except:
-            pass
+        # Non chiamiamo empty_cache se c'è un assert failure pendente, peggiora le cose
         return None
 
 
 def generate_from_csv(limit: int = None):
-    # Applica i fix
     setup_optimizations()
-
     try:
         df = load_data()
     except Exception as e:
@@ -216,8 +224,6 @@ def generate_from_csv(limit: int = None):
     if limit:
         df = df.head(limit)
     os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
-
-    # Carica modello (userà il patch per torch.load)
     preload_bark_models()
 
     successful = 0
@@ -226,13 +232,11 @@ def generate_from_csv(limit: int = None):
     for i, (_, row) in enumerate(pbar):
         video_name = row["video_name"]
         caption = row["caption"]
-
         try:
             sentiment_score = int(row["Sentiment"])
         except (ValueError, TypeError):
             sentiment_score = 0
 
-        # Derivazione Label
         if sentiment_score > 0:
             emotion = "Positive"
         elif sentiment_score < 0:
@@ -241,18 +245,14 @@ def generate_from_csv(limit: int = None):
             emotion = "Neutral"
 
         path = generate_emotional_audio(
-            emotion,
-            sentiment_score,
-            video_name,
-            OUTPUT_AUDIO_DIR,
-            caption,
+            emotion, sentiment_score, video_name, OUTPUT_AUDIO_DIR, caption
         )
         if path:
             successful += 1
 
-        if i % 10 == 0:
+        # Garbage collection frequente per evitare frammentazione VRAM
+        if i % 5 == 0:
             gc.collect()
-            torch.cuda.empty_cache()
 
     print(f"✅ Finito. {successful}/{len(df)} file salvati.")
 
