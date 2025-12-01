@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║             EMOSIGN ANNOTATION TOOL - MULTI USER EDITION                     ║
+║             EMOSIGN ANNOTATION TOOL - MULTI USER (RADIO BUTTONS)             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -14,33 +14,27 @@ from datetime import datetime
 # --- CONFIGURAZIONE ---
 ASSIGNMENT_DIR = "assignments"
 AUDIO_DIR = "output_audio_emosign"
-OUTPUT_ANNOTATIONS = "data/human_annotations.csv"
+OUTPUT_ANNOTATIONS = "human_annotations.csv"
 
 
 # --- FUNZIONI UTILI ---
 def load_user_task(username):
-    """Carica il file specifico per l'utente selezionato"""
     filename = f"task_{username.lower()}.csv"
     filepath = os.path.join(ASSIGNMENT_DIR, filename)
 
     if not os.path.exists(filepath):
-        return pd.DataFrame()  # Ritorna vuoto se file non esiste
+        return pd.DataFrame()
 
     df_task = pd.read_csv(filepath)
 
-    # --- FILTRO GIÀ FATTI ---
-    # Controlliamo nel file dei risultati se l'utente ha già fatto questi video
     if os.path.exists(OUTPUT_ANNOTATIONS):
         try:
             df_done = pd.read_csv(OUTPUT_ANNOTATIONS)
-            # Filtriamo solo le righe fatte da QUESTO utente
             user_done = df_done[df_done["annotator_id"] == username]
             done_ids = user_done["video_name"].unique()
-
-            # Rimuoviamo i video già completati dalla lista da fare
             df_task = df_task[~df_task["video_name"].isin(done_ids)]
-        except Exception as e:
-            st.warning(f"Errore lettura progressi: {e}")
+        except Exception:
+            pass
 
     return df_task
 
@@ -57,6 +51,25 @@ def save_annotation(data):
 # --- INTERFACCIA STREAMLIT ---
 st.set_page_config(page_title="EmoSign Annotator", page_icon="👥")
 
+# --- CSS PER INGRANDIRE I RADIO BUTTON ---
+# Questo piccolo trucco CSS rende i pulsanti più grandi e distanziati per cliccare meglio
+st.markdown(
+    """
+<style>
+div[role="radiogroup"] > label > div:first-child {
+    background-color: #f0f2f6;
+    border-radius: 10px;
+    padding-right: 10px;
+}
+div[role="radiogroup"] {
+    gap: 15px;
+    justify-content: center;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
 # --- SIDEBAR: LOGIN ---
 with st.sidebar:
     st.header("🔐 Login")
@@ -67,33 +80,28 @@ with st.sidebar:
         st.stop()
 
     st.success(f"Ciao {user}!")
-
-    # Caricamento Dati Utente
     df = load_user_task(user)
     remaining = len(df)
     st.metric("Video Rimanenti", remaining)
 
-    if st.button("🔄 Ricarica Dati"):
+    if st.button("🔄 Ricarica"):
         st.rerun()
 
 # --- MAIN LOGIC ---
-st.title(f"📝 EmoSign Blind Test ({user})")
+st.title(f"📝 EmoSign ({user})")
 
 if df.empty:
     st.balloons()
-    st.success(f"🎉 Grande {user}! Hai completato tutto il tuo set.")
+    st.success("Hai finito tutto! 🎉")
     st.stop()
 
-# 1. Gestione Stato Campione Corrente
 if (
     "current_sample" not in st.session_state
     or st.session_state.get("current_user") != user
 ):
-    # Se cambia utente o non c'è campione, ne pesca uno nuovo
     sample = df.sample(1).iloc[0]
     st.session_state.current_sample = sample
     st.session_state.current_user = user
-    # Randomizza modalità
     st.session_state.mode = random.choice(["TEXT_ONLY", "AUDIO_ONLY"])
 
 row = st.session_state.current_sample
@@ -101,49 +109,67 @@ mode = st.session_state.mode
 
 # --- DISPLAY AREA ---
 st.divider()
-
 if mode == "TEXT_ONLY":
-    st.info("📖 **LEGGI IL TESTO**")
+    st.info("📖 **LEGGI**")
     st.markdown(f"### *“{row['original_caption']}”*")
-
 elif mode == "AUDIO_ONLY":
-    st.warning("🎧 **ASCOLTA L'AUDIO** (Non leggere la caption!)")
+    st.warning("🎧 **ASCOLTA** (Non leggere!)")
     audio_path = os.path.join(AUDIO_DIR, row["filename"])
     if os.path.exists(audio_path):
         st.audio(audio_path, format="audio/wav")
     else:
-        st.error(f"File audio mancante: {row['filename']}")
-
+        st.error(f"Audio mancante: {row['filename']}")
 st.divider()
 
-# --- FORM ---
+# --- FORM DI VALUTAZIONE ---
 with st.form("annotation_form"):
-    st.write("Valuta il **Sentiment** percepito:")
+    st.write("##### Qual è il Sentiment?")
 
-    cols = st.columns(7)
-    labels = [
-        "-3\n(Molto Neg)",
-        "-2",
-        "-1",
-        "0\n(Neutro)",
-        "+1",
-        "+2",
-        "+3\n(Molto Pos)",
-    ]
-    for col, label in zip(cols, labels):
-        col.caption(label)
+    # MAPPING LABEL PER VISUALIZZAZIONE
+    # Usiamo una lista ordinata per i radio button
+    options = [-3, -2, -1, 0, 1, 2, 3]
 
-    rating = st.slider("Score", -3, 3, 0, label_visibility="collapsed")
+    # Funzione per mostrare etichette carine
+    def format_option(opt):
+        if opt == -3:
+            return "🔴 -3 (Molto Neg)"
+        if opt == -2:
+            return "-2"
+        if opt == -1:
+            return "-1"
+        if opt == 0:
+            return "⚪ 0 (Neutro)"
+        if opt == 1:
+            return "+1"
+        if opt == 2:
+            return "+2"
+        if opt == 3:
+            return "🟢 +3 (Molto Pos)"
+        return str(opt)
+
+    # RADIO BUTTON ORIZZONTALE
+    # index=3 imposta il valore di default a "0" (che è il quarto elemento della lista)
+    rating = st.radio(
+        "Seleziona un valore:",
+        options=options,
+        format_func=format_option,
+        horizontal=True,
+        index=3,
+        label_visibility="collapsed",
+    )
+
+    st.write("")  # Spaziatura
 
     audio_bad = False
     if mode == "AUDIO_ONLY":
         st.write("---")
         audio_bad = st.checkbox("🚩 Audio Difettoso (Glitch/Rumore)")
 
-    if st.form_submit_button("Salva e Prossimo ➡️", use_container_width=True):
+    # Pulsante grande per inviare
+    if st.form_submit_button("SALVA E PROSSIMO ➡️", use_container_width=True):
         data = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "annotator_id": user,  # <--- Salviamo chi l'ha fatto
+            "annotator_id": user,
             "video_name": row["video_name"],
             "original_sentiment": row["Sentiment"],
             "presentation_mode": mode,
@@ -153,7 +179,5 @@ with st.form("annotation_form"):
         }
         save_annotation(data)
         st.success("Salvato!")
-
-        # Reset per caricare il prossimo
         del st.session_state.current_sample
         st.rerun()
