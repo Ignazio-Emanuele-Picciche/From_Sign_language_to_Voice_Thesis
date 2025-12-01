@@ -1,21 +1,7 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║           TTS GENERATOR - MOTORE DI SINTESI VOCALE EMOTIVA (EMOSIGN)         ║
+║           TTS GENERATOR - FIX STABILITÀ A100 & NAN ERROR                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-
-📋 DESCRIZIONE:
-    Versione adattata per il dataset "Golden Test Set" di EmoSign.
-    Genera audio basandosi sui valori di intensità [-3, +3] annotati dai segnanti nativi.
-
-🔄 LOGICA DIROTTATA SUI DATI EMOSIGN:
-    1. Input: data/processed/golden_test_set.csv (video_name, caption, Sentiment)
-    2. Sentiment Mapping:
-       - Valori > 0 -> Positive (Speaker Allegri)
-       - Valori < 0 -> Negative (Speaker Tristi)
-       - Valore 0   -> Neutral  (Speaker Professionali)
-    3. Intensità:
-       - Il valore assoluto (1, 2, 3) pilota l'inserimento dei tag (risate, sospiri).
-
 """
 
 import os
@@ -29,7 +15,8 @@ import sys
 from pathlib import Path
 from scipy.io.wavfile import write as write_wav
 
-# --- 1. OTTIMIZZAZIONE GPU A100 ---
+# --- 1. CONFIGURAZIONE GPU ---
+# IMPORTANTE: Manteniamo offload False per velocità, ma disabilitiamo TF32 dopo
 os.environ["SUNO_OFFLOAD_CPU"] = "False"
 os.environ["SUNO_USE_SMALL_MODELS"] = "False"
 
@@ -38,12 +25,7 @@ os.environ["SUNO_USE_SMALL_MODELS"] = "False"
 try:
     from . import pytorch_patch
 except ImportError:
-    try:
-        import pytorch_patch
-    except ImportError:
-        pass
-
-
+    pass
 try:
     from bark import SAMPLE_RATE, generate_audio, preload_models
 
@@ -75,10 +57,16 @@ MODELS_PRELOADED = False
 
 
 def setup_optimizations():
+    """
+    Configurazione Hardware.
+    FIX: Disabilitiamo TF32 per evitare errori 'probability tensor contains nan' su A100.
+    Bark richiede precisione float32 standard per stabilità.
+    """
     if torch.cuda.is_available():
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-        print("🚀 A100 Optimization: TF32 Enabled")
+        # DISABILITIAMO TF32 PER STABILITÀ
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+        print("🛡️ A100 Stability Mode: TF32 Disabled (Prevents NaNs)")
 
 
 def preload_bark_models():
@@ -87,17 +75,20 @@ def preload_bark_models():
         return
     if not MODELS_PRELOADED:
         print("📥 Caricamento modelli Bark HQ in VRAM...")
-        preload_models(
-            text_use_gpu=True,
-            text_use_small=False,
-            coarse_use_gpu=True,
-            coarse_use_small=False,
-            fine_use_gpu=True,
-            fine_use_small=False,
-            codec_use_gpu=True,
-            force_reload=False,
-        )
-        MODELS_PRELOADED = True
+        try:
+            preload_models(
+                text_use_gpu=True,
+                text_use_small=False,
+                coarse_use_gpu=True,
+                coarse_use_small=False,
+                fine_use_gpu=True,
+                fine_use_small=False,
+                codec_use_gpu=True,
+                force_reload=False,
+            )
+            MODELS_PRELOADED = True
+        except Exception as e:
+            print(f"Errore preload: {e}")
 
 
 def load_data():
@@ -105,11 +96,11 @@ def load_data():
         raise FileNotFoundError(f"❌ File non trovato: {INPUT_FILE}")
 
     df = pd.read_csv(INPUT_FILE)
-
-    # Pulizia colonne essenziali
     required_cols = ["video_name", "caption", "Sentiment"]
-    if not all(col in df.columns for col in required_cols):
-        raise ValueError(f"Il CSV deve contenere le colonne: {required_cols}")
+    # Check permissivo se manca Sentiment
+    if "Sentiment" not in df.columns:
+        print("⚠️ Colonna 'Sentiment' mancante, uso default 0")
+        df["Sentiment"] = 0
 
     print(f"📄 Dataset EmoSign caricato: {len(df)} campioni")
     return df
@@ -119,19 +110,21 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
     if not BARK_AVAILABLE:
         return None
 
-    # 1. Selezione Speaker e Parametri Base
+    # 1. Setup
     history_prompt = get_bark_speaker(emotion, video_name=video_name)
-    bark_config = map_emotion_to_bark_prompt(emotion)  # Recupera temperatura
-
-    # 2. Selezione Tag Emotivo basato su Score [-3, +3]
+    bark_config = map_emotion_to_bark_prompt(emotion)
     emotional_tag = get_emotional_tag(emotion, sentiment_score=sentiment_score)
 
-    # 3. Preparazione Testo
-    text = caption
-    if len(text) > 250:  # Troncamento di sicurezza
+    # 2. Validazione Testo
+    if pd.isna(caption) or str(caption).strip() == "":
+        print(f"⚠️ Caption vuota per {video_name}, salto.")
+        return None
+
+    text = str(caption)
+    if len(text) > 250:
         text = text[:250] + "..."
 
-    # 4. Ottimizzazione Sintattica (Inserimento Tag)
+    # 3. Ottimizzazione
     text = optimize_emotional_text(
         text,
         emotion,
@@ -140,21 +133,24 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
         sentiment_score=sentiment_score,
     )
 
-    print(
-        f"🎙️ [{emotion[:3].upper()}] {video_name} (Score: {sentiment_score}) -> '{text}'"
-    )
+    # CHECK DI SICUREZZA: Bark crasha se il testo è SOLO un tag (es. "[laughs]")
+    # Se il testo ottimizzato è troppo corto o uguale al tag, aggiungiamo un filler silenzioso
+    if text.strip() == emotional_tag.strip():
+        text = f"{emotional_tag} ..."
+
+    print(f"🎙️ [{emotion[:3]}] {video_name} (S:{sentiment_score}) -> '{text}'")
 
     try:
+        # Generazione Audio
         audio_array = generate_audio(
             text,
             history_prompt=history_prompt,
             text_temp=bark_config["temperature"],
             waveform_temp=bark_config["temperature"],
-            silent=True,
+            silent=True,  # Riduce output console
         )
 
         safe_name = str(video_name).replace("/", "_").replace(".mp4", "")
-        # Filename include lo score per facilitare l'analisi successiva
         filename = f"{safe_name}_{emotion.lower()}_score{sentiment_score}.wav"
         output_path = os.path.join(output_dir, filename)
 
@@ -162,9 +158,39 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
         return output_path
 
     except Exception as e:
-        print(f"❌ Errore generazione {video_name}: {e}")
+        # Gestione specifica errore CUDA
+        err_msg = str(e)
+        if "device-side assert" in err_msg or "probability tensor" in err_msg:
+            print(
+                f"💥 CRITICAL ERROR su {video_name}: NaN generati. Riprovo senza tag."
+            )
+            # Fallback: Riprova senza tag emotivi e temperatura più bassa
+            try:
+                audio_array = generate_audio(
+                    caption,  # Testo pulito originale
+                    history_prompt=history_prompt,
+                    text_temp=0.5,  # Temp più sicura
+                    waveform_temp=0.5,
+                    silent=True,
+                )
+                safe_name = str(video_name).replace("/", "_").replace(".mp4", "")
+                filename = f"{safe_name}_{emotion.lower()}_FALLBACK.wav"
+                path = os.path.join(output_dir, filename)
+                write_wav(path, SAMPLE_RATE, audio_array)
+                print(f"✅ Salvato FALLBACK per {video_name}")
+                return path
+            except:
+                print(f"❌ Fallito anche il fallback.")
+                return None
+        else:
+            print(f"❌ Errore generico: {e}")
+
+        # Pulizia memoria aggressiva
         gc.collect()
-        torch.cuda.empty_cache()
+        try:
+            torch.cuda.empty_cache()
+        except:
+            pass  # Se CUDA è rotto, non possiamo farci nulla
         return None
 
 
@@ -182,19 +208,18 @@ def generate_from_csv(limit: int = None):
     preload_bark_models()
 
     successful = 0
-    pbar = tqdm(df.iterrows(), total=len(df), desc="Generazione Audio")
+    pbar = tqdm(df.iterrows(), total=len(df), desc="Generazione")
 
     for i, (_, row) in enumerate(pbar):
         video_name = row["video_name"]
         caption = row["caption"]
 
-        # --- LOGICA DI CONVERSIONE EMOSIGN ---
         try:
             sentiment_score = int(row["Sentiment"])
         except (ValueError, TypeError):
-            sentiment_score = 0  # Default Neutro se nullo
+            sentiment_score = 0
 
-        # Derivazione Label da Segno
+        # Derivazione Label
         if sentiment_score > 0:
             emotion = "Positive"
         elif sentiment_score < 0:
@@ -202,22 +227,21 @@ def generate_from_csv(limit: int = None):
         else:
             emotion = "Neutral"
 
-        # Generazione
-        if pd.notna(caption):
-            path = generate_emotional_audio(
-                emotion,
-                sentiment_score,
-                video_name,
-                OUTPUT_AUDIO_DIR,
-                caption,
-            )
-            if path:
-                successful += 1
+        path = generate_emotional_audio(
+            emotion,
+            sentiment_score,
+            video_name,
+            OUTPUT_AUDIO_DIR,
+            caption,
+        )
+        if path:
+            successful += 1
 
-        if i % 50 == 0:
+        if i % 10 == 0:
             gc.collect()
+            torch.cuda.empty_cache()
 
-    print(f"✅ Fatto. {successful}/{len(df)} audio salvati in: {OUTPUT_AUDIO_DIR}")
+    print(f"✅ Finito. {successful}/{len(df)} file salvati.")
 
 
 if __name__ == "__main__":
