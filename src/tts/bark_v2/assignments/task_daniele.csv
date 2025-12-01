@@ -1,0 +1,55 @@
+video_name,filename,Sentiment,original_caption,whisper_transcript,WER,STATUS
+7321.mp4,7321_negative_score-2.wav,-2,"If the president is elected again, my father will be upset."," If the president is elected again, my father will be upset.",0.0,KEEP
+3098.mp4,3098_positive_score3.wav,3,My best friend visited Boston yesterday., My best friend visited Boston yesterday.,0.0,KEEP
+31655186.mp4,31655186_negative_score-2.wav,-2,I have to pay double the rent because I missed the last one., I have to pay double the rent because I missed the last one.,0.0,KEEP
+255946.mp4,255946_negative_score-1.wav,-1,The parents might will perceive this as something they should to be upset about., The parents might will perceive this as something they should to be upset about.,0.0,KEEP
+58734020.mp4,58734020_negative_score-3.wav,-3,"If you spell even one word wrong, he will take away points for it!"," If you spell even one word wrong, he will take away coins for it.",0.0714,KEEP
+7119.mp4,7119_positive_score3.wav,3,"If you like chocolate, you will love this cake."," If you like chocolate, you will love this cake.",0.0,KEEP
+8638.mp4,8638_negative_score-3.wav,-3,"If I'm working and my computer crashes, I will panic."," If I'm working in my computer crashes, I will panic.",0.1,KEEP
+29525.mp4,29525_negative_score-3.wav,-3,The kids hate their principal because he bawls them out if they have not done their homework., the kids hate their principal because he balls them out if they have not done their homework.,0.0588,KEEP
+79664536.mp4,79664536_negative_score-3.wav,-3,Jim assaulted a man and now the man is threatening to sue Jim., Jim assaulted a man and now the man is threatening to sue Jim.,0.0,KEEP
+3379644.mp4,3379644_positive_score2.wav,2,"If you order pizza here, I guarantee it will be delicious."," If you order pizza here, I guarantee you will be delicious.",0.0909,KEEP
+8398627.mp4,8398627_negative_score-2.wav,-2,"No, no one has found the umbrella, it's still missing."," No, no one has found the umbrella. It's still missing.",0.0,KEEP
+7987410.mp4,7987410_negative_score-3.wav,-3,"If I fail a test, my mom will blow her top."," If I fail a test, my mom will blow over top.",0.0909,KEEP
+3380334.mp4,3380334_negative_score-2.wav,-2,"If John eats spinach, he will get nauseous and sick."," If John eats spinach, he will get nauseous and sick.",0.0,KEEP
+844255.mp4,844255_negative_score-2.wav,-2,"If my boss summons me, everyone will know I`m in trouble."," If my boss summons me, everyone will know I'm in trouble.",0.0,KEEP
+3380826.mp4,3380826_negative_score-2.wav,-2,"If my sister neglects her homework, she won't succeed in school."," If my sister neglects her homework, she won't succeed in school.",0.0,KEEP
+1677.mp4,1677_negative_score-3.wav,-3,That dress is not my favorite., That dress is not my favorite.,0.0,KEEP
+841314.mp4,841314_positive_score1.wav,1,My friend is playing video games., My friend is playing video games.,0.0,KEEP
+6814.mp4,6814_positive_score3.wav,3,The sandwich I just ate was delicious!, The sandwich I just ate was delicious.,0.0,KEEP
+7422.mp4,7422_negative_score-2.wav,-2,"If I forget to go to the store, my mother will be upset."," If I forget to go to the store, my mother will be upset.",0.0,KEEP
+5572413.mp4,5572413_positive_score3.wav,3,"I like the beach better than the lake because the beach has waves, while the lake has none."," I like the beach better than the lake, because the beach has waves while the lake has none.",0.0,KEEP
+26827419.mp4,26827419_negative_score-1.wav,-1,"John didn't get into an accident with a truck, he got into an accident with another car.", John didn't get into an accident with a truck. He got into an accident with another car.,0.0,KEEP
+8436.mp4,8436_negative_score-2.wav,-2,"When he struggled a lot in school, he became depressed."," when he struggled a lot in school, he became depressed.",0.0,KEEP
+84088.mp4,84088_negative_score-1.wav,-1,My friend goes out to a party., My friend goes out to a party.,0.0,KEEP
+845270.mp4,845270_positive_score3.wav,3,My friend is going out to a party., My friend is going out to a party.,0.0,KEEP
+17077.mp4,17077_negative_score-1.wav,-1,The weather is lousy today., The weather is lousy today.,0.0,KEEP
+845472.mp4,845472_positive_score1.wav,1,My friend loves to go fishing because he loves to eat fish., My friend loves to go fishing because he loves to eat fish.,0.0,KEEP
+1372.mp4,1372_positive_score3.wav,3,Boston is a great city., Boston is a great city.,0.0,KEEP
+58734712.mp4,58734712_negative_score-2.wav,-2,"If I don't study, I am guaranteed to fail."," If I don't study, I am guaranteed to fail.",0.0,KEEP
+24363254.mp4,24363254_positive_score2.wav,2,The growth of signing went in one direction; the growth of speaking went in another., The growth of signing went in one direction. The growth of speaking went in another.,0.0,KEEP
+3378363.mp4,3378363_negative_score-2.wav,-2,"I would read this book, but it's boring."," I would read this book, but it's boring.",0.0,KEEP
+338228.mp4,338228_negative_score-2.wav,-2,If John stays home it probably means he's sick.," If John stays home, it probably means he's sick.",0.0,KEEP
+1539625.mp4,1539625_negative_score-2.wav,-2,"""Your mom will love the surprise party."" ""No, my mom hates surprises.""", Your mom will love the surprise party. No. My mom hates surprises.,0.0,KEEP
+26827321.mp4,26827321_negative_score-2.wav,-2,The car is broken., The car is broken.,0.0,KEEP
+5989857.mp4,5989857_positive_score3.wav,3,I read the article written for the Boston Globe. I think it was great!, I read the article written for the Boston Globe. I think it was great.,0.0,KEEP
+17598184.mp4,17598184_positive_score2.wav,2,"I love action movies, not boring dramas.", I love action movies. Not boring dramas.,0.0,KEEP
+31655481.mp4,31655481_positive_score3.wav,3,Bob loves reading books because he likes using his imagination., Bob loves reading books because he likes using his imagination.,0.0,KEEP
+25328.mp4,25328_negative_score-2.wav,-2,There are so many things that are wrong with the system., There are so many things that are wrong with the system.,0.0,KEEP
+844762.mp4,844762_negative_score-1.wav,-1,"If my friend goes travelling, I just have to join."," If my friend goes traveling, I just have to join.",0.1,KEEP
+844356.mp4,844356_negative_score-1.wav,-1,"If my friend goes out fishing, I have to monitor the weather to make sure it`s fine for fishing."," If my friend goes out fishing, I have to monitor the weather to make sure it's fine for fishing.",0.0,KEEP
+64778101.mp4,64778101_positive_score2.wav,2,"When on the phone the person may perceive who they're talking to as being tall, smart, good looking and nice. They agree to meet the person the next day near the train and hang up", One on the phone the person may perceive who they're talking to as being tall Smart good looking and nice They agree to meet the person the next day near the train and hang up,0.0286,KEEP
+5873528.mp4,5873528_negative_score-2.wav,-2,There's always a pop quiz when I neglect my studying., There's always a pop crease when I neglect my studying.,0.1,KEEP
+9956.mp4,9956_positive_score2.wav,2,Which vegetable do the kids love?, which vegetable do the kids love?,0.0,KEEP
+174050.mp4,174050_negative_score-1.wav,-1,"Since Mary's car broke, John has been taking her to work."," Since Mary's car broke, John has been taking her to work.",0.0,KEEP
+7981687.mp4,7981687_negative_score-3.wav,-3,Was I passed out drunk last night?, Was I passed out drunk last night?,0.0,KEEP
+31660612.mp4,31660612_negative_score-1.wav,-1,Mother is now ill., Mother is now ill.,0.0,KEEP
+2682838.mp4,2682838_negative_score-2.wav,-2,The car broke down., The car broke down.,0.0,KEEP
+1575.mp4,1575_positive_score3.wav,3,I love my new car., I love my new car.,0.0,KEEP
+257368.mp4,257368_negative_score-2.wav,-2,"They often use the word ""diagnosis"" It's very negative and it's used for more negative references, such as sickness or cancer. Or maybe terminal illness.", They often use the word diagnosis. It's very negative and maybe it's used for more negative references such as sickness or cancer or maybe terminal illness.,0.04,KEEP
+8396754.mp4,8396754_negative_score-2.wav,-2,Why is father upset?, Why is father upset?,0.0,KEEP
+5572412.mp4,5572412_positive_score2.wav,2,The park is crowded because the kids love playing there., The park is crowded because the kids love playing there.,0.0,KEEP
+1540612.mp4,1540612_positive_score1.wav,1,"""The book you read was really good."" ""No, it was lousy I didn't like it."""," Ah, the book you read was really good. No, it was lousy, I didn't like it.",0.0667,KEEP
+172529.mp4,172529_neutral_score0.wav,0,"Dad likes chocolate cereal, like me.", Dad likes chocolate cereal. Like me.,0.0,KEEP
+8399614.mp4,8399614_negative_score-2.wav,-2,I thought it was terribly boring., I thought it was terribly boring.,0.0,KEEP
+7986027.mp4,7986027_negative_score-1.wav,-1,Mom is sick., Mom is sick.,0.0,KEEP

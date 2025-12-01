@@ -1,0 +1,54 @@
+video_name,filename,Sentiment,original_caption,whisper_transcript,WER,STATUS
+842327.mp4,842327_positive_score1.wav,1,Does your friend love surfing the Internet?, Does your friend love surfing the internet?,0.0,KEEP
+840018.mp4,840018_positive_score3.wav,3,"No, it`s beautiful outside! The sun`s shining and it`s warm and beautiful!"," No, it's beautiful outside. The sun shining and it's warm and beautiful.",0.0833,KEEP
+65086412.mp4,65086412_negative_score-1.wav,-1,John's voice was a good match to the character he played. His character in the movie was that of a swashbuckler., John's voice was a good match to the character he played. His character in the movie was dead of a swashbakra.,0.0952,KEEP
+7980898.mp4,7980898_negative_score-1.wav,-1,I missed last months rent so now I have to pay double.," I missed last month's rent, so now I have to pay double.",0.0,KEEP
+362.mp4,362_negative_score-2.wav,-2,Why is the teacher upset?, Why is the teacher upset?,0.0,KEEP
+79791123.mp4,79791123_positive_score3.wav,3,My friend went ahead and hosted a pizza dinner because he loves pizza., My friend went ahead and hosted a pizza dinner because he loves pizza.,0.0,KEEP
+5572716.mp4,5572716_positive_score2.wav,2,My friend loves to go outside because he loves camping., My friend loves to go outside because he loves camping.,0.0,KEEP
+257265.mp4,257265_negative_score-3.wav,-3,"When a deaf child does not have a Deaf mentor, the family will continue to be disappointed and their grief will last longer."," When a deaf child does not have a deaf mentor, the family will continue to be disappointed and their grief will last longer.",0.0,KEEP
+65174582.mp4,65174582_negative_score-1.wav,-1,"People who watch silent films can't hear it but can imagine a strong, heavy baritone voice from that swashbuckler character."," People who watch silent films can't hear it, but can imagine a strong, heavy, baritone voice from that swashbuckler character.",0.0,KEEP
+58733526.mp4,58733526_negative_score-3.wav,-3,"If John did that to me, I won't be friends with him anymore."," If John did that to me, I won't be friends with you anymore.",0.0769,KEEP
+8398331.mp4,8398331_negative_score-1.wav,-1,"What? No, right now we're in an economic crisis."," What? No! Right now, we're in an economic crisis.",0.0,KEEP
+31655087.mp4,31655087_negative_score-2.wav,-2,Bad weather is in Boston because the ocean is near., bad weather is in Boston because the ocean is near.,0.0,KEEP
+17602177.mp4,17602177_negative_score-1.wav,-1,"Last night, there was an accident and traffic was horrible."," Last night, there was an accident, and traffic was horrible. And...",0.1,KEEP
+36295789.mp4,36295789_negative_score-1.wav,-1,Mom doesn't like surprises., Mom doesn't like surprises.,0.0,KEEP
+253715.mp4,253715_negative_score-1.wav,-1,Then they would ask the HIT group about the car and whether if the glass was broken., Then they would ask the heat group about the car. And whether if the glass was broken.,0.0588,KEEP
+171820.mp4,171820_negative_score-1.wav,-1,"My dad likes pineapple cream cheese, like me.", My dad likes pineapple cream cheese like me.,0.0,KEEP
+845878.mp4,845878_positive_score3.wav,3,My friend loves the Internet because there are many different websites., My friend loves the internet because there are many different websites.,0.0,KEEP
+845676.mp4,845676_negative_score-3.wav,-3,My friend plays video games all day because he does nothing else., My friend plays video games all day because he does nothing else.,0.0,KEEP
+58734317.mp4,58734317_negative_score-2.wav,-2,"If there's an emergency, where will you go?"," if there's an emergency, where will you go?",0.0,KEEP
+844864.mp4,844864_negative_score-3.wav,-3,"Once my friend starts playing video games, he is hooked to it all night until his eyes pop out."," Once my friend starts playing video games, he is hooked to it all night until his eyes pop out.",0.0,KEEP
+253816.mp4,253816_negative_score-1.wav,-1,Or ask the COLLIDED group about the car and if the glass was broken?, or ask the collider group about the car. And if the glass was broken.,0.0714,KEEP
+841821.mp4,841821_positive_score3.wav,3,Will Bob be surprised at his surprise party?, Will Bob be surprised at his surprise party?,0.0,KEEP
+172630.mp4,172630_neutral_score0.wav,0,"No no no, I hate chocolate cereal."," No no no, I hate chocolate cereal.",0.0,KEEP
+173036.mp4,173036_negative_score-2.wav,-2,The car really broke down., The car really broke down.,0.0,KEEP
+8397838.mp4,8397838_negative_score-1.wav,-1,"American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida."," American Airlines isn't that expensive, but if it was, then I'd be stuck because it's the only airline that flies between Boston and Florida.",0.0,KEEP
+845574.mp4,845574_negative_score-1.wav,-1,I arrived school late because I was in a bike accident., I arrived school late because I was in a bike accident.,0.0,KEEP
+17592194.mp4,17592194_negative_score-2.wav,-2,Alcohol is not always good., Alcohol is not always good.,0.0,KEEP
+17582212.mp4,17582212_negative_score-3.wav,-3,I watched a movie last night. I was really scared., I watched a movie last night. I was really scared.,0.0,KEEP
+154108.mp4,154108_negative_score-1.wav,-1,"""Today I went out and the weather was lousy."" ""No, it's beautiful and warm outside. It's perfect."""," Today, I went out and the weather was lousy. Now, it's beautiful and warm outside. It's perfect.",0.0588,KEEP
+36298782.mp4,36298782_negative_score-2.wav,-2,The weather is lousy today., The weather is lousy today.,0.0,KEEP
+844052.mp4,844052_positive_score2.wav,2,"If my friend goes out to a party, I will join them for sure."," If my friend goes out to a party, I will join them for sure.",0.0,KEEP
+29019.mp4,29019_positive_score3.wav,3,"Last night, I played a close game of basketball with my friend. The score was 30-28 when it ended."," last night, I played a close game of basketball with my friend. The score was 30-28 when it ended.",0.0,KEEP
+31655088.mp4,31655088_positive_score3.wav,3,My family vacations every year in Florida because they love the sun., And my family vacations every year in Florida because they love the sun.,0.0833,KEEP
+255033.mp4,255033_positive_score2.wav,2,"The baby is just deaf. It's not their fault, they're doing perfectly fine.", The baby is just deaf. It's not their fault. They're doing perfectly fine.,0.0,KEEP
+7343510.mp4,7343510_positive_score1.wav,1,"If my friends go out, I will join them."," If my friends go out, I will join them.",0.0,KEEP
+7986818.mp4,7986818_positive_score2.wav,2,"Is it raining outside? No, it's beautiful and warm outside."," Is it raining outside? No, it's beautiful and warm outside.",0.0,KEEP
+31658341.mp4,31658341_negative_score-1.wav,-1,My friend crashed the party last night., My friend crashed the party last night.,0.0,KEEP
+2682847.mp4,2682847_negative_score-3.wav,-3,The car is broken., The car is broken.,0.0,KEEP
+845675.mp4,845675_positive_score3.wav,3,"My friend loves travelling, especially in Asian countries because there`s more of a variety of things to do, compared to other countries."," And my friend loves traveling, especially in Asian countries, because there's more of a variety of things to do compared to other countries.",0.0909,KEEP
+845473.mp4,845473_positive_score3.wav,3,My friend is planning to surprise Bob because he's turning 21., My friend is planning to surprise Bob because he's turning 21.,0.0,KEEP
+844457.mp4,844457_positive_score3.wav,3,"When my friend goes out fishing, the fish has to go in the bucket immediately so it will be fresh."," When my friend goes out fishing, the fish has to go in the bucket immediately. So it will be fresh.",0.0,KEEP
+253917.mp4,253917_negative_score-1.wav,-1,"Ask another group, the CRASHED group about the car and whether if the glass is broken."," ask another group, the crashed group, about the car and whether if the glass is broken.",0.0,KEEP
+35420258.mp4,35420258_negative_score-1.wav,-1,"A student went on a quiz TV show, but he didn`t win."," A student went on a quiz TV show, but he didn't win.",0.0,KEEP
+7981490.mp4,7981490_positive_score3.wav,3,Bob wrote and sent a love letter to his wife because their anniversary is coming up soon., Bob wrote and sent a love letter to his wife because their university is coming up soon.,0.0588,KEEP
+8395473.mp4,8395473_negative_score-3.wav,-3,Jim threatened to sue the man who punched him., Jim threatened to sue the man who punched him.,0.0,KEEP
+3378954.mp4,3378954_positive_score2.wav,2,The student who won the award will get a $100 voucher., The student who won the award will get a $100 voucher.,0.0,KEEP
+29931.mp4,29931_negative_score-2.wav,-2,"Honestly, if I fail this class, my mom will lose it."," Honestly, if I fell this class, my mom will lose it.",0.0909,KEEP
+69413690.mp4,69413690_negative_score-3.wav,-3,Last night I rented an awful movie.," Last night, I rented an awful movie.",0.0,KEEP
+17590198.mp4,17590198_negative_score-3.wav,-3,My worst enemy is my alarm clock., My worst enemy is my alarm clock.,0.0,KEEP
+7983658.mp4,7983658_negative_score-1.wav,-1,Did Bob give the rose to his sweetheart?, Did Bob give the rose to his sweetheart?,0.0,KEEP
+7343915.mp4,7343915_negative_score-3.wav,-3,My mother tends to be in a bad mood if Father arrives home late., My mother tends to be in a bad mood if father arrives home late.,0.0,KEEP
+24480520.mp4,24480520_negative_score-1.wav,-1,"Deaf people made progress with the growth of signing.  The progress could have been greater, but it wasn't permitted."," Again, deaf people made progress with the growth of signing. The progress could have been greater, but it wasn't permitted.",0.0526,KEEP
+3379053.mp4,3379053_positive_score2.wav,2,"If the student wins an award, he will get a $100 gift card.", If the student wins an award. He will get a $100 gift card.,0.0,KEEP
