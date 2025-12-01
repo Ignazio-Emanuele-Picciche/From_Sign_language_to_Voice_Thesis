@@ -23,15 +23,15 @@ import random
 EMOTION_BARK_MAPPING = {
     "Positive": {
         "speakers": ["v2/en_speaker_6", "v2/en_speaker_5", "v2/en_speaker_8"],
-        "temperature": 0.75,
+        "temperature": 0.65,
     },
     "Negative": {
         "speakers": ["v2/en_speaker_3", "v2/en_speaker_1", "v2/en_speaker_4"],
-        "temperature": 0.65,
+        "temperature": 0.45,
     },
     "Neutral": {
         "speakers": ["v2/en_speaker_9", "v2/en_speaker_0"],
-        "temperature": 0.50,
+        "temperature": 0.30,
     },
 }
 
@@ -45,30 +45,30 @@ def map_emotion_to_bark_prompt(emotion: str, use_emotional_tags: bool = True):
 
 def get_emotional_tag(emotion: str, sentiment_score: int = 0) -> str:
     """
-    Traduce lo score [-3, +3] nel tag specifico per Bark.
+    Traduce lo score [-3, +3] in tag Bark specifici e variati.
     """
     score = abs(int(sentiment_score))
 
     if emotion == "Positive":
         if score == 3:
-            return "[laughter]"  # Risata piena
+            return "[laughter]"  # Intensità Alta: Risata piena
         if score == 2:
-            return "[laughs]"  # Risatina
+            return "[laughs]"  # Intensità Media: Risata normale
         if score == 1:
-            return "[laughs]"  # Tono allegro (Safe Zone)
+            return "[chuckles]"  # Intensità Bassa: Ridacchiare (più sottile)
         return ""
 
     elif emotion == "Negative":
         if score == 3:
-            return "[sighs]"  # Sospiro profondo
+            return "[sighs]"  # Intensità Alta: Sospiro profondo (Disperazione)
         if score == 2:
-            return "[gasps]"  # Shock/Gasp
+            return "[gasps]"  # Intensità Media: Shock/Sorpresa negativa
         if score == 1:
-            return "..."  # Pausa riflessiva
+            return "..."  # Intensità Bassa: Pausa riflessiva/Esitazione
+            # Alternativa per -1: return "[clears throat]" (se vuoi imbarazzo)
         return ""
 
     else:  # Neutral
-        # Solo se forzato, ma generalmente il neutro è pulito
         return ""
 
 
