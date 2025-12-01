@@ -23,15 +23,15 @@ import random
 EMOTION_BARK_MAPPING = {
     "Positive": {
         "speakers": ["v2/en_speaker_6", "v2/en_speaker_5", "v2/en_speaker_8"],
-        "temperature": 0.70,  # Leggermente più su per enfatizzare la gioia (+3)
+        "temperature": 0.75,  # Leggermente più su per enfatizzare la gioia (+3)
     },
     "Negative": {
         "speakers": ["v2/en_speaker_3", "v2/en_speaker_1", "v2/en_speaker_4"],
-        "temperature": 0.55,  # Alzato per permettere ai [sighs] di "respirare"
+        "temperature": 0.65,  # Alzato per permettere ai [sighs] di "respirare"
     },
     "Neutral": {
         "speakers": ["v2/en_speaker_9", "v2/en_speaker_0"],
-        "temperature": 0.50,  # Minimo sindacale per evitare loop/robotica
+        "temperature": 0.55,  # Minimo sindacale per evitare loop/robotica
     },
 }
 

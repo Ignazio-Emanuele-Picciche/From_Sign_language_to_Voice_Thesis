@@ -1,6 +1,6 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║      TTS GENERATOR - VERSIONE IBRIDA STABILE (RESUME + A100 FIX)             ║
+║      TTS GENERATOR - A100 STABLE EDITION (NO COMPILER, NO OFFLOAD)           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -16,7 +16,7 @@ from tqdm import tqdm
 from scipy.io.wavfile import write as write_wav
 
 # ==============================================================================
-# 1. FIX PYTORCH 2.6+ (INCORPORATO)
+# 1. FIX PYTORCH 2.6+ (Load Patch)
 # ==============================================================================
 _original_torch_load = torch.load
 
@@ -28,18 +28,19 @@ def patched_torch_load(*args, **kwargs):
 
 
 torch.load = patched_torch_load
-print("🛡️ Patch PyTorch applicato: weights_only=False per Bark.")
+print("🛡️ Patch PyTorch applicato: Compatibilità Bark ripristinata.")
 
 # ==============================================================================
-# 2. CONFIGURAZIONE GPU (A100 SAFETY)
+# 2. CONFIGURAZIONE "RAW POWER" PER A100
 # ==============================================================================
-# IMPORTANTE: Mettiamo Offload TRUE per evitare 'illegal memory access'
-# Scarica la RAM tra una generazione e l'altra. È più sicuro.
-os.environ["SUNO_OFFLOAD_CPU"] = "True"
+# DISABILITIAMO l'Offload: Teniamo tutto in VRAM (80GB sono sufficienti).
+# Questo è il vero acceleratore: evita il caricamento continuo dalla RAM.
+os.environ["SUNO_OFFLOAD_CPU"] = "False"
 os.environ["SUNO_USE_SMALL_MODELS"] = "False"
 
 
-# Fix per Autocast su A100 (evita NaN)
+# DISABILITIAMO Autocast/Mixed Precision: A100 soffre di NaN con Bark in FP16/BF16.
+# Forziamo tutto in Float32 puro. Sarà un po' più lento del teorico, ma NON CRASHA.
 @contextlib.contextmanager
 def _mock_autocast(*args, **kwargs):
     yield
@@ -66,7 +67,6 @@ try:
     )
     from emotion_tag_optimizer import optimize_emotional_text
 except ImportError:
-    # Fallback se i file sono in una sottocartella
     try:
         from src.tts.bark.emotion_mapper import (
             map_emotion_to_bark_prompt,
@@ -75,9 +75,7 @@ except ImportError:
         )
         from src.tts.bark.emotion_tag_optimizer import optimize_emotional_text
     except:
-        print(
-            "⚠️ Moduli emotion_mapper non trovati. Assicurati che siano nella stessa cartella."
-        )
+        pass
 
 # --- PATHS ---
 INPUT_FILE = "golden_test_set.csv"
@@ -87,12 +85,12 @@ MODELS_PRELOADED = False
 
 
 def setup_optimizations():
-    """Configura PyTorch per stabilità su A100."""
+    """Configura PyTorch per stabilità assoluta."""
     if torch.cuda.is_available():
-        # Disabilitiamo TF32 per evitare crash improvvisi
+        # Disabilitiamo TF32. È un'ottimizzazione che spesso causa NaN su Bark/A100.
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
-        print("🛡️ A100 Stability: TF32 Disabled (Safety First)")
+        print("🛡️ A100 Stability Mode: TF32 Disabled, Offload Disabled.")
 
 
 def preload_bark_models():
@@ -100,19 +98,20 @@ def preload_bark_models():
     if not BARK_AVAILABLE:
         return
     if not MODELS_PRELOADED:
-        print("📥 Caricamento modelli Bark HQ...")
+        print("📥 Caricamento modelli Bark HQ in VRAM (Full Precision)...")
+        # NOTA: text_use_gpu=True ecc. mantengono i modelli fissi in GPU
         preload_models(
             text_use_gpu=True,
             text_use_small=False,
-            coarse_use_gpu=True,  # Offload gestisce questo
+            coarse_use_gpu=True,
             coarse_use_small=False,
             fine_use_gpu=True,
             fine_use_small=False,
             codec_use_gpu=True,
-            force_reload=False,
+            force_reload=True,  # Forziamo reload per pulire eventuali residui
         )
         MODELS_PRELOADED = True
-        print("✅ Modelli pronti.")
+        print("✅ Modelli caricati e pronti.")
 
 
 def load_data():
@@ -120,9 +119,7 @@ def load_data():
         raise FileNotFoundError(f"❌ File non trovato: {INPUT_FILE}")
     df = pd.read_csv(INPUT_FILE)
     if "Sentiment" not in df.columns:
-        print("⚠️ Colonna 'Sentiment' mancante, uso default 0")
         df["Sentiment"] = 0
-    print(f"📄 Dataset caricato: {len(df)} righe")
     return df
 
 
@@ -130,11 +127,12 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
     if not BARK_AVAILABLE:
         return None
 
-    # Setup parametri
+    # Setup
     history_prompt = get_bark_speaker(emotion, video_name=video_name)
     bark_config = map_emotion_to_bark_prompt(emotion)
     emotional_tag = get_emotional_tag(emotion, sentiment_score=sentiment_score)
 
+    # Testo
     text = str(caption)
     if len(text) > 250:
         text = text[:250] + "..."
@@ -148,23 +146,20 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
         sentiment_score=sentiment_score,
     )
 
-    # Fix per testi vuoti o solo tag
     if text.strip() == emotional_tag.strip():
         text = f"{emotional_tag} ..."
 
-    # NOME FILE SICURO
+    # Path
     safe_name = str(video_name).replace("/", "_").replace(".mp4", "")
     filename = f"{safe_name}_{emotion.lower()}_score{sentiment_score}.wav"
     output_path = os.path.join(output_dir, filename)
 
     # --- RESUME LOGIC ---
-    # Se il file esiste già, lo saltiamo e risparmiamo GPU
     if os.path.exists(output_path):
         return "EXISTING"
 
-    print(f"🎙️ [{emotion[:3]}] {video_name} (S:{sentiment_score}) -> '{text}'")
-
     try:
+        # Generazione (Senza Autocast grazie al fix sopra)
         audio_array = generate_audio(
             text,
             history_prompt=history_prompt,
@@ -172,26 +167,20 @@ def generate_emotional_audio(emotion, sentiment_score, video_name, output_dir, c
             waveform_temp=bark_config["temperature"],
             silent=True,
         )
-
         write_wav(output_path, SAMPLE_RATE, audio_array)
         return output_path
 
     except Exception as e:
-        print(f"❌ Errore generazione: {e}")
-        # Se è un errore di memoria critico, usciamo per non bloccare tutto
-        if "illegal memory access" in str(e):
-            print(
-                "🚨 ERRORE CRITICO GPU DETECTED. Riavvia il runtime e rilancia lo script (riprenderà da qui)."
-            )
+        print(f"❌ Errore {video_name}: {e}")
+        # Se la GPU muore, usciamo puliti per permettere restart manuale
+        if "illegal memory access" in str(e) or "CUDAGraphs" in str(e):
+            print("🚨 ERRORE FATALE GPU: È necessario 'Disconnect and Delete Runtime'.")
             sys.exit(1)
-
-        gc.collect()
         return None
 
 
 def generate_from_csv(limit: int = None):
     setup_optimizations()
-
     try:
         df = load_data()
     except Exception as e:
@@ -205,11 +194,13 @@ def generate_from_csv(limit: int = None):
 
     successful = 0
     skipped = 0
-    pbar = tqdm(df.iterrows(), total=len(df), desc="Generazione A100")
+
+    # SENZA GC NEL LOOP: Massimizziamo la velocità.
+    # Con 80GB VRAM e 170GB RAM non serve pulire ogni secondo.
+    pbar = tqdm(df.iterrows(), total=len(df), desc="🚀 A100 Generation")
 
     for i, (_, row) in enumerate(pbar):
         video_name = row["video_name"]
-
         try:
             sentiment_score = int(row["Sentiment"])
         except:
@@ -227,11 +218,7 @@ def generate_from_csv(limit: int = None):
             continue
 
         path = generate_emotional_audio(
-            emotion,
-            sentiment_score,
-            video_name,
-            OUTPUT_AUDIO_DIR,
-            caption,
+            emotion, sentiment_score, video_name, OUTPUT_AUDIO_DIR, caption
         )
 
         if path == "EXISTING":
@@ -239,11 +226,7 @@ def generate_from_csv(limit: int = None):
         elif path:
             successful += 1
 
-        # Garbage Collection frequente
-        if i % 10 == 0:
-            gc.collect()
-
-    print(f"✅ Fatto. Generati: {successful}, Saltati (già esistenti): {skipped}")
+    print(f"✅ Fatto. Generati: {successful}, Saltati (Esistenti): {skipped}")
 
 
 if __name__ == "__main__":
