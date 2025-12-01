@@ -51,60 +51,51 @@ def optimize_emotional_text(
     emotion: str,
     use_tags: bool = True,
     custom_tag: str = None,
-    confidence: float = 1.0,
+    sentiment_score: int = 0,  # <-- Rinominato da confidence
 ) -> str:
     if not use_tags:
         return text
 
-    conf = confidence if confidence <= 1.0 else confidence / 100.0
+    score = abs(int(sentiment_score))
+    tag = custom_tag
 
-    # Tag base (fallback)
-    default_tags = {
-        "Positive": "[laughs]",
-        "Negative": "[sighs]",
-        "Neutral": "[clears throat]",
-    }
-    tag = custom_tag or default_tags.get(emotion, "")
-
-    # Se il tag passato era il vecchio [hesitation], lo convertiamo al volo
-    if tag == "[hesitation]":
-        tag = "uhm..."
-
+    # Se non c'è tag (es. score 0), ritorna testo pulito
     if not tag:
         return text
 
     breaks = find_natural_breaks(text)
     text_len = len(text)
 
-    # --- STRATEGIA BASSA CONFIDENZA (< 0.75) ---
-    # Usiamo "uhm..." o "..." per simulare incertezza acustica reale
-    if conf < 0.75:
-        hesitation_sound = "uhm..."  # Molto efficace in Bark
+    # --- GESTIONE EMOZIONI DEBOLI (-1 / +1) ---
+
+    # CASO 1: Negativo Debole (-1) -> Inseriamo pausa/esitazione
+    if emotion == "Negative" and score == 1:
+        hesitation = "..."
         if breaks:
-            # Inserisci un'esitazione alla prima pausa
-            return insert_tag(text, f"... {hesitation_sound}", breaks[0])
+            return insert_tag(text, hesitation, breaks[0])  # Pausa alla prima virgola
         else:
-            # Inizio frase
-            return f"{hesitation_sound} {text}"
+            return f"{hesitation} {text}"  # Pausa all'inizio
 
-    # --- STRATEGIA ALTA CONFIDENZA ---
-    # ... (Il resto rimane uguale) ...
+    # CASO 2: Positivo Debole (+1) -> Solo tag all'inizio, niente esitazioni
+    if emotion == "Positive" and score == 1:
+        return f"{tag} {text}"
 
+    # --- GESTIONE ALTA INTENSITÀ (2, 3) ---
+
+    # Per testi corti, mettiamo sempre il tag all'inizio
     if text_len < 40:
         return f"{tag} {text}"
 
-    if emotion == "Positive":
+    # Logica per testi lunghi e alta intensità (+3)
+    if emotion == "Positive" and score == 3 and breaks:
+        # Inseriamo risata anche a metà frase per enfatizzare il +3
         result = f"{tag} {text}"
-        if conf > 0.95 and breaks:
-            mid_break = breaks[len(breaks) // 2]
-            result = insert_tag(result, "[laughter]", mid_break + len(tag) + 1)
+        mid_break = breaks[len(breaks) // 2]
+        result = insert_tag(result, "[laughter]", mid_break + len(tag) + 1)
         return result
 
-    elif emotion == "Negative":
-        if breaks:
-            return insert_tag(text, tag, breaks[0])
-        else:
-            return f"{tag} {text}"
-
-    else:  # Neutral
-        return f"{tag} {text}" if text_len > 100 else text
+    # Default: tag all'inizio o alla prima pausa
+    if breaks:
+        return insert_tag(text, tag, breaks[0])
+    else:
+        return f"{tag} {text}"

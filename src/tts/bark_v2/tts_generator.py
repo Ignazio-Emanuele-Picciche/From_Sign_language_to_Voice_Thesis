@@ -170,14 +170,18 @@ def load_predictions_data():
     return df
 
 
-def generate_emotional_audio(emotion, confidence, video_name, output_dir, caption=None):
+def generate_emotional_audio(
+    emotion, sentiment_score, video_name, output_dir, caption=None
+):
     if not BARK_AVAILABLE:
         return None
 
     # Setup parametri
     history_prompt = get_bark_speaker(emotion, video_name=video_name)
     bark_config = map_emotion_to_bark_prompt(emotion, use_emotional_tags=True)
-    emotional_tag = get_emotional_tag(emotion, confidence=confidence)
+
+    # Passiamo lo score qui
+    emotional_tag = get_emotional_tag(emotion, sentiment_score=sentiment_score)
 
     # Testo
     if isinstance(caption, str) and len(caption) > 3:
@@ -190,10 +194,14 @@ def generate_emotional_audio(emotion, confidence, video_name, output_dir, captio
 
     # Ottimizzazione
     text = optimize_emotional_text(
-        text, emotion, use_tags=True, custom_tag=emotional_tag, confidence=confidence
+        text,
+        emotion,
+        use_tags=True,
+        custom_tag=emotional_tag,
+        sentiment_score=sentiment_score,  # <-- Passiamo lo score
     )
 
-    print(f"🎙️ {video_name} | {emotion} ({confidence:.2f})")
+    print(f"🎙️ {video_name} | {emotion} ({sentiment_score})")
 
     try:
         audio_array = generate_audio(
@@ -241,16 +249,27 @@ def generate_from_csv(limit: int = None):
 
     for i, (_, row) in enumerate(pbar):
         video_name = row["video_name"]
-        emotion = str(row["predicted_label"]).capitalize()
+
+        # 1. Recupera la Label (Positive/Negative)
+        emotion = str(
+            row["predicted_label"]
+        ).capitalize()  # o row["emotion"] dal tuo csv esempio
         if emotion not in ["Positive", "Negative", "Neutral"]:
             emotion = "Neutral"
 
-        # Gestione caption che potrebbero essere NaN
+        # 2. Recupera lo Score Intero [-3, +3]
+        # Assicurati che il nome della colonna sia corretto (es. "Sentiment" o "valore")
+        try:
+            sentiment_score = int(row["Sentiment"])
+        except (ValueError, KeyError):
+            sentiment_score = 0  # Fallback se manca
+
         caption = row["caption"] if pd.notna(row["caption"]) else None
 
+        # 3. Passa lo score invece della confidenza
         path = generate_emotional_audio(
             emotion,
-            float(row["confidence"]),
+            sentiment_score,  # <--- Passiamo l'int
             video_name,
             OUTPUT_AUDIO_DIR,
             caption,

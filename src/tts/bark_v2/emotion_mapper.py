@@ -87,48 +87,43 @@ EMOTIONAL_TAGS = {
 }
 
 
-def map_emotion_to_bark_prompt(emotion: str, use_emotional_tags: bool = True) -> dict:
-    if emotion not in EMOTION_BARK_MAPPING:
-        emotion = "Neutral"
-    config = EMOTION_BARK_MAPPING[emotion].copy()
-    if "speakers" in config:
-        del config["speakers"]
-    if not use_emotional_tags:
-        config["text_prefix"] = ""
-    return config
-
-
 def get_emotional_tag(
-    emotion: str, confidence: float = None, alternative: int = 0
+    emotion: str, sentiment_score: int = 0, alternative: int = 0
 ) -> str:
+    """
+    Restituisce il tag Bark basato sul valore intero [-3, +3] di EmoSign.
+    """
     if emotion not in EMOTIONAL_TAGS:
         return ""
+
+    # Normalizziamo il segno per sicurezza (es. se arriva -3 ma emotion è Negative)
+    score = abs(int(sentiment_score))
+
     tags_config = EMOTIONAL_TAGS[emotion]
 
-    if alternative > 0:
-        alts = tags_config.get("alternatives", [])
-        if 0 <= (alternative - 1) < len(alts):
-            return alts[alternative - 1]
+    # --- LOGICA DIRETTA VALORE -> TAG ---
+    if emotion == "Positive":
+        if score == 3:
+            return "[laughter]"  # Forte: Risata piena
+        if score == 2:
+            return "[laughs]"  # Medio: Risatina
+        if score == 1:
+            return "[laughs]"  # Debole: Tono allegro (meglio di clears throat)
+        return ""  # 0: Neutro
 
-    if confidence is not None:
-        conf = confidence if confidence <= 1.0 else confidence / 100.0
+    elif emotion == "Negative":
+        if score == 3:
+            return "[sighs]"  # Forte: Sospiro profondo
+        if score == 2:
+            return "[gasps]"  # Medio: Gasp/Shock
+        if score == 1:
+            return "..."  # Debole: Pausa riflessiva
+        return ""  # 0: Neutro
 
-        # Soglie dinamiche in base all'emozione
-        if emotion == "Negative":
-            # Il modello è debole sui negativi (max 0.71), siamo più permissivi
-            thresh_high = 0.65
-            thresh_med = 0.55
-        else:
-            # Il modello è fortissimo sui positivi (max 0.97), siamo severi
-            thresh_high = 0.90
-            thresh_med = 0.70
-
-        if conf >= thresh_high:
-            return tags_config.get("high_confidence", "")
-        elif conf >= thresh_med:
-            return tags_config.get("medium_confidence", "")
-        else:
-            return tags_config.get("low_confidence", "")
+    else:  # Neutral
+        if score >= 2:
+            return "[clears throat]"  # Solo se molto enfatizzato
+        return ""
 
 
 def get_bark_speaker(emotion: str, video_name: str = None) -> str:
