@@ -147,11 +147,13 @@ def evaluate_model(model, X_val, y_val, model_name, class_names):
 
     acc = accuracy_score(y_val, y_pred)
     f1_w = f1_score(y_val, y_pred, average="weighted")
+    kappa = cohen_kappa_score(y_val, y_pred)
 
     print(f"  Accuracy:              {acc:.4f}")
     print(f"  Weighted F1-Score:     {f1_w:.4f}")
+    print(f"  Cohen Kappa Score:     {kappa:.4f}")
 
-    return f1_w
+    return f1_w, kappa
 
 
 def main():
@@ -259,21 +261,23 @@ def main():
         log_feature_importance(best_model, feature_cols, name)
 
         # Valutazione
-        score = evaluate_model(best_model, X_val, y_val, name, class_names)
-        results[name] = score
+        score, kappa = evaluate_model(best_model, X_val, y_val, name, class_names)
+        results[name] = (score, kappa)
 
     # 5. Selezione Vincitore
     print("\n" + "=" * 60)
     print("CONFRONTO FINALE (Basato su Validation Set)")
-    for name, score in results.items():
-        print(f"{name:<25}: {score:.4f}")
+    for name, (score, kappa) in results.items():
+        print(f"{name:<25}: F1-Score: {score:.4f}, Kappa: {kappa:.4f}")
 
-    best_name = max(results, key=results.get)
-    best_score = results[best_name]
+    best_name = max(results, key=lambda x: results[x][0])
+    best_score, best_kappa = results[best_name]
     best_model_final = best_estimators[best_name]
 
     print("-" * 60)
-    print(f"🏆 VINCITORE: {best_name} (F1 Val: {best_score:.4f})")
+    print(
+        f"🏆 VINCITORE: {best_name} (F1 Val: {best_score:.4f}, Kappa: {best_kappa:.4f})"
+    )
     print("=" * 60)
 
     # Salvataggio

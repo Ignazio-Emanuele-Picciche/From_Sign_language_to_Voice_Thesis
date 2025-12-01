@@ -25,6 +25,7 @@ Fitting 5 folds for each of 32 candidates, totalling 160 fits
 --- Valutazione Decision Tree su VALIDATION SET ---
   Accuracy:              0.7499
   Weighted F1-Score:     0.7496
+  Cohen Kappa Score:     0.4954
 
 🔍 Tuning Logistic Regression (5-Fold CV su Train)...
 Fitting 5 folds for each of 10 candidates, totalling 50 fits
@@ -43,6 +44,7 @@ Fitting 5 folds for each of 10 candidates, totalling 50 fits
 --- Valutazione Logistic Regression su VALIDATION SET ---
   Accuracy:              0.7539
   Weighted F1-Score:     0.7546
+  Cohen Kappa Score:     0.5075
 
 🔍 Tuning Random Forest (5-Fold CV su Train)...
 Fitting 5 folds for each of 120 candidates, totalling 600 fits
@@ -60,6 +62,7 @@ Fitting 5 folds for each of 120 candidates, totalling 600 fits
 --- Valutazione Random Forest su VALIDATION SET ---
   Accuracy:              0.7533
   Weighted F1-Score:     0.7542
+  Cohen Kappa Score:     0.5070
 
 🔍 Tuning SVM (5-Fold CV su Train)...
 Fitting 5 folds for each of 32 candidates, totalling 160 fits
@@ -72,15 +75,16 @@ Fitting 5 folds for each of 32 candidates, totalling 160 fits
 --- Valutazione SVM su VALIDATION SET ---
   Accuracy:              0.7343
   Weighted F1-Score:     0.7393
+  Cohen Kappa Score:     0.4900
 
 ============================================================
 CONFRONTO FINALE (Basato su Validation Set)
-Decision Tree            : 0.7496
-Logistic Regression      : 0.7546
-Random Forest            : 0.7542
-SVM                      : 0.7393
+Decision Tree            : F1-Score: 0.7496, Kappa: 0.4954
+Logistic Regression      : F1-Score: 0.7546, Kappa: 0.5075
+Random Forest            : F1-Score: 0.7542, Kappa: 0.5070
+SVM                      : F1-Score: 0.7393, Kappa: 0.4900
 ------------------------------------------------------------
-🏆 VINCITORE: Logistic Regression (F1 Val: 0.7546)
+🏆 VINCITORE: Logistic Regression (F1 Val: 0.7546, Kappa: 0.5075)
 ============================================================
 
 ✅ Modello OTTIMIZZATO salvato in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/models/metalearner/metalearner_logistic_regression_tuned.joblib
