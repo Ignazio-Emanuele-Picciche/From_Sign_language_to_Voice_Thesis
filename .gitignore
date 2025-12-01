@@ -8,6 +8,8 @@ mlartifacts/
 src/tts/bark/output_audio_old
 src/tts/bark/output_audio
 src/tts/bark/best_audio
+src/tts/bark_v2/output_audio_emosign
+src/tts/bark_v2/output_audio_discarded
 results/grid_search/
 data/processed/sign_language_landmarks
 data/processed/how2sign_ssvp
