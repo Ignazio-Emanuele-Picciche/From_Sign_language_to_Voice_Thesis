@@ -1,23 +1,35 @@
-============================================================
- COERENZA INTERNA (Intra-rater)
-============================================================
-Kappa Audio-Text (Daniele)              : 0.531
-Kappa Audio-Text (Luca)                 : 0.543
+Dataset Totale Iniziale: Daniele=108, Luca=108
+Video con audio corrotto identificati: 9
+Dataset Filtrato (Text preservato): Daniele=99, Luca=99
 
-============================================================
- AGREEMENT TRA ANNOTATORI (Inter-rater)
-============================================================
-Weighted Kappa (Globale)                : 0.461
-Weighted Kappa (AUDIO_ONLY)             : 0.340
-Weighted Kappa (TEXT_ONLY)              : 0.578
+======================================================================
+ COERENZA INTERNA (Audio vs Testo)
+======================================================================
+--- Daniele (n=45) ---                       : 
+Kappa (Unweighted)                           : 0.302
+Kappa (Weighted Linear)                      : 0.581
+Pearson Corr                                 : 0.751
+Spearman Corr                                : 0.737
+--- Luca (n=45) ---                          : 
 
-============================================================
- VALIDITÀ VS GOLD STANDARD (Text Only)
-============================================================
---- Daniele ---                         : 
-Kappa vs GT (Daniele)                   : 0.551
--- todo spearman
-MAE Error (Daniele)                     : 0.963 punti
---- Luca ---                            : 
-Kappa vs GT (Luca)                      : 0.505
-MAE Error (Luca)                        : 1.185 punti
+======================================================================
+ AGREEMENT INTER-ANNOTATORE (Daniele vs Luca)
+======================================================================
+--- GLOBALE (Audio + Testo) ---              : 
+Kappa (Unweighted)                           : 0.164
+Kappa (Weighted Linear)                      : 0.578
+Pearson Corr                                 : 0.820
+Spearman Corr                                : 0.794
+--- AUDIO_ONLY (n=45) ---                    : 
+--- TEXT_ONLY (n=54) ---                     : 
+
+======================================================================
+ VALIDITÀ VS GOLD STANDARD (Ground Truth) - TEXT ONLY
+======================================================================
+--- Daniele (Text Only, n=54) ---            : 
+Kappa (Unweighted)                           : 0.117
+Kappa (Weighted Linear)                      : 0.505
+Pearson Corr                                 : 0.741
+Spearman Corr                                : 0.701
+MAE (Mean Absolute Error)                    : 1.185 punti
+--- Luca (Text Only, n=54) ---               : 

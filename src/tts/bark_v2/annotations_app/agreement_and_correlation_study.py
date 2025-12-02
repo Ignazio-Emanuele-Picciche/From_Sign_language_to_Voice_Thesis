@@ -15,19 +15,14 @@ sns.set_theme(style="whitegrid")
 
 
 def get_metrics_bundle(y1, y2, prefix=""):
-    """
-    Calcola un pacchetto completo di metriche di accordo e correlazione.
-    """
-    # 1. Cohen's Kappa (Unweighted - Accordo Esatto)
+    """Calcola pacchetto completo di metriche."""
+    # Gestione liste vuote per evitare crash
+    if len(y1) == 0 or len(y2) == 0:
+        return {f"{prefix}Status": "Insufficient Data"}
+
     kappa_unweighted = cohen_kappa_score(y1, y2, weights=None)
-
-    # 2. Weighted Kappa (Linear - Accordo con penalità proporzionale)
     kappa_weighted = cohen_kappa_score(y1, y2, weights="linear")
-
-    # 3. Pearson Correlation (Linearità)
     pearson = y1.corr(y2, method="pearson")
-
-    # 4. Spearman Correlation (Rank - Monotonicità, ideale per scale ordinali)
     spearman = y1.corr(y2, method="spearman")
 
     return {
@@ -49,30 +44,41 @@ def print_metrics_section(title, metrics_dict):
 # --- 1. CARICAMENTO DATI ---
 df1 = pd.read_csv(FILE_DANIELE)
 df2 = pd.read_csv(FILE_LUCA)
-
-# Aggiunta etichette annotatori
 df1["Annotator"] = "Daniele"
 df2["Annotator"] = "Luca"
 
-# --- 2. FILTRAGGIO AUDIO BAD (CROSS-ANNOTATOR) ---
-# Se un video è flaggato come bad audio da CHIUNQUE, lo rimuoviamo per TUTTI.
+# --- 2. FILTRAGGIO INTELLIGENTE (Solo Audio Bad) ---
+
+# Identifichiamo i video corrotti (segnalati da ALMENO UNO dei due)
 bad_videos_daniele = df1[df1["is_audio_bad"] == True]["video_name"].unique()
 bad_videos_luca = df2[df2["is_audio_bad"] == True]["video_name"].unique()
-
-# Unione dei set di video "cattivi"
 all_bad_videos = set(bad_videos_daniele).union(set(bad_videos_luca))
 
-print(f"Dataset originale: Daniele={len(df1)}, Luca={len(df2)}")
-print(f"Video con audio corrotto identificati (totali): {len(all_bad_videos)}")
+print(f"Dataset Totale Iniziale: Daniele={len(df1)}, Luca={len(df2)}")
+print(f"Video con audio corrotto identificati: {len(all_bad_videos)}")
 
-# Rimozione
-df1 = df1[~df1["video_name"].isin(all_bad_videos)]
-df2 = df2[~df2["video_name"].isin(all_bad_videos)]
+# FUNZIONE DI PULIZIA:
+# Rimuoviamo la riga SOLO SE:
+# 1. Il video_name è nella lista dei cattivi
+# 2. E la modalità è AUDIO_ONLY
+# (Lasciamo intatte le righe TEXT_ONLY anche se l'audio è rotto)
 
-print(f"Dataset filtrato: Daniele={len(df1)}, Luca={len(df2)}")
+
+def clean_dataset(df, bad_list):
+    # Maschera: True se da cancellare
+    to_drop = (df["video_name"].isin(bad_list)) & (
+        df["presentation_mode"] == "AUDIO_ONLY"
+    )
+    return df[~to_drop].copy()  # Ritorniamo l'inverso (quelli da tenere)
 
 
-# --- 3. CALCOLO METRICHE DETTAGLIATE ---
+df1 = clean_dataset(df1, all_bad_videos)
+df2 = clean_dataset(df2, all_bad_videos)
+
+print(f"Dataset Filtrato (Text preservato): Daniele={len(df1)}, Luca={len(df2)}")
+
+
+# --- 3. CALCOLO METRICHE ---
 
 # A) Coerenza Interna (Audio vs Testo)
 intra_results = {}
@@ -84,10 +90,12 @@ for name, df in [("Daniele", df1), ("Luca", df2)]:
         "human_rating"
     ]
 
+    # Intersezione (Nota: qui i video bad audio verranno esclusi automaticamente perché mancano nel df Audio)
     common = audio.index.intersection(text.index)
+
     if len(common) > 0:
         metrics = get_metrics_bundle(audio[common], text[common])
-        intra_results[f"--- {name} ---"] = ""
+        intra_results[f"--- {name} (n={len(common)}) ---"] = ""
         intra_results.update(metrics)
     else:
         intra_results[f"--- {name} ---"] = "N/A (No overlap)"
@@ -110,7 +118,7 @@ inter_results.update(
 # Per Modalità
 for mode in ["AUDIO_ONLY", "TEXT_ONLY"]:
     subset = merged[merged["presentation_mode"] == mode]
-    inter_results[f"--- {mode} ---"] = ""
+    inter_results[f"--- {mode} (n={len(subset)}) ---"] = ""
     inter_results.update(
         get_metrics_bundle(subset["human_rating_dan"], subset["human_rating_luca"])
     )
@@ -123,12 +131,11 @@ validity_results = {}
 for name, df in [("Daniele", df1), ("Luca", df2)]:
     df_text = df[df["presentation_mode"] == "TEXT_ONLY"]
 
-    validity_results[f"--- {name} (Text Only) ---"] = ""
-    # Metriche di correlazione/kappa
+    validity_results[f"--- {name} (Text Only, n={len(df_text)}) ---"] = ""
     validity_results.update(
         get_metrics_bundle(df_text["human_rating"], df_text["original_sentiment"])
     )
-    # Aggiungiamo MAE specifico
+
     mae = mean_absolute_error(df_text["original_sentiment"], df_text["human_rating"])
     validity_results["MAE (Mean Absolute Error)"] = f"{mae:.3f} punti"
 
@@ -136,9 +143,8 @@ print_metrics_section("VALIDITÀ VS GOLD STANDARD (Ground Truth)", validity_resu
 
 
 # --- 4. GENERAZIONE GRAFICI ---
-# (Usiamo il dataset filtrato df1 e df2)
 
-# Prepariamo dataset unico per i grafici (Solo Text Only per confronto con GT)
+# Dataset unico per grafici (Text Only)
 df_plot = pd.concat(
     [
         df1[df1["presentation_mode"] == "TEXT_ONLY"],
@@ -146,7 +152,7 @@ df_plot = pd.concat(
     ]
 )
 
-# --- GRAFICO 1: BIAS TREND (Manuale) ---
+# --- GRAFICO 1: BIAS TREND ---
 plt.figure(figsize=(10, 6))
 
 agg_data = (
@@ -162,10 +168,11 @@ styles = {
 }
 
 for annotator in ["Daniele", "Luca"]:
-    subset = agg_data[agg_data["Annotator"] == annotator]
+    # FIX: Usiamo .copy() per evitare il SettingWithCopyWarning
+    subset = agg_data[agg_data["Annotator"] == annotator].copy()
     style = styles[annotator]
 
-    # Fill NaN CI with 0 for single points (avoid plotting errors)
+    # Riempie i NaN con 0 (per i punti singoli dove std non è calcolabile)
     subset["ci"] = subset["ci"].fillna(0)
 
     plt.errorbar(
@@ -195,6 +202,7 @@ plt.tight_layout()
 plt.savefig("src/tts/bark_v2/annotations_app/results/1_bias_trend.png")
 print("\n[Grafico salvato]: 1_bias_trend.png")
 
+
 # --- GRAFICO 2: MATRICI DI CONFUSIONE ---
 fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 classes = range(-3, 4)
@@ -223,6 +231,7 @@ plt.suptitle("Matrici di Confusione (Text Only)", fontsize=16)
 plt.tight_layout()
 plt.savefig("src/tts/bark_v2/annotations_app/results/2_confusion_matrix.png")
 print("[Grafico salvato]: 2_confusion_matrix.png")
+
 
 # --- GRAFICO 3: MAE Comparison ---
 mae_data = []
