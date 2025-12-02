@@ -1,5 +1,9 @@
 import pandas as pd
-from sklearn.metrics import cohen_kappa_score, mean_absolute_error
+from sklearn.metrics import (
+    cohen_kappa_score,
+    mean_absolute_error,
+    classification_report,
+)
 
 # 1. CARICAMENTO DATI
 # Sostituisci con i nomi reali dei tuoi file
@@ -114,5 +118,55 @@ def analyze_vs_ground_truth(df, annotator_name):
         )
 
 
-analyze_vs_ground_truth(df1, "Daniele")
-analyze_vs_ground_truth(df2, "Luca")
+def analyze_per_class_performance(df, annotator_name):
+    print(f"\n==========================================")
+    print(f" ANALISI DETTAGLIATA PER CLASSE: {annotator_name}")
+    print(f"==========================================")
+
+    # Filtriamo solo TEXT_ONLY per il confronto col Gold Standard
+    data = df[df["presentation_mode"] == "TEXT_ONLY"].copy()
+
+    y_true = data["original_sentiment"]
+    y_pred = data["human_rating"]
+
+    # 1. REPORT DI CLASSIFICAZIONE (Precision, Recall, F1)
+    # Recall = Di tutti i veri -3, quanti ne ha beccati? (Questa è la metrica più importante per te)
+    print("\n--- 1. Accuratezza per Classe (Classification Report) ---")
+    # labels=[-3, -2, -1, 0, 1, 2, 3] forza l'output anche se alcune classi mancano
+    classes = sorted(list(set(y_true.unique()) | set(y_pred.unique())))
+    print(classification_report(y_true, y_pred, labels=classes, zero_division=0))
+
+    # 2. ANALISI DEL BIAS (Errore Medio con Segno)
+    # Calcoliamo la differenza: (Voto Umano - Originale)
+    # Se originale è -3 e umano è -1, diff è +2 (ha sovrastimato/è stato più positivo)
+    data["diff"] = data["human_rating"] - data["original_sentiment"]
+
+    print("\n--- 2. Analisi del Bias (Come sbaglia?) ---")
+    print(
+        "Valore positivo (+) = L'annotatore ha dato un voto più alto del Gold Standard"
+    )
+    print(
+        "Valore negativo (-) = L'annotatore ha dato un voto più basso del Gold Standard"
+    )
+
+    bias_df = (
+        data.groupby("original_sentiment")["diff"]
+        .agg(["count", "mean", "std"])
+        .rename(
+            columns={
+                "count": "N. Video",
+                "mean": "Errore Medio (Bias)",
+                "std": "Deviazione Std",
+            }
+        )
+    )
+
+    print(bias_df.round(2))
+
+
+# analyze_vs_ground_truth(df1, "Daniele")
+# analyze_vs_ground_truth(df2, "Luca")
+
+
+analyze_per_class_performance(df1, "Daniele")
+analyze_per_class_performance(df2, "Luca")
