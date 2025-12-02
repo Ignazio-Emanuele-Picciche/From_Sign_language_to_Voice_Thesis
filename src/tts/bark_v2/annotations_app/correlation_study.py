@@ -1,15 +1,5 @@
 import pandas as pd
-import numpy as np
-
-
-# --- FUNZIONE DI SUPPORTO PER CATEGORIE ---
-def get_polarity(score):
-    if score > 0:
-        return "Positive"
-    elif score < 0:
-        return "Negative"
-    return "Neutral"
-
+from sklearn.metrics import cohen_kappa_score
 
 # 1. CARICAMENTO DATI
 # Sostituisci con i nomi reali dei tuoi file
@@ -20,83 +10,85 @@ df1 = pd.read_csv(file1)
 df2 = pd.read_csv(file2)
 
 
-# --- ANALISI 1: AUDIO VS TESTO (Per singolo annotatore - Es. Daniele) ---
-def analyze_audio_text_coherence(df, annotator_name):
-    print(f"\n--- ANALISI COERENZA AUDIO-TESTO: {annotator_name} ---")
+# Funzione helper per calcolare il Kappa Pesato
+def get_weighted_kappa(y1, y2):
+    # weights='linear' è ideale per scale ordinali come la tua (-3 a 3)
+    # weights='quadratic' penalizzerebbe ancora di più gli errori grandi
+    return cohen_kappa_score(y1, y2, weights="linear")
 
-    # Separiamo Audio e Testo
+
+# --- ANALISI 1: COERENZA INTERNA (AUDIO vs TESTO) ---
+def analyze_intra_coherence(df, annotator_name):
+    print(f"\n--- ANALISI COERENZA AUDIO vs TESTO: {annotator_name} ---")
+
+    # Separiamo e allineiamo Audio e Testo per lo stesso video
     df_audio = df[df["presentation_mode"] == "AUDIO_ONLY"][
-        ["video_name", "human_rating", "original_sentiment"]
-    ].copy()
-    df_text = df[df["presentation_mode"] == "TEXT_ONLY"][
-        ["video_name", "human_rating", "original_sentiment"]
-    ].copy()
+        ["video_name", "human_rating"]
+    ]
+    df_text = df[df["presentation_mode"] == "TEXT_ONLY"][["video_name", "human_rating"]]
 
-    # Uniamo sulla base del video_name per confrontare lo stesso video
+    # Uniamo su video_name
     merged = pd.merge(df_audio, df_text, on="video_name", suffixes=("_audio", "_text"))
 
-    # 1. Correlazione Totale (Pearson)
-    corr_total = merged["human_rating_audio"].corr(merged["human_rating_text"])
-    print(f"Correlazione Totale (Pearson): {corr_total:.2f}")
+    if len(merged) == 0:
+        print("Errore: Non ci sono video corrispondenti con entrambe le modalità.")
+        return
 
-    # 2. Analisi per Categorie (Basata sul 'original_sentiment' come riferimento)
-    merged["category"] = merged["original_sentiment_audio"].apply(get_polarity)
+    kappa = get_weighted_kappa(
+        merged["human_rating_audio"], merged["human_rating_text"]
+    )
 
-    print("\nCoerenza % (Agreement) divisa per categoria originale:")
-    for cat in ["Negative", "Neutral", "Positive"]:
-        subset = merged[merged["category"] == cat]
-        if len(subset) == 0:
-            print(f"- {cat}: Nessun dato")
-            continue
-
-        # Calcoliamo la coerenza di "Segno" (se entrambi dicono Positivo, anche se voti diversi es: 2 e 3)
-        # Oppure "Esatta": subset['human_rating_audio'] == subset['human_rating_text']
-        # Qui facciamo coerenza di polarità che è più utile
-        coherence = np.where(
-            subset["human_rating_audio"].apply(get_polarity)
-            == subset["human_rating_text"].apply(get_polarity),
-            1,
-            0,
-        )
-        acc_pct = coherence.mean() * 100
-        print(f"- {cat} (n={len(subset)}): {acc_pct:.1f}% di accordo sulla polarità")
+    print(f"Coppie analizzate: {len(merged)}")
+    print(f"Weighted Cohen's Kappa: {kappa:.3f}")
 
 
-# Eseguiamo su Daniele
-analyze_audio_text_coherence(df1, "Daniele")
+# Eseguiamo per entrambi gli annotatori
+analyze_intra_coherence(df1, "Daniele")
+analyze_intra_coherence(df2, "Luca")
 
 
-# --- ANALISI 2: CONFRONTO TRA DUE ANNOTATORI ---
-print(f"\n--- ANALISI INTER-ANNOTATORE (Daniele vs Altro) ---")
-# Uniamo i due dataframe completi su video_name e presentation_mode
+# --- ANALISI 2: AGREEMENT TRA ANNOTATORI (INTER-RATER) ---
+print(f"\n--- ANALISI AGREEMENT TRA ANNOTATORI (Daniele vs Altro) ---")
+
+# Uniamo i due annotatori assicurandoci di confrontare lo stesso video nello stesso modo
 df_inter = pd.merge(
     df1, df2, on=["video_name", "presentation_mode"], suffixes=("_dan", "_ann2")
 )
 
-# Correlazione Totale
-corr_inter = df_inter["human_rating_dan"].corr(df_inter["human_rating_ann2"])
-print(f"Correlazione tra annotatori (Globale): {corr_inter:.2f}")
+# Calcolo globale
+kappa_global = get_weighted_kappa(
+    df_inter["human_rating_dan"], df_inter["human_rating_ann2"]
+)
+print(f"Weighted Kappa Globale (Audio + Testo): {kappa_global:.3f}")
+
+# Calcolo diviso per modalità (Opzionale, ma utile)
+df_inter_audio = df_inter[df_inter["presentation_mode"] == "AUDIO_ONLY"]
+df_inter_text = df_inter[df_inter["presentation_mode"] == "TEXT_ONLY"]
+
+k_audio = get_weighted_kappa(
+    df_inter_audio["human_rating_dan"], df_inter_audio["human_rating_ann2"]
+)
+k_text = get_weighted_kappa(
+    df_inter_text["human_rating_dan"], df_inter_text["human_rating_ann2"]
+)
+
+print(f" -> Kappa solo Audio: {k_audio:.3f}")
+print(f" -> Kappa solo Testo: {k_text:.3f}")
 
 
-# --- ANALISI 3: COERENZA CON ORIGINAL_SENTIMENT (Solo TEXT_ONLY) ---
-def analyze_ground_truth_accuracy(df, annotator_name):
-    print(f"\n--- ACCURATEZZA VS ORIGINAL SENTIMENT (Text Only): {annotator_name} ---")
+# --- ANALISI 3: VALIDITÀ RISPETTO AL GOLD STANDARD (Solo TEXT_ONLY) ---
+def analyze_vs_ground_truth(df, annotator_name):
+    print(f"\n--- VALIDITÀ VS ORIGINAL SENTIMENT (Text Only): {annotator_name} ---")
 
-    df_text = df[df["presentation_mode"] == "TEXT_ONLY"].copy()
+    df_text = df[df["presentation_mode"] == "TEXT_ONLY"]
 
-    # Correlazione pura
-    corr_gt = df_text["human_rating"].corr(df_text["original_sentiment"])
-    print(f"Correlazione con Original Sentiment: {corr_gt:.2f}")
-
-    # Percentuale di accordo sulla polarità
-    agreement = np.where(
-        df_text["human_rating"].apply(get_polarity)
-        == df_text["original_sentiment"].apply(get_polarity),
-        1,
-        0,
+    # Confrontiamo l'annotazione umana con original_sentiment
+    kappa_gt = get_weighted_kappa(
+        df_text["human_rating"], df_text["original_sentiment"]
     )
-    print(f"Accuratezza Polarità (Coerenza %): {agreement.mean() * 100:.1f}%")
+
+    print(f"Weighted Kappa vs Original: {kappa_gt:.3f}")
 
 
-analyze_ground_truth_accuracy(df1, "Daniele")
-analyze_ground_truth_accuracy(df2, "Secondo Annotatore")
+analyze_vs_ground_truth(df1, "Daniele")
+analyze_vs_ground_truth(df2, "Luca")
