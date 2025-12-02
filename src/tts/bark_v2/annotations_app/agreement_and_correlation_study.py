@@ -11,12 +11,11 @@ FILE_LUCA = "src/tts/bark_v2/annotations_app/luca_human_annotations.csv"
 # Impostiamo stile grafico
 sns.set_theme(style="whitegrid")
 
-# --- FUNZIONI DI CALCOLO ---
+# --- FUNZIONI DI CALCOLO E STAMPA ---
 
 
 def get_metrics_bundle(y1, y2, prefix=""):
     """Calcola pacchetto completo di metriche."""
-    # Gestione liste vuote per evitare crash
     if len(y1) == 0 or len(y2) == 0:
         return {f"{prefix}Status": "Insufficient Data"}
 
@@ -33,10 +32,14 @@ def get_metrics_bundle(y1, y2, prefix=""):
     }
 
 
-def print_metrics_section(title, metrics_dict):
+def print_section_header(title):
     print(f"\n{'='*70}")
     print(f" {title}")
     print(f"{'='*70}")
+
+
+def print_metrics_block(subtitle, metrics_dict):
+    print(f"{subtitle}")
     for k, v in metrics_dict.items():
         print(f"{k:<45}: {v}")
 
@@ -57,19 +60,13 @@ all_bad_videos = set(bad_videos_daniele).union(set(bad_videos_luca))
 print(f"Dataset Totale Iniziale: Daniele={len(df1)}, Luca={len(df2)}")
 print(f"Video con audio corrotto identificati: {len(all_bad_videos)}")
 
-# FUNZIONE DI PULIZIA:
-# Rimuoviamo la riga SOLO SE:
-# 1. Il video_name è nella lista dei cattivi
-# 2. E la modalità è AUDIO_ONLY
-# (Lasciamo intatte le righe TEXT_ONLY anche se l'audio è rotto)
-
 
 def clean_dataset(df, bad_list):
-    # Maschera: True se da cancellare
+    # Rimuoviamo la riga SOLO SE è un video cattivo E la modalità è AUDIO
     to_drop = (df["video_name"].isin(bad_list)) & (
         df["presentation_mode"] == "AUDIO_ONLY"
     )
-    return df[~to_drop].copy()  # Ritorniamo l'inverso (quelli da tenere)
+    return df[~to_drop].copy()
 
 
 df1 = clean_dataset(df1, all_bad_videos)
@@ -78,10 +75,10 @@ df2 = clean_dataset(df2, all_bad_videos)
 print(f"Dataset Filtrato (Text preservato): Daniele={len(df1)}, Luca={len(df2)}")
 
 
-# --- 3. CALCOLO METRICHE ---
+# --- 3. CALCOLO E STAMPA METRICHE ---
 
 # A) Coerenza Interna (Audio vs Testo)
-intra_results = {}
+print_section_header("COERENZA INTERNA (Audio vs Testo)")
 for name, df in [("Daniele", df1), ("Luca", df2)]:
     audio = df[df["presentation_mode"] == "AUDIO_ONLY"].set_index("video_name")[
         "human_rating"
@@ -90,56 +87,49 @@ for name, df in [("Daniele", df1), ("Luca", df2)]:
         "human_rating"
     ]
 
-    # Intersezione (Nota: qui i video bad audio verranno esclusi automaticamente perché mancano nel df Audio)
+    # Intersezione dei video comuni
     common = audio.index.intersection(text.index)
 
     if len(common) > 0:
         metrics = get_metrics_bundle(audio[common], text[common])
-        intra_results[f"--- {name} (n={len(common)}) ---"] = ""
-        intra_results.update(metrics)
+        print_metrics_block(f"--- {name} (n={len(common)}) ---", metrics)
     else:
-        intra_results[f"--- {name} ---"] = "N/A (No overlap)"
-
-print_metrics_section("COERENZA INTERNA (Audio vs Testo)", intra_results)
+        print(f"--- {name} --- : N/A (No overlap)")
 
 
 # B) Agreement Inter-Annotatore (Daniele vs Luca)
-inter_results = {}
+print_section_header("AGREEMENT INTER-ANNOTATORE (Daniele vs Luca)")
 merged = pd.merge(
     df1, df2, on=["video_name", "presentation_mode"], suffixes=("_dan", "_luca")
 )
 
 # Globale
-inter_results["--- GLOBALE (Audio + Testo) ---"] = ""
-inter_results.update(
-    get_metrics_bundle(merged["human_rating_dan"], merged["human_rating_luca"])
+metrics_global = get_metrics_bundle(
+    merged["human_rating_dan"], merged["human_rating_luca"]
 )
+print_metrics_block(f"--- GLOBALE (Audio + Testo, n={len(merged)}) ---", metrics_global)
 
 # Per Modalità
 for mode in ["AUDIO_ONLY", "TEXT_ONLY"]:
     subset = merged[merged["presentation_mode"] == mode]
-    inter_results[f"--- {mode} (n={len(subset)}) ---"] = ""
-    inter_results.update(
-        get_metrics_bundle(subset["human_rating_dan"], subset["human_rating_luca"])
+    metrics_mode = get_metrics_bundle(
+        subset["human_rating_dan"], subset["human_rating_luca"]
     )
-
-print_metrics_section("AGREEMENT INTER-ANNOTATORE (Daniele vs Luca)", inter_results)
+    print_metrics_block(f"--- {mode} (n={len(subset)}) ---", metrics_mode)
 
 
 # C) Validità vs Ground Truth (Solo TEXT_ONLY)
-validity_results = {}
+print_section_header("VALIDITÀ VS GOLD STANDARD (Ground Truth)")
 for name, df in [("Daniele", df1), ("Luca", df2)]:
     df_text = df[df["presentation_mode"] == "TEXT_ONLY"]
 
-    validity_results[f"--- {name} (Text Only, n={len(df_text)}) ---"] = ""
-    validity_results.update(
-        get_metrics_bundle(df_text["human_rating"], df_text["original_sentiment"])
-    )
+    metrics = get_metrics_bundle(df_text["human_rating"], df_text["original_sentiment"])
 
+    # Aggiungiamo MAE manualmente al dizionario per stamparlo insieme
     mae = mean_absolute_error(df_text["original_sentiment"], df_text["human_rating"])
-    validity_results["MAE (Mean Absolute Error)"] = f"{mae:.3f} punti"
+    metrics["MAE (Mean Absolute Error)"] = f"{mae:.3f} punti"
 
-print_metrics_section("VALIDITÀ VS GOLD STANDARD (Ground Truth)", validity_results)
+    print_metrics_block(f"--- {name} (Text Only, n={len(df_text)}) ---", metrics)
 
 
 # --- 4. GENERAZIONE GRAFICI ---
@@ -172,7 +162,6 @@ for annotator in ["Daniele", "Luca"]:
     subset = agg_data[agg_data["Annotator"] == annotator].copy()
     style = styles[annotator]
 
-    # Riempie i NaN con 0 (per i punti singoli dove std non è calcolabile)
     subset["ci"] = subset["ci"].fillna(0)
 
     plt.errorbar(
