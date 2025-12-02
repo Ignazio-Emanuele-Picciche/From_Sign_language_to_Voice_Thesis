@@ -1,0 +1,24 @@
+============================================================
+ COERENZA INTERNA (Intra-rater)
+============================================================
+Kappa Audio-Text (Daniele)              : 0.531
+Kappa Audio-Text (Luca)                 : 0.543
+
+============================================================
+ AGREEMENT TRA ANNOTATORI (Inter-rater)
+============================================================
+Weighted Kappa (Globale)                : 0.461
+Weighted Kappa (AUDIO_ONLY)             : 0.340
+Weighted Kappa (TEXT_ONLY)              : 0.578
+
+============================================================
+ VALIDITÀ VS GOLD STANDARD (Text Only)
+============================================================
+--- Daniele ---                         : 
+Kappa vs GT (Daniele)                   : 0.551
+Pearson Corr (Daniele)                  : 0.785
+MAE Error (Daniele)                     : 0.963 punti
+--- Luca ---                            : 
+Kappa vs GT (Luca)                      : 0.505
+Pearson Corr (Luca)                     : 0.741
+MAE Error (Luca)                        : 1.185 punti

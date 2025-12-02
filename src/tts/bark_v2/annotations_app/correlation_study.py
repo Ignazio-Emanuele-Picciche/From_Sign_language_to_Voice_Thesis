@@ -159,23 +159,39 @@ plt.tight_layout()
 plt.savefig("src/tts/bark_v2/annotations_app/results/2_confusion_matrix.png")
 print("[Grafico salvato]: 2_confusion_matrix.png")
 
-# GRAFICO 3: Distribuzione Errori (Boxplot)
-df_plot["error"] = df_plot["human_rating"] - df_plot["original_sentiment"]
-plt.figure(figsize=(8, 6))
-sns.boxplot(x="Annotator", y="error", data=df_plot, palette="Set2", showmeans=True)
-plt.axhline(0, color="red", linestyle="--", alpha=0.7)
-plt.title("Distribuzione degli Errori (Human - GT)", fontsize=14)
-plt.ylabel("Errore (Punti)")
-plt.text(
-    0.5,
-    -2.8,
-    "Sotto 0 = Sottostima (Voto più basso del reale)\nSopra 0 = Sovrastima (Voto più alto del reale)",
-    ha="center",
-    fontsize=9,
-    bbox=dict(facecolor="white", alpha=0.8),
+# --- NUOVO GRAFICO 3: CONFRONTO ERRORE MEDIO (MAE) ---
+# Sostituisce il Box Plot
+plt.figure(figsize=(7, 6))
+
+# Dati manuali presi dai tuoi calcoli
+mae_values = [0.963, 1.185]
+annotators = ["Daniele", "Luca"]
+colors = ["#5DADE2", "#F5B041"]  # Blu e Arancione simili agli altri grafici
+
+bars = plt.bar(
+    annotators, mae_values, color=colors, width=0.5, edgecolor="black", alpha=0.8
 )
+
+# Aggiungiamo il numero sopra la barra
+for bar in bars:
+    yval = bar.get_height()
+    plt.text(
+        bar.get_x() + bar.get_width() / 2,
+        yval + 0.02,
+        f"{yval:.3f}",
+        ha="center",
+        va="bottom",
+        fontsize=12,
+        fontweight="bold",
+    )
+
+plt.title("Errore Medio Assoluto (MAE)", fontsize=14)
+plt.ylabel("Errore Medio (Punti)", fontsize=12)
+plt.ylim(0, 1.5)  # Diamo un po' di aria sopra
+plt.grid(axis="y", linestyle="--", alpha=0.6)
+
 plt.tight_layout()
-plt.savefig("src/tts/bark_v2/annotations_app/results/3_error_distribution.png")
-print("[Grafico salvato]: 3_error_distribution.png")
+plt.savefig("src/tts/bark_v2/annotations_app/results/3_mae_comparison.png")
+print("[Grafico salvato]: 3_mae_comparison.png")
 
 print("\nAnalisi Completata.")
