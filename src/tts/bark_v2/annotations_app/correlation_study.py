@@ -1,172 +1,181 @@
 import pandas as pd
-from sklearn.metrics import (
-    cohen_kappa_score,
-    mean_absolute_error,
-    classification_report,
-)
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import cohen_kappa_score, confusion_matrix, mean_absolute_error
 
-# 1. CARICAMENTO DATI
-# Sostituisci con i nomi reali dei tuoi file
-file1 = "src/tts/bark_v2/annotations_app/daniele_human_annotations.csv"
-file2 = "src/tts/bark_v2/annotations_app/luca_human_annotations.csv"  # Metti qui il nome del secondo file
+# --- CONFIGURAZIONE ---
+# Sostituisci con i tuoi file reali
+FILE_DANIELE = "src/tts/bark_v2/annotations_app/daniele_human_annotations.csv"
+FILE_LUCA = "src/tts/bark_v2/annotations_app/luca_human_annotations.csv"
 
-df1 = pd.read_csv(file1)
-df2 = pd.read_csv(file2)
+# Impostiamo stile grafico
+sns.set_theme(style="whitegrid")
+
+# --- FUNZIONI DI CALCOLO ---
 
 
-# Funzione helper per calcolare il Kappa Pesato
 def get_weighted_kappa(y1, y2):
-    # weights='linear' è ideale per scale ordinali come la tua (-3 a 3)
-    # weights='quadratic' penalizzerebbe ancora di più gli errori grandi
+    """Calcola il Kappa di Cohen con pesi lineari (ideale per scale ordinali -3 a +3)"""
     return cohen_kappa_score(y1, y2, weights="linear")
 
 
-# --- ANALISI 1: COERENZA INTERNA (AUDIO vs TESTO) ---
-def analyze_intra_coherence(df, annotator_name):
-    print(f"\n--- ANALISI COERENZA AUDIO vs TESTO: {annotator_name} ---")
+def print_metrics_section(title, metrics):
+    print(f"\n{'='*60}")
+    print(f" {title}")
+    print(f"{'='*60}")
+    for k, v in metrics.items():
+        print(f"{k:<40}: {v}")
 
-    # Separiamo e allineiamo Audio e Testo per lo stesso video
-    df_audio = df[df["presentation_mode"] == "AUDIO_ONLY"][
-        ["video_name", "human_rating"]
+
+# --- 1. CARICAMENTO DATI ---
+df1 = pd.read_csv(FILE_DANIELE)
+df2 = pd.read_csv(FILE_LUCA)
+df1["Annotator"] = "Daniele"
+df2["Annotator"] = "Luca"
+
+# --- 2. CALCOLO INDICI DI AGREEMENT (NUMERICI) ---
+
+# A) Coerenza Interna (Audio vs Testo) per Annotatore
+intra_results = {}
+for name, df in [("Daniele", df1), ("Luca", df2)]:
+    audio = df[df["presentation_mode"] == "AUDIO_ONLY"].set_index("video_name")[
+        "human_rating"
     ]
-    df_text = df[df["presentation_mode"] == "TEXT_ONLY"][["video_name", "human_rating"]]
+    text = df[df["presentation_mode"] == "TEXT_ONLY"].set_index("video_name")[
+        "human_rating"
+    ]
 
-    # Uniamo su video_name
-    merged = pd.merge(df_audio, df_text, on="video_name", suffixes=("_audio", "_text"))
+    # Allineiamo i dati
+    common = audio.index.intersection(text.index)
+    if len(common) > 0:
+        k = get_weighted_kappa(audio[common], text[common])
+        intra_results[f"Kappa Audio-Text ({name})"] = f"{k:.3f}"
+    else:
+        intra_results[f"Kappa Audio-Text ({name})"] = "N/A (Nessun video comune)"
 
-    if len(merged) == 0:
-        print("Errore: Non ci sono video corrispondenti con entrambe le modalità.")
-        return
-
-    kappa = get_weighted_kappa(
-        merged["human_rating_audio"], merged["human_rating_text"]
-    )
-
-    print(f"Coppie analizzate: {len(merged)}")
-    print(f"Weighted Cohen's Kappa: {kappa:.3f}")
+print_metrics_section("COERENZA INTERNA (Intra-rater)", intra_results)
 
 
-# Eseguiamo per entrambi gli annotatori
-analyze_intra_coherence(df1, "Daniele")
-analyze_intra_coherence(df2, "Luca")
-
-
-# --- ANALISI 2: AGREEMENT TRA ANNOTATORI (INTER-RATER) ---
-print(f"\n--- ANALISI AGREEMENT TRA ANNOTATORI (Daniele vs Luca) ---")
-
-# Uniamo i due annotatori assicurandoci di confrontare lo stesso video nello stesso modo
-df_inter = pd.merge(
+# B) Agreement tra Annotatori (Daniele vs Luca)
+inter_results = {}
+# Merge su video e modalità
+merged = pd.merge(
     df1, df2, on=["video_name", "presentation_mode"], suffixes=("_dan", "_luca")
 )
 
-# Calcolo globale
-kappa_global = get_weighted_kappa(
-    df_inter["human_rating_dan"], df_inter["human_rating_luca"]
-)
-print(f"Weighted Kappa Globale (Audio + Testo): {kappa_global:.3f}")
+# Kappa Globale
+k_global = get_weighted_kappa(merged["human_rating_dan"], merged["human_rating_luca"])
+inter_results["Weighted Kappa (Globale)"] = f"{k_global:.3f}"
 
-# Calcolo diviso per modalità (Opzionale, ma utile)
-df_inter_audio = df_inter[df_inter["presentation_mode"] == "AUDIO_ONLY"]
-df_inter_text = df_inter[df_inter["presentation_mode"] == "TEXT_ONLY"]
+# Kappa per Modalità
+for mode in ["AUDIO_ONLY", "TEXT_ONLY"]:
+    subset = merged[merged["presentation_mode"] == mode]
+    k_mode = get_weighted_kappa(subset["human_rating_dan"], subset["human_rating_luca"])
+    inter_results[f"Weighted Kappa ({mode})"] = f"{k_mode:.3f}"
 
-k_audio = get_weighted_kappa(
-    df_inter_audio["human_rating_dan"], df_inter_audio["human_rating_luca"]
-)
-k_text = get_weighted_kappa(
-    df_inter_text["human_rating_dan"], df_inter_text["human_rating_luca"]
-)
-
-print(f" -> Kappa solo Audio: {k_audio:.3f}")
-print(f" -> Kappa solo Testo: {k_text:.3f}")
+print_metrics_section("AGREEMENT TRA ANNOTATORI (Inter-rater)", inter_results)
 
 
-# --- NUOVA FUNZIONE ANALISI 3: VALIDITÀ VS ORIGINAL SENTIMENT ---
-def analyze_vs_ground_truth(df, annotator_name):
-    print(f"\n--- VALIDITÀ VS ORIGINAL SENTIMENT (Text Only): {annotator_name} ---")
-
-    # Filtriamo solo Text Only
+# C) Accuratezza vs Ground Truth (Solo TEXT_ONLY)
+validity_results = {}
+for name, df in [("Daniele", df1), ("Luca", df2)]:
+    # Filtro Text Only
     df_text = df[df["presentation_mode"] == "TEXT_ONLY"]
 
-    # 1. Correlazione di Pearson (Linearità)
-    # Utile per capire se al variare di uno varia anche l'altro
-    pearson = df_text["human_rating"].corr(
-        df_text["original_sentiment"], method="pearson"
-    )
-
-    # 2. Correlazione di Spearman (Rango)
-    # Più robusta per dati ordinali come i tuoi (-3 a +3), valuta se l'ordinamento è rispettato
-    spearman = df_text["human_rating"].corr(
-        df_text["original_sentiment"], method="spearman"
-    )
-
-    # 3. Mean Absolute Error (MAE)
-    # Ti dice l'errore medio in "punti". Es: 0.5 significa che sbagliano in media di mezzo voto.
+    # Metriche
+    k_gt = get_weighted_kappa(df_text["human_rating"], df_text["original_sentiment"])
     mae = mean_absolute_error(df_text["original_sentiment"], df_text["human_rating"])
+    corr = df_text["human_rating"].corr(df_text["original_sentiment"])
 
-    print(f"Correlazione Pearson (Trend Lineare): {pearson:.3f}")
-    print(f"Correlazione Spearman (Trend Rango):  {spearman:.3f}")
-    print(f"Errore Medio Assoluto (MAE):          {mae:.3f} punti")
+    validity_results[f"--- {name} ---"] = ""
+    validity_results[f"Kappa vs GT ({name})"] = f"{k_gt:.3f}"
+    validity_results[f"Pearson Corr ({name})"] = f"{corr:.3f}"
+    validity_results[f"MAE Error ({name})"] = f"{mae:.3f} punti"
 
-    # Interpretazione al volo
-    if pearson > 0.7:
-        print("-> Ottima validità: l'annotatore segue fedelmente il Gold Standard.")
-    elif pearson > 0.4:
-        print("-> Validità moderata: c'è una relazione ma con del rumore.")
-    else:
-        print(
-            "-> Bassa validità: l'annotatore sembra valutare cose diverse dal Gold Standard."
-        )
+print_metrics_section("VALIDITÀ VS GOLD STANDARD (Text Only)", validity_results)
 
 
-def analyze_per_class_performance(df, annotator_name):
-    print(f"\n==========================================")
-    print(f" ANALISI DETTAGLIATA PER CLASSE: {annotator_name}")
-    print(f"==========================================")
+# --- 3. GENERAZIONE GRAFICI ---
 
-    # Filtriamo solo TEXT_ONLY per il confronto col Gold Standard
-    data = df[df["presentation_mode"] == "TEXT_ONLY"].copy()
+# Prepariamo dataset unico per i grafici (Solo Text Only per confronto con GT)
+df_plot = pd.concat(
+    [
+        df1[df1["presentation_mode"] == "TEXT_ONLY"],
+        df2[df2["presentation_mode"] == "TEXT_ONLY"],
+    ]
+)
 
-    y_true = data["original_sentiment"]
-    y_pred = data["human_rating"]
+# GRAFICO 1: Bias Trend (Lineplot)
+plt.figure(figsize=(10, 6))
+sns.lineplot(
+    data=df_plot,
+    x="original_sentiment",
+    y="human_rating",
+    hue="Annotator",
+    style="Annotator",
+    markers=True,
+    dashes=False,
+    err_style="bars",
+    linewidth=2.5,
+    markersize=9,
+)
+plt.plot([-3, 3], [-3, 3], color="gray", linestyle="--", label="Perfect Match")
+plt.title("Trend del Bias: Gli annotatori seguono gli estremi?", fontsize=14)
+plt.xlabel("Original Sentiment (Ground Truth)")
+plt.ylabel("Voto Medio Assegnato")
+plt.legend()
+plt.tight_layout()
+plt.savefig("src/tts/bark_v2/annotations_app/results/1_bias_trend.png")
+print("\n[Grafico salvato]: 1_bias_trend.png")
 
-    # 1. REPORT DI CLASSIFICAZIONE (Precision, Recall, F1)
-    # Recall = Di tutti i veri -3, quanti ne ha beccati? (Questa è la metrica più importante per te)
-    print("\n--- 1. Accuratezza per Classe (Classification Report) ---")
-    # labels=[-3, -2, -1, 0, 1, 2, 3] forza l'output anche se alcune classi mancano
-    classes = sorted(list(set(y_true.unique()) | set(y_pred.unique())))
-    print(classification_report(y_true, y_pred, labels=classes, zero_division=0))
+# GRAFICO 2: Matrici di Confusione (Heatmap)
+fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
+classes = range(-3, 4)  # Da -3 a +3
 
-    # 2. ANALISI DEL BIAS (Errore Medio con Segno)
-    # Calcoliamo la differenza: (Voto Umano - Originale)
-    # Se originale è -3 e umano è -1, diff è +2 (ha sovrastimato/è stato più positivo)
-    data["diff"] = data["human_rating"] - data["original_sentiment"]
-
-    print("\n--- 2. Analisi del Bias (Come sbaglia?) ---")
-    print(
-        "Valore positivo (+) = L'annotatore ha dato un voto più alto del Gold Standard"
-    )
-    print(
-        "Valore negativo (-) = L'annotatore ha dato un voto più basso del Gold Standard"
-    )
-
-    bias_df = (
-        data.groupby("original_sentiment")["diff"]
-        .agg(["count", "mean", "std"])
-        .rename(
-            columns={
-                "count": "N. Video",
-                "mean": "Errore Medio (Bias)",
-                "std": "Deviazione Std",
-            }
-        )
+for i, annotator in enumerate(["Daniele", "Luca"]):
+    data = df_plot[df_plot["Annotator"] == annotator]
+    cm = confusion_matrix(
+        data["original_sentiment"], data["human_rating"], labels=classes
     )
 
-    print(bias_df.round(2))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        cbar=False,
+        xticklabels=classes,
+        yticklabels=classes,
+        ax=axes[i],
+    )
+    axes[i].set_title(f"{annotator}", fontsize=14)
+    axes[i].set_xlabel("Voto Assegnato")
+    if i == 0:
+        axes[i].set_ylabel("Voto Reale (GT)")
 
+plt.suptitle("Matrici di Confusione (Text Only)", fontsize=16)
+plt.tight_layout()
+plt.savefig("src/tts/bark_v2/annotations_app/results/2_confusion_matrix.png")
+print("[Grafico salvato]: 2_confusion_matrix.png")
 
-# analyze_vs_ground_truth(df1, "Daniele")
-# analyze_vs_ground_truth(df2, "Luca")
+# GRAFICO 3: Distribuzione Errori (Boxplot)
+df_plot["error"] = df_plot["human_rating"] - df_plot["original_sentiment"]
+plt.figure(figsize=(8, 6))
+sns.boxplot(x="Annotator", y="error", data=df_plot, palette="Set2", showmeans=True)
+plt.axhline(0, color="red", linestyle="--", alpha=0.7)
+plt.title("Distribuzione degli Errori (Human - GT)", fontsize=14)
+plt.ylabel("Errore (Punti)")
+plt.text(
+    0.5,
+    -2.8,
+    "Sotto 0 = Sottostima (Voto più basso del reale)\nSopra 0 = Sovrastima (Voto più alto del reale)",
+    ha="center",
+    fontsize=9,
+    bbox=dict(facecolor="white", alpha=0.8),
+)
+plt.tight_layout()
+plt.savefig("src/tts/bark_v2/annotations_app/results/3_error_distribution.png")
+print("[Grafico salvato]: 3_error_distribution.png")
 
-
-analyze_per_class_performance(df1, "Daniele")
-analyze_per_class_performance(df2, "Luca")
+print("\nAnalisi Completata.")
