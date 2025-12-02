@@ -19,8 +19,11 @@ def get_metrics_bundle(y1, y2, prefix=""):
     if len(y1) == 0 or len(y2) == 0:
         return {f"{prefix}Status": "Insufficient Data"}
 
+    # Pesi per Cohen's Kappa
     kappa_unweighted = cohen_kappa_score(y1, y2, weights=None)
     kappa_weighted = cohen_kappa_score(y1, y2, weights="linear")
+
+    # Correlazioni
     pearson = y1.corr(y2, method="pearson")
     spearman = y1.corr(y2, method="spearman")
 
@@ -50,7 +53,7 @@ df2 = pd.read_csv(FILE_LUCA)
 df1["Annotator"] = "Daniele"
 df2["Annotator"] = "Luca"
 
-# --- 2. FILTRAGGIO INTELLIGENTE (Solo Audio Bad) ---
+# --- 2. FILTRAGGIO RIGOROSO (Rimuovi TUTTO il video se Audio Bad) ---
 
 # Identifichiamo i video corrotti (segnalati da ALMENO UNO dei due)
 bad_videos_daniele = df1[df1["is_audio_bad"] == True]["video_name"].unique()
@@ -60,19 +63,11 @@ all_bad_videos = set(bad_videos_daniele).union(set(bad_videos_luca))
 print(f"Dataset Totale Iniziale: Daniele={len(df1)}, Luca={len(df2)}")
 print(f"Video con audio corrotto identificati: {len(all_bad_videos)}")
 
+# Rimuoviamo COMPLETAMENTE i video dalla lista nera (sia Audio che Testo)
+df1 = df1[~df1["video_name"].isin(all_bad_videos)].copy()
+df2 = df2[~df2["video_name"].isin(all_bad_videos)].copy()
 
-def clean_dataset(df, bad_list):
-    # Rimuoviamo la riga SOLO SE è un video cattivo E la modalità è AUDIO
-    to_drop = (df["video_name"].isin(bad_list)) & (
-        df["presentation_mode"] == "AUDIO_ONLY"
-    )
-    return df[~to_drop].copy()
-
-
-df1 = clean_dataset(df1, all_bad_videos)
-df2 = clean_dataset(df2, all_bad_videos)
-
-print(f"Dataset Filtrato (Text preservato): Daniele={len(df1)}, Luca={len(df2)}")
+print(f"Dataset Filtrato (Clean): Daniele={len(df1)}, Luca={len(df2)}")
 
 
 # --- 3. CALCOLO E STAMPA METRICHE ---
@@ -126,8 +121,11 @@ for name, df in [("Daniele", df1), ("Luca", df2)]:
     metrics = get_metrics_bundle(df_text["human_rating"], df_text["original_sentiment"])
 
     # Aggiungiamo MAE manualmente al dizionario per stamparlo insieme
-    mae = mean_absolute_error(df_text["original_sentiment"], df_text["human_rating"])
-    metrics["MAE (Mean Absolute Error)"] = f"{mae:.3f} punti"
+    if len(df_text) > 0:
+        mae = mean_absolute_error(
+            df_text["original_sentiment"], df_text["human_rating"]
+        )
+        metrics["MAE (Mean Absolute Error)"] = f"{mae:.3f} punti"
 
     print_metrics_block(f"--- {name} (Text Only, n={len(df_text)}) ---", metrics)
 
@@ -158,10 +156,10 @@ styles = {
 }
 
 for annotator in ["Daniele", "Luca"]:
-    # FIX: Usiamo .copy() per evitare il SettingWithCopyWarning
     subset = agg_data[agg_data["Annotator"] == annotator].copy()
     style = styles[annotator]
 
+    # Fill NaN per evitare errori grafici su punti singoli
     subset["ci"] = subset["ci"].fillna(0)
 
     plt.errorbar(
