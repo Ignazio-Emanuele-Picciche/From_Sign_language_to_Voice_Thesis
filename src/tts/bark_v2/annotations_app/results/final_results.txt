@@ -16,9 +16,8 @@ Weighted Kappa (TEXT_ONLY)              : 0.578
 ============================================================
 --- Daniele ---                         : 
 Kappa vs GT (Daniele)                   : 0.551
-Pearson Corr (Daniele)                  : 0.785
+-- todo spearman
 MAE Error (Daniele)                     : 0.963 punti
 --- Luca ---                            : 
 Kappa vs GT (Luca)                      : 0.505
-Pearson Corr (Luca)                     : 0.741
 MAE Error (Luca)                        : 1.185 punti

@@ -96,7 +96,7 @@ for name, df in [("Daniele", df1), ("Luca", df2)]:
 print_metrics_section("VALIDITÀ VS GOLD STANDARD (Text Only)", validity_results)
 
 
-# --- 3. GENERAZIONE GRAFICI ---
+# --- 3. GENERAZIONE GRAFICI AGGIORNATA ---
 
 # Prepariamo dataset unico per i grafici (Solo Text Only per confronto con GT)
 df_plot = pd.concat(
@@ -106,30 +106,76 @@ df_plot = pd.concat(
     ]
 )
 
-# GRAFICO 1: Bias Trend (Lineplot)
+# --- GRAFICO 1: BIAS TREND (Metodo "Manuale" per allineamento perfetto) ---
+# Questo metodo calcola prima le medie e poi usa plt.errorbar.
+# Risolve definitivamente il problema dell'asse sfalsato e della sovrapposizione.
+
 plt.figure(figsize=(10, 6))
-sns.lineplot(
-    data=df_plot,
-    x="original_sentiment",
-    y="human_rating",
-    hue="Annotator",
-    style="Annotator",
-    markers=True,
-    dashes=False,
-    err_style="bars",
-    linewidth=2.5,
-    markersize=9,
+
+# 1. Aggreghiamo i dati per calcolare Media e Intervallo di Confidenza (CI)
+# Calcoliamo media e errore standard (sem) per ogni punto
+agg_data = (
+    df_plot.groupby(["Annotator", "original_sentiment"])["human_rating"]
+    .agg(["mean", "count", "std"])
+    .reset_index()
 )
-plt.plot([-3, 3], [-3, 3], color="gray", linestyle="--", label="Perfect Match")
-plt.title("Trend del Bias: Gli annotatori seguono gli estremi?", fontsize=14)
-plt.xlabel("Original Sentiment (Ground Truth)")
-plt.ylabel("Voto Medio Assegnato")
-plt.legend()
+# Calcoliamo l'intervallo di confidenza al 95% (1.96 * std / sqrt(n))
+agg_data["ci"] = 1.96 * agg_data["std"] / np.sqrt(agg_data["count"])
+
+# 2. Impostiamo i colori e gli stili
+styles = {
+    "Daniele": {
+        "color": "#4477AA",
+        "marker": "o",
+        "shift": -0.15,
+    },  # Daniele spostato a sx
+    "Luca": {"color": "#CC6677", "marker": "s", "shift": +0.15},  # Luca spostato a dx
+}
+
+# 3. Disegniamo manualmente le linee con errorbar
+for annotator in ["Daniele", "Luca"]:
+    subset = agg_data[agg_data["Annotator"] == annotator]
+    style = styles[annotator]
+
+    # Applichiamo lo shift (jitter) all'asse X per evitare sovrapposizioni
+    x_shifted = subset["original_sentiment"] + style["shift"]
+
+    plt.errorbar(
+        x=x_shifted,
+        y=subset["mean"],
+        yerr=subset["ci"],
+        label=annotator,
+        fmt=f"-{style['marker']}",  # Linea + Marker
+        color=style["color"],
+        linewidth=2.5,
+        markersize=8,
+        capsize=5,  # Cappuccetti alle barre di errore
+        alpha=0.9,
+    )
+
+# 4. Linea diagonale perfetta (Ground Truth)
+# Ora che l'asse è numerico, questa linea sarà perfettamente allineata
+plt.plot(
+    [-3, 3], [-3, 3], color="gray", linestyle=":", label="Perfect Match (GT)", zorder=0
+)
+
+# 5. Rifiniture grafiche
+plt.title("Trend del Bias: Gli annotatori sottostimano gli estremi", fontsize=14)
+plt.xlabel("Sentiment Reale (Original Ground Truth)", fontsize=12)
+plt.ylabel("Voto Assegnato (Media)", fontsize=12)
+plt.legend(title="Annotatore", loc="upper left")
+plt.grid(True, linestyle="--", alpha=0.6)
+
+# Forziamo gli assi a mostrare tutti i numeri interi da -3 a 3
+plt.xticks(range(-3, 4))
+plt.yticks(range(-3, 4))
+
 plt.tight_layout()
 plt.savefig("src/tts/bark_v2/annotations_app/results/1_bias_trend.png")
-print("\n[Grafico salvato]: 1_bias_trend.png")
+print("\n[Grafico salvato]: 1_bias_trend.png (Versione corretta)")
 
-# GRAFICO 2: Matrici di Confusione (Heatmap)
+
+# --- GRAFICO 2: MATRICI DI CONFUSIONE (Invariato) ---
 fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=True)
 classes = range(-3, 4)  # Da -3 a +3
 
@@ -159,17 +205,27 @@ plt.tight_layout()
 plt.savefig("src/tts/bark_v2/annotations_app/results/2_confusion_matrix.png")
 print("[Grafico salvato]: 2_confusion_matrix.png")
 
-# --- NUOVO GRAFICO 3: CONFRONTO ERRORE MEDIO (MAE) ---
-# Sostituisce il Box Plot
-plt.figure(figsize=(7, 6))
 
-# Dati manuali presi dai tuoi calcoli
-mae_values = [0.963, 1.185]
-annotators = ["Daniele", "Luca"]
-colors = ["#5DADE2", "#F5B041"]  # Blu e Arancione simili agli altri grafici
+# --- GRAFICO 3: CONFRONTO ERRORE MEDIO (MAE) - NUOVO ---
+# Calcoliamo il MAE dinamicamente dai dati
+mae_data = []
+for name in ["Daniele", "Luca"]:
+    sub_df = df_plot[df_plot["Annotator"] == name]
+    val = mean_absolute_error(sub_df["original_sentiment"], sub_df["human_rating"])
+    mae_data.append({"Annotator": name, "MAE": val})
+
+df_mae = pd.DataFrame(mae_data)
+
+plt.figure(figsize=(7, 6))
+colors = ["#5DADE2", "#F5B041"]  # Blu e Arancione
 
 bars = plt.bar(
-    annotators, mae_values, color=colors, width=0.5, edgecolor="black", alpha=0.8
+    df_mae["Annotator"],
+    df_mae["MAE"],
+    color=colors,
+    width=0.5,
+    edgecolor="black",
+    alpha=0.8,
 )
 
 # Aggiungiamo il numero sopra la barra
@@ -187,7 +243,7 @@ for bar in bars:
 
 plt.title("Errore Medio Assoluto (MAE)", fontsize=14)
 plt.ylabel("Errore Medio (Punti)", fontsize=12)
-plt.ylim(0, 1.5)  # Diamo un po' di aria sopra
+plt.ylim(0, df_mae["MAE"].max() + 0.5)  # Scala dinamica
 plt.grid(axis="y", linestyle="--", alpha=0.6)
 
 plt.tight_layout()
