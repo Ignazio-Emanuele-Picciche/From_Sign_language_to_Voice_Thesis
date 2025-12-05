@@ -29,6 +29,13 @@ Esecuzione predizione probabilità...
 weighted avg       0.87      0.78      0.81       200
 
 
+--- Confusion Matrix ---
+[[86 16 19]
+ [ 1  0  2]
+ [ 3  4 69]]
+
+Classes order: ['Negative' 'Neutral' 'Positive']
+
 📊 Matrice salvata in: src/models/three_classes/text_plus_video_metalearner_to_sentiment/figures/metalearner/final_test_confusion_matrix.png
 
 Generazione file predizioni per Bark TTS...

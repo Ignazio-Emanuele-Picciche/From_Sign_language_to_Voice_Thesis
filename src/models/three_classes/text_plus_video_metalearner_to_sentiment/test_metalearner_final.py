@@ -154,7 +154,11 @@ def main():
     print(classification_report(y_true, y_pred, target_names=le.classes_))
 
     # Matrice di Confusione
+    print("\n--- Confusion Matrix ---")
     cm = confusion_matrix(y_true, y_pred)
+    print(cm)
+    print(f"\nClasses order: {le.classes_}")
+
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
 
     fig, ax = plt.subplots(figsize=(8, 6))
