@@ -151,13 +151,16 @@ agg_data = (
 agg_data["ci"] = 1.96 * agg_data["std"] / np.sqrt(agg_data["count"])
 
 styles = {
-    "Daniele": {"color": "#4477AA", "marker": "o", "shift": -0.15},
-    "Luca": {"color": "#CC6677", "marker": "s", "shift": +0.15},
+    "Annotatore 1": {"color": "#4477AA", "marker": "o", "shift": -0.15},
+    "Annotatore 2": {"color": "#CC6677", "marker": "s", "shift": +0.15},
 }
 
-for annotator in ["Daniele", "Luca"]:
+for annotator, anonymized_name in [
+    ("Daniele", "Annotatore 1"),
+    ("Luca", "Annotatore 2"),
+]:
     subset = agg_data[agg_data["Annotator"] == annotator].copy()
-    style = styles[annotator]
+    style = styles[anonymized_name]
 
     # Fill NaN per evitare errori grafici su punti singoli
     subset["ci"] = subset["ci"].fillna(0)
@@ -166,7 +169,7 @@ for annotator in ["Daniele", "Luca"]:
         x=subset["original_sentiment"] + style["shift"],
         y=subset["mean"],
         yerr=subset["ci"],
-        label=annotator,
+        label=anonymized_name,
         fmt=f"-{style['marker']}",
         color=style["color"],
         linewidth=2.5,
@@ -222,11 +225,12 @@ print("[Grafico salvato]: 2_confusion_matrix.png")
 
 # --- GRAFICO 3: MAE Comparison ---
 mae_data = []
-for name in ["Daniele", "Luca"]:
+# Replace annotator names with anonymized labels
+for name, anonymized_name in [("Daniele", "Annotatore 1"), ("Luca", "Annotatore 2")]:
     sub_df = df_plot[df_plot["Annotator"] == name]
     if len(sub_df) > 0:
         val = mean_absolute_error(sub_df["original_sentiment"], sub_df["human_rating"])
-        mae_data.append({"Annotator": name, "MAE": val})
+        mae_data.append({"Annotator": anonymized_name, "MAE": val})
 
 df_mae = pd.DataFrame(mae_data)
 
@@ -253,7 +257,7 @@ for bar in bars:
         fontweight="bold",
     )
 
-plt.title("Errore Medio Assoluto (MAE)\n(Più basso è meglio)", fontsize=14)
+plt.title("Errore Medio Assoluto (MAE)", fontsize=14)
 plt.ylabel("Errore Medio (Punti)", fontsize=12)
 if not df_mae.empty:
     plt.ylim(0, df_mae["MAE"].max() + 0.5)
