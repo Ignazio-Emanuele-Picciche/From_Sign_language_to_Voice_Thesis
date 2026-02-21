@@ -1,4 +1,4 @@
-# Improved_EmoSign_Thesis
+# FROM SIGN LANGUAGE TO VOICE: DEVELOPMENT OF A PIPELINE FOR EXPRESSIVE SPEECH SYNTHESIS 
 
 - **Thesis PDF**  
   [`Tesi_ISI_Ignazio_Emanuele_Picciche.pdf`](Tesi_ISI_Ignazio_Emanuele_Picciche.pdf)
